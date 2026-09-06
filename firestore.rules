@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "hamidocan0411@gmail.com" ||
+        request.auth.token.email == "admin@trustline.express" ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isCourier() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/couriers/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'courier'
+      );
+    }
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Pricing collection
+    match /pricing/{configId} {
+      allow read: if true; // public pricing calculation
+      allow write: if isAdmin();
+    }
+
+    // Orders collection
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && (
+        resource.data.customerId == request.auth.uid ||
+        resource.data.courierId == request.auth.uid ||
+        isAdmin() ||
+        (isCourier() && resource.data.status == 'Kurye Bekleniyor')
+      );
+
+      allow create: if isSignedIn() && request.resource.data.customerId == request.auth.uid;
+
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (resource.data.customerId == request.auth.uid && request.resource.data.status == 'İptal Edildi') ||
+        (resource.data.courierId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'note', 'deliveredAt', 'receiverName', 'deliveryNote', 'deliveryPhoto', 'signature', 'deliveryProof']))
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // Courier locations collection
+    match /courierLocations/{courierId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == courierId ||
+        isAdmin() ||
+        resource.data.isSharing == true
+      );
+      allow write: if isSignedIn() && (
+        request.auth.uid == courierId ||
+        isAdmin()
+      );
+    }
+
+    // Notifications collection
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+  }
+}

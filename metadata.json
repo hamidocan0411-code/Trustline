@@ -1,0 +1,12 @@
+{
+  "name": "Trustline Express",
+  "description": "Mobil öncelikli profesyonel kurye yönetim platformu ve yapay zeka asistanı",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
+
