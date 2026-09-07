@@ -1,8 +1,9 @@
 import type {
-  User,
+  UserProfile,
   Order,
-  Notification,
+  NotificationItem,
   CourierLocation,
+  PricingConfig,
 } from "../types";
 
 import {
@@ -23,7 +24,10 @@ const KEYS = {
   notifications: "trustline_notifications",
   locations: "trustline_locations",
   currentUser: "trustline_current_user",
+  pricing: "trustline_pricing",
 };
+
+type Listener = () => void;
 
 function load<T>(key: string, fallback: T): T {
   try {
@@ -44,30 +48,32 @@ function save<T>(key: string, value: T): void {
 }
 
 class StorageService {
-  private users: User[];
+  private users: UserProfile[];
   private orders: Order[];
-  private notifications: Notification[];
+  private notifications: NotificationItem[];
   private locations: CourierLocation[];
-  private currentUser: User | null;
+  private currentUser: UserProfile;
+  private pricing: PricingConfig;
+  private listeners: Listener[] = [];
 
   constructor() {
-    const initialUsers = [
+    const initialUsers: UserProfile[] = [
       ...SEED_CUSTOMERS,
       ...SEED_COURIERS,
       SEED_ADMIN,
-    ] as User[];
+    ];
 
-    this.users = load<User[]>(
+    this.users = load<UserProfile[]>(
       KEYS.users,
       initialUsers
     );
 
     this.orders = load<Order[]>(
       KEYS.orders,
-      SEED_ORDERS
+      [...SEED_ORDERS]
     );
 
-    this.notifications = load<Notification[]>(
+    this.notifications = load<NotificationItem[]>(
       KEYS.notifications,
       []
     );
@@ -77,32 +83,77 @@ class StorageService {
       []
     );
 
-    this.currentUser = load<User | null>(
+    this.pricing = load<PricingConfig>(
+      KEYS.pricing,
+      DEFAULT_PRICING
+    );
+
+    const savedUser = load<UserProfile | null>(
       KEYS.currentUser,
       null
     );
+
+    this.currentUser =
+      savedUser ||
+      this.users.find(
+        (user) => user.role === "customer"
+      ) ||
+      this.users[0];
 
     save(KEYS.users, this.users);
     save(KEYS.orders, this.orders);
     save(KEYS.notifications, this.notifications);
     save(KEYS.locations, this.locations);
+    save(KEYS.pricing, this.pricing);
+    save(KEYS.currentUser, this.currentUser);
   }
 
-  // -------------------------
-  // USERS
-  // -------------------------
+  // =====================================================
+  // SUBSCRIBE
+  // =====================================================
 
-  getUsers(): User[] {
+  subscribe(listener: Listener): () => void {
+    this.listeners.push(listener);
+
+    return () => {
+      this.listeners =
+        this.listeners.filter(
+          (item) => item !== listener
+        );
+    };
+  }
+
+  private notify(): void {
+    this.listeners.forEach(
+      (listener) => {
+        try {
+          listener();
+        } catch {
+          // Listener hatası uygulamayı durdurmasın.
+        }
+      }
+    );
+  }
+
+  // =====================================================
+  // USERS
+  // =====================================================
+
+  getUsers(): UserProfile[] {
     return this.users;
   }
 
-  getUserById(id: string): User | undefined {
+  getUserById(
+    id: string
+  ): UserProfile | undefined {
     return this.users.find(
       (user) => user.id === id
     );
   }
 
-  getUserByEmail(email: string): User | undefined {
+  getUserByEmail(
+    email: string
+  ): UserProfile | undefined {
     return this.users.find(
       (user) =>
         user.email?.toLowerCase() ===
@@ -110,10 +161,13 @@ class StorageService {
     );
   }
 
-  saveUser(user: User): User {
-    const index = this.users.findIndex(
-      (u) => u.id === user.id
-    );
+  saveUser(
+    user: UserProfile
+  ): UserProfile {
+    const index =
+      this.users.findIndex(
+        (item) => item.id === user.id
+      );
 
     if (index >= 0) {
       this.users[index] = user;
@@ -123,45 +177,116 @@ class StorageService {
 
     save(KEYS.users, this.users);
 
+    if (
+      this.currentUser &&
+      this.currentUser.id === user.id
+    ) {
+      this.currentUser = user;
+
+      save(
+        KEYS.currentUser,
+        this.currentUser
+      );
+    }
+
+    this.notify();
+
     return user;
   }
 
   deleteUser(id: string): void {
-    this.users = this.users.filter(
-      (user) => user.id !== id
-    );
+    this.users =
+      this.users.filter(
+        (user) => user.id !== id
+      );
 
     save(KEYS.users, this.users);
+
+    this.notify();
   }
 
-  // -------------------------
+  // =====================================================
   // CURRENT USER
-  // -------------------------
+  // =====================================================
 
-  getCurrentUser(): User | null {
+  getCurrentUser(): UserProfile {
     return this.currentUser;
   }
 
-  setCurrentUser(user: User | null): void {
+  setCurrentUser(
+    user: UserProfile
+  ): void {
     this.currentUser = user;
+
+    const existingIndex =
+      this.users.findIndex(
+        (item) => item.id === user.id
+      );
+
+    if (existingIndex >= 0) {
+      this.users[existingIndex] = user;
+    } else {
+      this.users.push(user);
+    }
 
     save(
       KEYS.currentUser,
-      user
+      this.currentUser
     );
+
+    save(
+      KEYS.users,
+      this.users
+    );
+
+    this.notify();
   }
 
   logout(): void {
-    this.currentUser = null;
+    const defaultUser =
+      this.users.find(
+        (user) => user.role === "customer"
+      ) ||
+      this.users[0];
 
-    localStorage.removeItem(
-      KEYS.currentUser
+    this.currentUser = defaultUser;
+
+    save(
+      KEYS.currentUser,
+      this.currentUser
     );
+
+    this.notify();
   }
 
-  // -------------------------
+  // =====================================================
+  // PRICING
+  // =====================================================
+
+  getPricing(): PricingConfig {
+    return this.pricing;
+  }
+
+  setPricing(
+    pricing: PricingConfig
+  ): void {
+    this.pricing = {
+      ...pricing,
+      updatedAt:
+        new Date().toISOString(),
+    };
+
+    save(
+      KEYS.pricing,
+      this.pricing
+    );
+
+    this.notify();
+  }
+
+  // =====================================================
   // ORDERS
-  // -------------------------
+  // =====================================================
 
   getOrders(): Order[] {
     return this.orders;
@@ -193,54 +318,75 @@ class StorageService {
     );
   }
 
-  saveOrder(order: Order): Order {
-    const index = this.orders.findIndex(
-      (o) => o.id === order.id
-    );
+  saveOrder(
+    order: Order
+  ): Order {
+    const index =
+      this.orders.findIndex(
+        (item) => item.id === order.id
+      );
+
+    const updatedOrder = {
+      ...order,
+      updatedAt:
+        new Date().toISOString(),
+    } as Order;
 
     if (index >= 0) {
-      this.orders[index] = order;
+      this.orders[index] =
+        updatedOrder;
     } else {
-      this.orders.unshift(order);
+      this.orders.unshift(
+        updatedOrder
+      );
     }
 
-    save(KEYS.orders, this.orders);
+    save(
+      KEYS.orders,
+      this.orders
+    );
 
-    return order;
+    this.notify();
+
+    return updatedOrder;
   }
 
   updateOrder(
     id: string,
     updates: Partial<Order>
   ): Order | undefined {
-    const order = this.getOrderById(id);
+    const order =
+      this.getOrderById(id);
 
     if (!order) {
       return undefined;
     }
 
-    const updatedOrder = {
+    return this.saveOrder({
       ...order,
       ...updates,
-      updatedAt: new Date().toISOString(),
-    };
-
-    this.saveOrder(updatedOrder);
-
-    return updatedOrder;
+    } as Order);
   }
 
-  deleteOrder(id: string): void {
-    this.orders = this.orders.filter(
-      (order) => order.id !== id
+  deleteOrder(
+    id: string
+  ): void {
+    this.orders =
+      this.orders.filter(
+        (order) => order.id !== id
+      );
+
+    save(
+      KEYS.orders,
+      this.orders
     );
 
-    save(KEYS.orders, this.orders);
+    this.notify();
   }
 
-  // -------------------------
+  // =====================================================
   // CREATE ORDER
-  // -------------------------
+  // =====================================================
 
   createOrder(
     data: Partial<Order>
@@ -265,17 +411,17 @@ class StorageService {
       data.courierType ||
       "Standart Kurye";
 
-    const calculatedPrice =
+    const calculated =
       calculateOrderPrice(
         distanceKm,
         courierType,
-        DEFAULT_PRICING
+        this.pricing
       );
 
     const price =
       typeof data.price === "number"
         ? data.price
-        : calculatedPrice.finalPrice;
+        : calculated.finalPrice;
 
     const now =
       new Date().toISOString();
@@ -299,9 +445,7 @@ class StorageService {
         data.createdAt ||
         now,
 
-      updatedAt:
-        data.updatedAt ||
-        now,
+      updatedAt: now,
     } as Order;
 
     this.orders.unshift(order);
@@ -311,16 +455,18 @@ class StorageService {
       this.orders
     );
 
+    this.notify();
+
     return order;
   }
 
-  // -------------------------
+  // =====================================================
   // NOTIFICATIONS
-  // -------------------------
+  // =====================================================
 
   getNotifications(
     userId?: string
-  ): Notification[] {
+  ): NotificationItem[] {
     if (!userId) {
       return this.notifications;
     }
@@ -333,7 +479,7 @@ class StorageService {
   }
 
   addNotification(
-    notification: Notification
+    notification: NotificationItem
   ): void {
     this.notifications.unshift(
       notification
@@ -343,6 +489,8 @@ class StorageService {
       KEYS.notifications,
       this.notifications
     );
+
+    this.notify();
   }
 
   markNotificationRead(
@@ -363,6 +511,8 @@ class StorageService {
       KEYS.notifications,
       this.notifications
     );
+
+    this.notify();
   }
 
   markAllNotificationsRead(
@@ -371,8 +521,10 @@ class StorageService {
     this.notifications =
       this.notifications.map(
         (notification) =>
-          notification.userId === userId ||
-          notification.userId === "all"
+          notification.userId ===
+            userId ||
+          notification.userId ===
+            "all"
             ? {
                 ...notification,
                 read: true,
@@ -384,11 +536,13 @@ class StorageService {
       KEYS.notifications,
       this.notifications
     );
+
+    this.notify();
   }
 
-  // -------------------------
+  // =====================================================
   // COURIER LOCATIONS
-  // -------------------------
+  // =====================================================
 
   getCourierLocations(): CourierLocation[] {
     return this.locations;
@@ -399,7 +553,8 @@ class StorageService {
   ): CourierLocation | undefined {
     return this.locations.find(
       (location) =>
-        location.courierId === courierId
+        location.courierId ===
+        courierId
     );
   }
 
@@ -426,11 +581,13 @@ class StorageService {
       KEYS.locations,
       this.locations
     );
+
+    this.notify();
   }
 
-  // -------------------------
+  // =====================================================
   // ASSIGN COURIER
-  // -------------------------
+  // =====================================================
 
   assignCourier(
     orderId: string,
@@ -455,6 +612,10 @@ class StorageService {
         courier?.name ||
         order.courierName,
 
+      courierPhone:
+        courier?.phone ||
+        order.courierPhone,
+
       status:
         "Kurye Atandı",
 
@@ -462,8 +623,17 @@ class StorageService {
         new Date().toISOString(),
     } as Order;
 
-    this.saveOrder(
-      updatedOrder
+    this.orders =
+      this.orders.map(
+        (item) =>
+          item.id === orderId
+            ? updatedOrder
+            : item
+      );
+
+    save(
+      KEYS.orders,
+      this.orders
     );
 
     this.addNotification({
@@ -478,20 +648,22 @@ class StorageService {
         "Yeni Görev",
 
       message:
-        `Yeni bir teslimat görevi size atandı. Sipariş: ${orderId}`,
+        `Yeni teslimat görevi atandı. Sipariş: ${orderId}`,
 
       read: false,
 
       createdAt:
         new Date().toISOString(),
-    } as Notification);
+    } as NotificationItem);
+
+    this.notify();
 
     return updatedOrder;
   }
 
-  // -------------------------
+  // =====================================================
   // DELIVER ORDER
-  // -------------------------
+  // =====================================================
 
   markOrderDelivered(
     orderId: string,
@@ -520,8 +692,17 @@ class StorageService {
         new Date().toISOString(),
     } as Order;
 
-    this.saveOrder(
-      updatedOrder
+    this.orders =
+      this.orders.map(
+        (item) =>
+          item.id === orderId
+            ? updatedOrder
+            : item
+      );
+
+    save(
+      KEYS.orders,
+      this.orders
     );
 
     if (order.customerId) {
@@ -543,22 +724,24 @@ class StorageService {
 
         createdAt:
           new Date().toISOString(),
-      } as Notification);
+      } as NotificationItem);
     }
+
+    this.notify();
 
     return updatedOrder;
   }
 
-  // -------------------------
+  // =====================================================
   // RESET
-  // -------------------------
+  // =====================================================
 
   reset(): void {
-    const initialUsers = [
+    const initialUsers: UserProfile[] = [
       ...SEED_CUSTOMERS,
       ...SEED_COURIERS,
       SEED_ADMIN,
-    ] as User[];
+    ];
 
     this.users = [
       ...initialUsers,
@@ -572,7 +755,18 @@ class StorageService {
 
     this.locations = [];
 
-    this.currentUser = null;
+    this.pricing = {
+      ...DEFAULT_PRICING,
+      updatedAt:
+        new Date().toISOString(),
+    };
+
+    this.currentUser =
+      this.users.find(
+        (user) =>
+          user.role === "customer"
+      ) ||
+      this.users[0];
 
     save(
       KEYS.users,
@@ -594,9 +788,17 @@ class StorageService {
       this.locations
     );
 
-    localStorage.removeItem(
-      KEYS.currentUser
+    save(
+      KEYS.pricing,
+      this.pricing
     );
+
+    save(
+      KEYS.currentUser,
+      this.currentUser
+    );
+
+    this.notify();
   }
 }
 
