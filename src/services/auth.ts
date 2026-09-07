@@ -15,9 +15,7 @@ import {
 
 import { auth, db } from "./firebase";
 
-import type {
-  UserProfile,
-} from "../types";
+import type { UserProfile } from "../types";
 
 const ADMIN_EMAIL =
   "hamidocan0411@gmail.com";
@@ -48,11 +46,9 @@ function createProfile(
       existing?.phone ||
       "",
 
-    role:
-      isAdmin
-        ? "admin"
-        : existing?.role ||
-          "customer",
+    role: isAdmin
+      ? "admin"
+      : existing?.role || "customer",
 
     avatar:
       existing?.avatar ||
@@ -69,12 +65,10 @@ function createProfile(
       existing?.courierStatus,
 
     totalDeliveries:
-      existing?.totalDeliveries ||
-      0,
+      existing?.totalDeliveries || 0,
 
     rating:
-      existing?.rating ||
-      5,
+      existing?.rating || 5,
 
     createdAt:
       existing?.createdAt ||
@@ -96,10 +90,7 @@ export async function ensureUserProfile(
       snapshot.data() as Partial<UserProfile>;
 
     const profile =
-      createProfile(
-        user,
-        existing
-      );
+      createProfile(user, existing);
 
     if (
       user.email?.toLowerCase() ===
@@ -115,9 +106,7 @@ export async function ensureUserProfile(
           updatedAt:
             new Date().toISOString(),
         },
-        {
-          merge: true,
-        }
+        { merge: true }
       );
     }
 
@@ -152,8 +141,7 @@ export async function registerUser(
     credential.user;
 
   await updateProfile(user, {
-    displayName:
-      name.trim(),
+    displayName: name.trim(),
   });
 
   const profile =
@@ -222,25 +210,20 @@ export async function logoutUser(): Promise<void> {
 export function subscribeToAuth(
   callback: (
     user: User | null,
-    profile?: UserProfile | null
+    profile: UserProfile | null
   ) => void
 ) {
   return onAuthStateChanged(
     auth,
     async (user) => {
       if (!user) {
-        callback(
-          null,
-          null
-        );
+        callback(null, null);
         return;
       }
 
       try {
         const profile =
-          await ensureUserProfile(
-            user
-          );
+          await ensureUserProfile(user);
 
         callback(
           user,
