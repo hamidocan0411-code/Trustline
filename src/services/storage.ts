@@ -835,6 +835,7 @@ class StorageService {
   }
 }
 
-export const storage = new StorageService();
+const storage = new StorageService();
 
+export { storage };
 export default storage;
