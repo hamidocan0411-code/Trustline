@@ -4,7 +4,6 @@ import {
   AlertCircle,
   BarChart3,
   CheckCircle2,
-  ChevronRight,
   DollarSign,
   MapPin,
   Package,
@@ -125,9 +124,10 @@ export const AdminPanel: React.FC<Props> = ({
   const [vipMultiplier, setVipMultiplier] =
     useState(pricing?.vipMultiplier ?? 1.6);
 
-  const safeOrders = Array.isArray(orders)
-    ? orders
-    : [];
+  const safeOrders =
+    Array.isArray(orders)
+      ? orders
+      : [];
 
   useEffect(() => {
     setPerKmPrice(
@@ -147,27 +147,37 @@ export const AdminPanel: React.FC<Props> = ({
     );
   }, [pricing]);
 
+  const loadUsers = () => {
+    try {
+      const nextCouriers =
+        storage.getCouriers();
+
+      const nextCustomers =
+        storage.getCustomers();
+
+      setCouriers(
+        Array.isArray(nextCouriers)
+          ? nextCouriers
+          : []
+      );
+
+      setCustomers(
+        Array.isArray(nextCustomers)
+          ? nextCustomers
+          : []
+      );
+    } catch (error) {
+      console.error(
+        "Admin kullanıcıları alınamadı:",
+        error
+      );
+
+      setCouriers([]);
+      setCustomers([]);
+    }
+  };
+
   useEffect(() => {
-    const loadUsers = () => {
-      try {
-        setCouriers(
-          storage.getCouriers()
-        );
-
-        setCustomers(
-          storage.getCustomers()
-        );
-      } catch (error) {
-        console.error(
-          "Admin kullanıcıları alınamadı:",
-          error
-        );
-
-        setCouriers([]);
-        setCustomers([]);
-      }
-    };
-
     loadUsers();
 
     let unsubscribe:
@@ -175,9 +185,10 @@ export const AdminPanel: React.FC<Props> = ({
       | undefined;
 
     try {
-      unsubscribe = storage.subscribe(
-        loadUsers
-      );
+      unsubscribe =
+        storage.subscribe(
+          loadUsers
+        );
     } catch (error) {
       console.warn(
         "Admin storage listener kurulamadı:",
@@ -290,7 +301,9 @@ export const AdminPanel: React.FC<Props> = ({
           String(order.customerPhone)
             .toLowerCase()
             .includes(term) ||
-          String(order.courierName || "")
+          String(
+            order.courierName || ""
+          )
             .toLowerCase()
             .includes(term) ||
           String(order.pickupAddress)
@@ -302,7 +315,8 @@ export const AdminPanel: React.FC<Props> = ({
 
         const matchesStatus =
           statusFilter === "Tümü" ||
-          order.status === statusFilter;
+          order.status ===
+            statusFilter;
 
         return (
           matchesSearch &&
@@ -337,15 +351,9 @@ export const AdminPanel: React.FC<Props> = ({
     ).format(value || 0);
 
   const refresh = () => {
+    loadUsers();
+
     try {
-      setCouriers(
-        storage.getCouriers()
-      );
-
-      setCustomers(
-        storage.getCustomers()
-      );
-
       onRefreshData?.();
     } catch (error) {
       console.error(
@@ -379,14 +387,24 @@ export const AdminPanel: React.FC<Props> = ({
     setSelectedOrder(null);
     setSelectedCourier("");
     setEditPrice("");
+    setSelectedStatus(
+      "Kurye Bekleniyor"
+    );
   };
 
   /*
-   * KURYE EKLEME
+   * GERÇEK KURYE HESABI OLUŞTURMA
    *
-   * Bu fonksiyon storage.createCourier()
-   * hazır olduğunda otomatik olarak
-   * çalışacaktır.
+   * ÖNEMLİ:
+   * storage.createCourier() doğrudan çağrılıyor.
+   *
+   * Böylece class içindeki "this" bağlantısı
+   * kaybolmuyor ve:
+   *
+   * undefined is not an object
+   * evaluating 'this.users'
+   *
+   * hatası oluşmuyor.
    */
   const handleAddCourier = async (
     event: React.FormEvent
@@ -406,16 +424,23 @@ export const AdminPanel: React.FC<Props> = ({
       courierPassword;
 
     if (!name) {
-      alert("Kurye adı girin.");
+      alert(
+        "Kurye adı girin."
+      );
       return;
     }
 
     if (!email) {
-      alert("Kurye e-postası girin.");
+      alert(
+        "Kurye e-postası girin."
+      );
       return;
     }
 
-    if (!password || password.length < 6) {
+    if (
+      !password ||
+      password.length < 6
+    ) {
       alert(
         "Şifre en az 6 karakter olmalıdır."
       );
@@ -425,25 +450,18 @@ export const AdminPanel: React.FC<Props> = ({
     setAddingCourier(true);
 
     try {
-      const createCourier =
-        (
-          storage as typeof storage & {
-            createCourier?: (data: {
-              name: string;
-              email: string;
-              phone: string;
-              password: string;
-            }) => Promise<UserProfile>;
-          }
-        ).createCourier;
-
-      if (!createCourier) {
-        throw new Error(
-          "Kurye oluşturma sistemi henüz storage.ts içine eklenmedi."
-        );
-      }
-
-      await createCourier({
+      /*
+       * BURASI ÖNEMLİ:
+       *
+       * HATALI:
+       * const createCourier =
+       *   storage.createCourier;
+       *
+       * await createCourier(...);
+       *
+       * DOĞRU:
+       */
+      await storage.createCourier({
         name,
         email,
         phone,
@@ -468,206 +486,225 @@ export const AdminPanel: React.FC<Props> = ({
         error
       );
 
-      alert(
+      const message =
         error?.message ||
-          "Kurye oluşturulamadı."
-      );
+        "Kurye oluşturulamadı.";
+
+      alert(message);
     } finally {
       setAddingCourier(false);
     }
   };
 
-  const changeCourierStatus = (
-    courierId: string,
-    status: CourierAvailability
-  ) => {
-    try {
-      storage.updateCourierStatus(
-        courierId,
-        status
-      );
-
-      refresh();
-    } catch (error) {
-      console.error(
-        "Kurye durumu güncellenemedi:",
-        error
-      );
-
-      alert(
-        "Kurye durumu güncellenemedi."
-      );
-    }
-  };
-
-  const saveOrderChanges = async () => {
-    if (!selectedOrder) {
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      let updatedOrder =
-        storage.getOrderById(
-          selectedOrder.id
+  const changeCourierStatus =
+    async (
+      courierId: string,
+      status: CourierAvailability
+    ) => {
+      try {
+        await storage.updateCourierStatus(
+          courierId,
+          status
         );
 
-      if (!updatedOrder) {
+        refresh();
+      } catch (error: any) {
+        console.error(
+          "Kurye durumu güncellenemedi:",
+          error
+        );
+
         alert(
-          "Sipariş artık bulunamadı."
+          error?.message ||
+            "Kurye durumu güncellenemedi."
         );
+      }
+    };
+
+  const saveOrderChanges =
+    async () => {
+      if (!selectedOrder) {
         return;
       }
 
-      if (
-        selectedCourier &&
-        selectedCourier !==
-          updatedOrder.courierId
-      ) {
-        updatedOrder =
-          await storage.assignCourier(
-            updatedOrder.id,
-            selectedCourier
-          );
-      }
+      setSaving(true);
 
-      if (
-        selectedStatus !==
-          updatedOrder.status &&
-        selectedStatus
-      ) {
-        updatedOrder =
-          await storage.updateOrder(
-            updatedOrder.id,
-            {
-              status: selectedStatus,
-            }
+      try {
+        const originalOrder =
+          storage.getOrderById(
+            selectedOrder.id
           );
-      }
 
-      const numericPrice =
-        Number(
-          editPrice.replace(
-            ",",
-            "."
-          )
+        if (!originalOrder) {
+          alert(
+            "Sipariş artık bulunamadı."
+          );
+          return;
+        }
+
+        let updatedOrder =
+          originalOrder;
+
+        /*
+         * Kurye değiştirildiyse ata.
+         */
+        if (
+          selectedCourier &&
+          selectedCourier !==
+            (originalOrder.courierId ||
+              "")
+        ) {
+          updatedOrder =
+            await storage.assignCourier(
+              originalOrder.id,
+              selectedCourier
+            );
+        }
+
+        /*
+         * assignCourier sipariş durumunu
+         * "Kurye Atandı" yapabilir.
+         *
+         * Bu nedenle eski selectedStatus'ı
+         * tekrar yazıp değişikliği bozmuyoruz.
+         */
+        if (
+          selectedStatus &&
+          selectedStatus !==
+            originalOrder.status &&
+          selectedStatus !==
+            updatedOrder.status
+        ) {
+          updatedOrder =
+            await storage.updateOrder(
+              updatedOrder.id,
+              {
+                status:
+                  selectedStatus,
+              }
+            );
+        }
+
+        const numericPrice =
+          Number(
+            editPrice.replace(
+              ",",
+              "."
+            )
+          );
+
+        if (
+          Number.isFinite(
+            numericPrice
+          ) &&
+          numericPrice >= 0 &&
+          numericPrice !==
+            Number(
+              updatedOrder.price
+            )
+        ) {
+          updatedOrder =
+            await storage.updateOrder(
+              updatedOrder.id,
+              {
+                price:
+                  Math.round(
+                    numericPrice
+                  ),
+              }
+            );
+        }
+
+        setSelectedOrder(
+          updatedOrder
         );
 
-      if (
-        Number.isFinite(
-          numericPrice
-        ) &&
-        numericPrice >= 0 &&
-        numericPrice !==
-          Number(
-            updatedOrder?.price
-          )
-      ) {
-        updatedOrder =
-          await storage.updateOrder(
-            updatedOrder.id,
-            {
-              price:
-                Math.round(
-                  numericPrice
-                ),
-            }
-          );
+        refresh();
+
+        alert(
+          "Sipariş başarıyla güncellendi."
+        );
+      } catch (error: any) {
+        console.error(
+          "Sipariş güncelleme hatası:",
+          error
+        );
+
+        alert(
+          error?.message ||
+            "Sipariş güncellenemedi. Firestore yetkilerini kontrol edin."
+        );
+      } finally {
+        setSaving(false);
       }
-
-      setSelectedOrder(
-        updatedOrder
-      );
-
-      refresh();
-
-      alert(
-        "Sipariş başarıyla güncellendi."
-      );
-    } catch (error: any) {
-      console.error(
-        "Sipariş güncelleme hatası:",
-        error
-      );
-
-      alert(
-        error?.message ||
-          "Sipariş güncellenemedi. Firestore yetkilerini kontrol edin."
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const savePricing = () => {
-    const nextPricing: PricingConfig = {
-      ...pricing,
-      perKmPrice:
-        Math.max(
-          0,
-          Number(perKmPrice) || 0
-        ),
-      minPrice:
-        Math.max(
-          0,
-          Number(minPrice) || 0
-        ),
-      urgentMultiplier:
-        Math.max(
-          1,
-          Number(
-            urgentMultiplier
-          ) || 1
-        ),
-      vipMultiplier:
-        Math.max(
-          1,
-          Number(
-            vipMultiplier
-          ) || 1
-        ),
-      updatedAt:
-        new Date().toISOString(),
     };
 
-    try {
-      if (
-        typeof storage.updatePricing ===
-        "function"
-      ) {
-        storage.updatePricing(
+  const savePricing =
+    async () => {
+      const nextPricing:
+        PricingConfig = {
+        ...pricing,
+
+        perKmPrice:
+          Math.max(
+            0,
+            Number(perKmPrice) ||
+              0
+          ),
+
+        minPrice:
+          Math.max(
+            0,
+            Number(minPrice) ||
+              0
+          ),
+
+        urgentMultiplier:
+          Math.max(
+            1,
+            Number(
+              urgentMultiplier
+            ) || 1
+          ),
+
+        vipMultiplier:
+          Math.max(
+            1,
+            Number(
+              vipMultiplier
+            ) || 1
+          ),
+
+        updatedAt:
+          new Date().toISOString(),
+      };
+
+      try {
+        /*
+         * storage.ts içinde updatePricing
+         * varsa doğrudan kullanıyoruz.
+         */
+        await storage.updatePricing(
           nextPricing
         );
-      } else if (
-        typeof storage.setPricing ===
-        "function"
-      ) {
-        storage.setPricing(
-          nextPricing
+
+        onRefreshData?.();
+
+        alert(
+          "Fiyatlandırma başarıyla kaydedildi."
         );
-      } else {
-        throw new Error(
-          "Pricing API bulunamadı."
+      } catch (error: any) {
+        console.error(
+          "Fiyatlandırma hatası:",
+          error
+        );
+
+        alert(
+          error?.message ||
+            "Fiyatlandırma kaydedilemedi."
         );
       }
-
-      onRefreshData?.();
-
-      alert(
-        "Fiyatlandırma başarıyla kaydedildi."
-      );
-    } catch (error) {
-      console.error(
-        "Fiyatlandırma hatası:",
-        error
-      );
-
-      alert(
-        "Fiyatlandırma kaydedilemedi."
-      );
-    }
-  };
+    };
 
   const tabs: {
     id: AdminTab;
@@ -712,7 +749,7 @@ export const AdminPanel: React.FC<Props> = ({
         <div className="mx-auto max-w-7xl px-4 py-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-[#D6A84F]/15 border border-[#D6A84F]/30 p-2.5">
+              <div className="rounded-xl border border-[#D6A84F]/30 bg-[#D6A84F]/15 p-2.5">
                 <ShieldCheck
                   size={22}
                   className="text-[#D6A84F]"
@@ -732,7 +769,7 @@ export const AdminPanel: React.FC<Props> = ({
 
             <button
               onClick={refresh}
-              className="flex items-center justify-center gap-2 rounded-xl border border-[#303036] bg-[#19191E] px-4 py-2 text-sm hover:border-[#D6A84F]/50 transition"
+              className="flex items-center justify-center gap-2 rounded-xl border border-[#303036] bg-[#19191E] px-4 py-2 text-sm transition hover:border-[#D6A84F]/50"
             >
               <RefreshCw size={16} />
               Yenile
@@ -741,18 +778,22 @@ export const AdminPanel: React.FC<Props> = ({
 
           <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
             {tabs.map((tab) => {
-              const Icon = tab.icon;
+              const Icon =
+                tab.icon;
 
               return (
                 <button
                   key={tab.id}
                   onClick={() =>
-                    setActiveTab(tab.id)
+                    setActiveTab(
+                      tab.id
+                    )
                   }
                   className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
-                    activeTab === tab.id
+                    activeTab ===
+                    tab.id
                       ? "bg-[#D6A84F] text-[#0B0B0D]"
-                      : "bg-[#19191E] text-[#999999] hover:text-white border border-[#303036]"
+                      : "border border-[#303036] bg-[#19191E] text-[#999999] hover:text-white"
                   }`}
                 >
                   <Icon size={16} />
@@ -765,9 +806,11 @@ export const AdminPanel: React.FC<Props> = ({
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6">
-        {activeTab === "dashboard" && (
+        {activeTab ===
+          "dashboard" && (
           <div className="space-y-6">
-            {urgentOrders.length > 0 && (
+            {urgentOrders.length >
+              0 && (
               <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4">
                 <div className="flex items-start gap-3">
                   <AlertCircle
@@ -781,7 +824,10 @@ export const AdminPanel: React.FC<Props> = ({
                     </h3>
 
                     <p className="mt-1 text-sm text-red-200/80">
-                      {urgentOrders.length} adet acil veya çok acil sipariş aktif.
+                      {
+                        urgentOrders.length
+                      }{" "}
+                      adet acil veya çok acil sipariş aktif.
                     </p>
                   </div>
                 </div>
@@ -791,7 +837,9 @@ export const AdminPanel: React.FC<Props> = ({
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               <StatCard
                 title="Toplam Sipariş"
-                value={totalOrders}
+                value={
+                  totalOrders
+                }
                 icon={
                   <Package size={20} />
                 }
@@ -803,7 +851,9 @@ export const AdminPanel: React.FC<Props> = ({
                   totalRevenue
                 )}
                 icon={
-                  <DollarSign size={20} />
+                  <DollarSign
+                    size={20}
+                  />
                 }
               />
 
@@ -817,7 +867,9 @@ export const AdminPanel: React.FC<Props> = ({
 
               <StatCard
                 title="Teslim Edilen"
-                value={completedOrders}
+                value={
+                  completedOrders
+                }
                 icon={
                   <CheckCircle2
                     size={20}
@@ -829,27 +881,37 @@ export const AdminPanel: React.FC<Props> = ({
             <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
               <MiniStat
                 title="Bekliyor"
-                value={waitingOrders}
+                value={
+                  waitingOrders
+                }
               />
 
               <MiniStat
                 title="Atandı"
-                value={assignedOrders}
+                value={
+                  assignedOrders
+                }
               />
 
               <MiniStat
                 title="Paket Alındı"
-                value={pickedUpOrders}
+                value={
+                  pickedUpOrders
+                }
               />
 
               <MiniStat
                 title="Teslimatta"
-                value={deliveringOrders}
+                value={
+                  deliveringOrders
+                }
               />
 
               <MiniStat
                 title="İptal"
-                value={cancelledOrders}
+                value={
+                  cancelledOrders
+                }
               />
             </div>
 
@@ -876,7 +938,8 @@ export const AdminPanel: React.FC<Props> = ({
           </div>
         )}
 
-        {activeTab === "orders" && (
+        {activeTab ===
+          "orders" && (
           <div className="space-y-5">
             <div className="flex flex-col gap-3 md:flex-row">
               <div className="relative flex-1">
@@ -887,7 +950,9 @@ export const AdminPanel: React.FC<Props> = ({
 
                 <input
                   value={searchTerm}
-                  onChange={(event) =>
+                  onChange={(
+                    event
+                  ) =>
                     setSearchTerm(
                       event.target.value
                     )
@@ -898,23 +963,32 @@ export const AdminPanel: React.FC<Props> = ({
               </div>
 
               <select
-                value={statusFilter}
-                onChange={(event) =>
+                value={
+                  statusFilter
+                }
+                onChange={(
+                  event
+                ) =>
                   setStatusFilter(
-                    event.target.value as
+                    event.target
+                      .value as
                       | "Tümü"
                       | OrderStatus
                   )
                 }
                 className="rounded-xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm outline-none"
               >
-                <option>Tümü</option>
+                <option>
+                  Tümü
+                </option>
 
                 {ORDER_STATUSES.map(
                   (status) => (
                     <option
                       key={status}
-                      value={status}
+                      value={
+                        status
+                      }
                     >
                       {status}
                     </option>
@@ -929,7 +1003,9 @@ export const AdminPanel: React.FC<Props> = ({
                   <button
                     key={order.id}
                     onClick={() =>
-                      openOrder(order)
+                      openOrder(
+                        order
+                      )
                     }
                     className="w-full cursor-pointer rounded-2xl border border-[#303036] bg-[#19191E] p-5 text-left transition hover:border-[#D6A84F]/50"
                   >
@@ -937,7 +1013,10 @@ export const AdminPanel: React.FC<Props> = ({
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold">
-                            #{order.id}
+                            #
+                            {
+                              order.id
+                            }
                           </span>
 
                           <StatusBadge
@@ -955,18 +1034,26 @@ export const AdminPanel: React.FC<Props> = ({
                         <div className="mt-2 space-y-1 text-xs text-[#777777]">
                           <p>
                             <MapPin
-                              size={13}
+                              size={
+                                13
+                              }
                               className="mr-1 inline"
                             />
-                            {order.pickupAddress}
+                            {
+                              order.pickupAddress
+                            }
                           </p>
 
                           <p>
                             <MapPin
-                              size={13}
+                              size={
+                                13
+                              }
                               className="mr-1 inline"
                             />
-                            {order.deliveryAddress}
+                            {
+                              order.deliveryAddress
+                            }
                           </p>
                         </div>
                       </div>
@@ -982,8 +1069,10 @@ export const AdminPanel: React.FC<Props> = ({
                         </p>
 
                         <p className="text-xs text-[#777777]">
-                          {order.distanceKm ||
-                            0}{" "}
+                          {
+                            order.distanceKm ||
+                            0
+                          }{" "}
                           km
                         </p>
                       </div>
@@ -1000,7 +1089,8 @@ export const AdminPanel: React.FC<Props> = ({
           </div>
         )}
 
-        {activeTab === "couriers" && (
+        {activeTab ===
+          "couriers" && (
           <div className="space-y-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -1009,13 +1099,18 @@ export const AdminPanel: React.FC<Props> = ({
                 </h2>
 
                 <p className="text-sm text-[#999999]">
-                  {couriers.length} gerçek kurye hesabı
+                  {
+                    couriers.length
+                  }{" "}
+                  gerçek kurye hesabı
                 </p>
               </div>
 
               <button
                 onClick={() =>
-                  setShowAddCourier(true)
+                  setShowAddCourier(
+                    true
+                  )
                 }
                 className="flex items-center justify-center gap-2 rounded-xl bg-[#D6A84F] px-4 py-3 font-bold text-[#0B0B0D] transition hover:bg-[#c49740]"
               >
@@ -1034,11 +1129,13 @@ export const AdminPanel: React.FC<Props> = ({
               {couriers.map(
                 (courier) => (
                   <div
-                    key={courier.id}
+                    key={
+                      courier.id
+                    }
                     className="rounded-2xl border border-[#303036] bg-[#19191E] p-5"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex min-w-0 items-center gap-3">
                         <div className="rounded-full bg-[#D6A84F]/10 p-3">
                           <Truck
                             size={20}
@@ -1047,16 +1144,22 @@ export const AdminPanel: React.FC<Props> = ({
                         </div>
 
                         <div className="min-w-0">
-                          <h3 className="font-semibold truncate">
-                            {courier.name}
+                          <h3 className="truncate font-semibold">
+                            {
+                              courier.name
+                            }
                           </h3>
 
-                          <p className="text-xs text-[#777777] truncate">
-                            {courier.email}
+                          <p className="truncate text-xs text-[#777777]">
+                            {
+                              courier.email
+                            }
                           </p>
 
                           <p className="text-xs text-[#777777]">
-                            {courier.phone}
+                            {
+                              courier.phone
+                            }
                           </p>
                         </div>
                       </div>
@@ -1084,21 +1187,33 @@ export const AdminPanel: React.FC<Props> = ({
                           courier.courierStatus ||
                           "Çevrimdışı"
                         }
-                        onChange={(event) =>
+                        onChange={(
+                          event
+                        ) =>
                           changeCourierStatus(
                             courier.id,
-                            event.target.value as CourierAvailability
+                            event
+                              .target
+                              .value as CourierAvailability
                           )
                         }
                         className="w-full rounded-xl border border-[#303036] bg-[#0B0B0D] px-3 py-2 text-sm"
                       >
                         {COURIER_STATUSES.map(
-                          (status) => (
+                          (
+                            status
+                          ) => (
                             <option
-                              key={status}
-                              value={status}
+                              key={
+                                status
+                              }
+                              value={
+                                status
+                              }
                             >
-                              {status}
+                              {
+                                status
+                              }
                             </option>
                           )
                         )}
@@ -1112,8 +1227,10 @@ export const AdminPanel: React.FC<Props> = ({
                         </p>
 
                         <p className="mt-1 font-bold">
-                          {courier.totalDeliveries ||
-                            0}
+                          {
+                            courier.totalDeliveries ||
+                            0
+                          }
                         </p>
                       </div>
 
@@ -1143,7 +1260,8 @@ export const AdminPanel: React.FC<Props> = ({
           </div>
         )}
 
-        {activeTab === "customers" && (
+        {activeTab ===
+          "customers" && (
           <div className="space-y-5">
             <div>
               <h2 className="text-xl font-bold">
@@ -1151,7 +1269,10 @@ export const AdminPanel: React.FC<Props> = ({
               </h2>
 
               <p className="text-sm text-[#999999]">
-                {customers.length} gerçek müşteri hesabı
+                {
+                  customers.length
+                }{" "}
+                gerçek müşteri hesabı
               </p>
             </div>
 
@@ -1159,7 +1280,9 @@ export const AdminPanel: React.FC<Props> = ({
               {customers.map(
                 (customer) => (
                   <div
-                    key={customer.id}
+                    key={
+                      customer.id
+                    }
                     className="rounded-2xl border border-[#303036] bg-[#19191E] p-5"
                   >
                     <div className="flex items-center gap-3">
@@ -1171,16 +1294,22 @@ export const AdminPanel: React.FC<Props> = ({
                       </div>
 
                       <div className="min-w-0">
-                        <h3 className="font-semibold truncate">
-                          {customer.name}
+                        <h3 className="truncate font-semibold">
+                          {
+                            customer.name
+                          }
                         </h3>
 
-                        <p className="text-xs text-[#777777] truncate">
-                          {customer.email}
+                        <p className="truncate text-xs text-[#777777]">
+                          {
+                            customer.email
+                          }
                         </p>
 
                         <p className="text-xs text-[#777777]">
-                          {customer.phone}
+                          {
+                            customer.phone
+                          }
                         </p>
                       </div>
                     </div>
@@ -1196,7 +1325,8 @@ export const AdminPanel: React.FC<Props> = ({
           </div>
         )}
 
-        {activeTab === "pricing" && (
+        {activeTab ===
+          "pricing" && (
           <div className="mx-auto max-w-2xl space-y-5">
             <div>
               <h2 className="text-xl font-bold">
@@ -1207,19 +1337,29 @@ export const AdminPanel: React.FC<Props> = ({
             <div className="space-y-5 rounded-2xl border border-[#303036] bg-[#19191E] p-5">
               <NumberField
                 label="KM Başına Fiyat"
-                value={perKmPrice}
-                onChange={setPerKmPrice}
+                value={
+                  perKmPrice
+                }
+                onChange={
+                  setPerKmPrice
+                }
               />
 
               <NumberField
                 label="Minimum Fiyat"
-                value={minPrice}
-                onChange={setMinPrice}
+                value={
+                  minPrice
+                }
+                onChange={
+                  setMinPrice
+                }
               />
 
               <NumberField
                 label="Acil Çarpanı"
-                value={urgentMultiplier}
+                value={
+                  urgentMultiplier
+                }
                 step={0.05}
                 onChange={
                   setUrgentMultiplier
@@ -1228,7 +1368,9 @@ export const AdminPanel: React.FC<Props> = ({
 
               <NumberField
                 label="VIP Çarpanı"
-                value={vipMultiplier}
+                value={
+                  vipMultiplier
+                }
                 step={0.05}
                 onChange={
                   setVipMultiplier
@@ -1236,7 +1378,9 @@ export const AdminPanel: React.FC<Props> = ({
               />
 
               <button
-                onClick={savePricing}
+                onClick={
+                  savePricing
+                }
                 className="w-full rounded-xl bg-[#D6A84F] py-3 font-bold text-[#0B0B0D]"
               >
                 Fiyatları Firebase'e Kaydet
@@ -1245,7 +1389,8 @@ export const AdminPanel: React.FC<Props> = ({
           </div>
         )}
 
-        {activeTab === "settings" && (
+        {activeTab ===
+          "settings" && (
           <div className="mx-auto max-w-2xl space-y-5">
             <h2 className="text-xl font-bold">
               Sistem
@@ -1271,14 +1416,18 @@ export const AdminPanel: React.FC<Props> = ({
               />
 
               <SettingRow
-                icon={<Zap size={20} />}
+                icon={
+                  <Zap size={20} />
+                }
                 title="Yapay Zeka"
                 description="Trustline AI"
                 status="Aktif"
               />
 
               <SettingRow
-                icon={<Truck size={20} />}
+                icon={
+                  <Truck size={20} />
+                }
                 title="Kurye GPS"
                 description="Canlı konum"
                 status="V1"
@@ -1307,7 +1456,9 @@ export const AdminPanel: React.FC<Props> = ({
                 type="button"
                 onClick={() =>
                   !addingCourier &&
-                  setShowAddCourier(false)
+                  setShowAddCourier(
+                    false
+                  )
                 }
                 className="rounded-xl border border-[#303036] bg-[#19191E] p-2 text-[#999999] hover:text-white"
               >
@@ -1316,7 +1467,9 @@ export const AdminPanel: React.FC<Props> = ({
             </div>
 
             <form
-              onSubmit={handleAddCourier}
+              onSubmit={
+                handleAddCourier
+              }
               className="mt-6 space-y-4"
             >
               <div>
@@ -1325,8 +1478,12 @@ export const AdminPanel: React.FC<Props> = ({
                 </label>
 
                 <input
-                  value={courierName}
-                  onChange={(event) =>
+                  value={
+                    courierName
+                  }
+                  onChange={(
+                    event
+                  ) =>
                     setCourierName(
                       event.target.value
                     )
@@ -1344,8 +1501,12 @@ export const AdminPanel: React.FC<Props> = ({
 
                 <input
                   type="email"
-                  value={courierEmail}
-                  onChange={(event) =>
+                  value={
+                    courierEmail
+                  }
+                  onChange={(
+                    event
+                  ) =>
                     setCourierEmail(
                       event.target.value
                     )
@@ -1363,8 +1524,12 @@ export const AdminPanel: React.FC<Props> = ({
 
                 <input
                   type="tel"
-                  value={courierPhone}
-                  onChange={(event) =>
+                  value={
+                    courierPhone
+                  }
+                  onChange={(
+                    event
+                  ) =>
                     setCourierPhone(
                       event.target.value
                     )
@@ -1381,8 +1546,12 @@ export const AdminPanel: React.FC<Props> = ({
 
                 <input
                   type="password"
-                  value={courierPassword}
-                  onChange={(event) =>
+                  value={
+                    courierPassword
+                  }
+                  onChange={(
+                    event
+                  ) =>
                     setCourierPassword(
                       event.target.value
                     )
@@ -1396,7 +1565,9 @@ export const AdminPanel: React.FC<Props> = ({
 
               <button
                 type="submit"
-                disabled={addingCourier}
+                disabled={
+                  addingCourier
+                }
                 className="w-full rounded-xl bg-[#D6A84F] py-3 font-bold text-[#0B0B0D] transition hover:bg-[#c49740] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {addingCourier
@@ -1419,12 +1590,17 @@ export const AdminPanel: React.FC<Props> = ({
                 </p>
 
                 <h2 className="mt-1 text-lg font-bold">
-                  #{selectedOrder.id}
+                  #
+                  {
+                    selectedOrder.id
+                  }
                 </h2>
               </div>
 
               <button
-                onClick={closeOrder}
+                onClick={
+                  closeOrder
+                }
                 className="rounded-xl border border-[#303036] bg-[#19191E] p-2 text-[#999999] hover:text-white"
               >
                 <X size={18} />
@@ -1484,8 +1660,12 @@ export const AdminPanel: React.FC<Props> = ({
                   </label>
 
                   <select
-                    value={selectedCourier}
-                    onChange={(event) =>
+                    value={
+                      selectedCourier
+                    }
+                    onChange={(
+                      event
+                    ) =>
                       setSelectedCourier(
                         event.target.value
                       )
@@ -1497,12 +1677,21 @@ export const AdminPanel: React.FC<Props> = ({
                     </option>
 
                     {couriers.map(
-                      (courier) => (
+                      (
+                        courier
+                      ) => (
                         <option
-                          key={courier.id}
-                          value={courier.id}
+                          key={
+                            courier.id
+                          }
+                          value={
+                            courier.id
+                          }
                         >
-                          {courier.name} •{" "}
+                          {
+                            courier.name
+                          }{" "}
+                          •{" "}
                           {courier.courierStatus ||
                             "Çevrimdışı"}
                         </option>
@@ -1517,21 +1706,34 @@ export const AdminPanel: React.FC<Props> = ({
                   </label>
 
                   <select
-                    value={selectedStatus}
-                    onChange={(event) =>
+                    value={
+                      selectedStatus
+                    }
+                    onChange={(
+                      event
+                    ) =>
                       setSelectedStatus(
-                        event.target.value as OrderStatus
+                        event.target
+                          .value as OrderStatus
                       )
                     }
                     className="w-full rounded-xl border border-[#303036] bg-[#19191E] px-3 py-3 text-sm"
                   >
                     {ORDER_STATUSES.map(
-                      (status) => (
+                      (
+                        status
+                      ) => (
                         <option
-                          key={status}
-                          value={status}
+                          key={
+                            status
+                          }
+                          value={
+                            status
+                          }
                         >
-                          {status}
+                          {
+                            status
+                          }
                         </option>
                       )
                     )}
@@ -1547,8 +1749,12 @@ export const AdminPanel: React.FC<Props> = ({
                 <input
                   type="number"
                   min="0"
-                  value={editPrice}
-                  onChange={(event) =>
+                  value={
+                    editPrice
+                  }
+                  onChange={(
+                    event
+                  ) =>
                     setEditPrice(
                       event.target.value
                     )
@@ -1559,12 +1765,16 @@ export const AdminPanel: React.FC<Props> = ({
 
               {selectedOrder.deliveryProof && (
                 <DeliveryProofCard
-                  order={selectedOrder}
+                  order={
+                    selectedOrder
+                  }
                 />
               )}
 
               <button
-                disabled={saving}
+                disabled={
+                  saving
+                }
                 onClick={
                   saveOrderChanges
                 }
@@ -1632,11 +1842,14 @@ const StatusBadge: React.FC<{
   status,
 }) => {
   const classes =
-    status === "Teslim Edildi"
+    status ===
+    "Teslim Edildi"
       ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-      : status === "İptal Edildi"
+      : status ===
+        "İptal Edildi"
       ? "bg-red-500/10 text-red-400 border-red-500/20"
-      : status === "Teslimatta"
+      : status ===
+        "Teslimatta"
       ? "bg-[#D6A84F]/10 text-[#D6A84F] border-[#D6A84F]/20"
       : "bg-blue-500/10 text-blue-400 border-blue-500/20";
 
@@ -1689,7 +1902,9 @@ const NumberField: React.FC<{
       min="0"
       step={step}
       value={value}
-      onChange={(event) =>
+      onChange={(
+        event
+      ) =>
         onChange(
           Number(
             event.target.value
@@ -1729,7 +1944,7 @@ const SettingRow: React.FC<{
       </div>
     </div>
 
-    <span className="shrink-0 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-[10px] font-bold text-emerald-400">
+    <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold text-emerald-400">
       {status}
     </span>
   </div>
@@ -1747,7 +1962,7 @@ const InfoItem: React.FC<{
       {label}
     </p>
 
-    <p className="mt-1 text-xs text-white break-words">
+    <p className="mt-1 break-words text-xs text-white">
       {value || "—"}
     </p>
   </div>
