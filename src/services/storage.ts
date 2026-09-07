@@ -16,7 +16,7 @@ import type {
   Order,
   OrderStatus,
   UserProfile,
-} from "../types";
+import { auth, db } from "./firebase";
 
 class StorageService {
   private currentUser: UserProfile | null = null;
@@ -296,14 +296,88 @@ class StorageService {
   }
 
   async createOrder(data: Partial<Order>) {
-    const firebaseUser = auth.currentUser;
+  const firebaseUser = auth.currentUser;
 
-    if (!firebaseUser) {
-      throw new Error(
-        "Firebase oturumu bulunamadı. Lütfen tekrar giriş yapın.",
-      );
-    }
+  if (!firebaseUser) {
+    throw new Error(
+      "Firebase oturumu bulunamadı. Lütfen tekrar giriş yapın."
+    );
+  }
 
+  const customerId =
+    this.currentUser?.role === "customer"
+      ? firebaseUser.uid
+      : data.customerId ||
+        this.currentUser?.id ||
+        firebaseUser.uid;
+
+  const orderId =
+    data.id ||
+    `order_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 9)}`;
+
+  const now = new Date().toISOString();
+
+  // undefined alanları Firestore'a göndermiyoruz
+  const cleanData = Object.fromEntries(
+    Object.entries(data).filter(
+      ([, value]) => value !== undefined
+    )
+  );
+
+  const order = {
+    ...cleanData,
+    id: orderId,
+    customerId,
+    courierId: data.courierId ?? null,
+    status: data.status || "Kurye Bekleniyor",
+    createdAt: data.createdAt || now,
+    updatedAt: now,
+  } as Order;
+
+  // Müşteri sipariş oluşturuyorsa Auth UID kesin olarak kullanılır
+  if (this.currentUser?.role === "customer") {
+    order.customerId = firebaseUser.uid;
+  }
+
+  try {
+    const orderRef = doc(
+      db,
+      "orders",
+      orderId
+    );
+
+    await setDoc(orderRef, order);
+
+    console.log(
+      "SİPARİŞ BAŞARIYLA KAYDEDİLDİ:",
+      order
+    );
+
+    this.orders = [
+      order,
+      ...this.orders.filter(
+        (item) => item.id !== orderId
+      ),
+    ];
+
+    this.saveCache();
+    this.notify();
+
+    return order;
+  } catch (error: any) {
+    console.error(
+      "SİPARİŞ FIRESTORE HATASI:",
+      error
+    );
+
+    throw new Error(
+      error?.message ||
+        "Sipariş Firestore'a kaydedilemedi."
+    );
+  }
+}
     /*
      * MÜŞTERİ SİPARİŞ VERİYORSA:
      * customerId kesinlikle Firebase Auth UID olacak.
