@@ -1,12 +1,9 @@
 {
-  "projectId": "gen-lang-client-0723712648",
-  "appId": "1:170932833498:web:3aa5a9138415ad33eae9e3",
-  "apiKey": "AIzaSyBZ2TCdiMKDK-2XCVoGUYSIYU9Zz4xXj0Q",
-  "authDomain": "gen-lang-client-0723712648.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-trustlineexpress-6e7da0c7-d6b5-4a9f-af88-45ba6fb5b0e9",
-  "storageBucket": "gen-lang-client-0723712648.firebasestorage.app",
-  "messagingSenderId": "170932833498",
-  "measurementId": "",
-  "oAuthClientId": "170932833498-dp12mtdpuh36pl2cj1iajpobfobr9gvn.apps.googleusercontent.com",
-  "recaptchaSiteKey": ""
+  "projectId": "trustline-8729d",
+  "appId": "1:95555518174:web:61f2ffa0ad9316369a8c4f",
+  "apiKey": "AIzaSyCFNecgQj3kBN6Dj5mqycy0Io7kDMofQEM",
+  "authDomain": "trustline-8729d.firebaseapp.com",
+  "storageBucket": "trustline-8729d.firebasestorage.app",
+  "messagingSenderId": "95555518174",
+  "measurementId": "G-RRLL4QMFXP"
 }
