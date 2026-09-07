@@ -5,11 +5,10 @@ import {
   BarChart3,
   CheckCircle2,
   ChevronRight,
-  Clock,
   DollarSign,
-  Eye,
   MapPin,
   Package,
+  Plus,
   RefreshCw,
   Search,
   Settings,
@@ -96,6 +95,24 @@ export const AdminPanel: React.FC<Props> = ({
   const [customers, setCustomers] =
     useState<UserProfile[]>([]);
 
+  const [showAddCourier, setShowAddCourier] =
+    useState(false);
+
+  const [addingCourier, setAddingCourier] =
+    useState(false);
+
+  const [courierName, setCourierName] =
+    useState("");
+
+  const [courierEmail, setCourierEmail] =
+    useState("");
+
+  const [courierPhone, setCourierPhone] =
+    useState("");
+
+  const [courierPassword, setCourierPassword] =
+    useState("");
+
   const [perKmPrice, setPerKmPrice] =
     useState(pricing?.perKmPrice ?? 50);
 
@@ -116,12 +133,15 @@ export const AdminPanel: React.FC<Props> = ({
     setPerKmPrice(
       pricing?.perKmPrice ?? 50
     );
+
     setMinPrice(
       pricing?.minPrice ?? 250
     );
+
     setUrgentMultiplier(
       pricing?.urgentMultiplier ?? 1.3
     );
+
     setVipMultiplier(
       pricing?.vipMultiplier ?? 1.6
     );
@@ -198,9 +218,9 @@ export const AdminPanel: React.FC<Props> = ({
     safeOrders.filter(
       (order) =>
         order.status ===
-        "Kurye Atandı" ||
+          "Kurye Atandı" ||
         order.status ===
-        "Kurye Kabul Etti"
+          "Kurye Kabul Etti"
     ).length;
 
   const pickedUpOrders =
@@ -241,8 +261,10 @@ export const AdminPanel: React.FC<Props> = ({
   const urgentOrders =
     safeOrders.filter(
       (order) =>
-        (order.urgency === "Acil" ||
-          order.urgency === "Çok Acil") &&
+        (
+          order.urgency === "Acil" ||
+          order.urgency === "Çok Acil"
+        ) &&
         order.status !==
           "Teslim Edildi" &&
         order.status !==
@@ -337,12 +359,15 @@ export const AdminPanel: React.FC<Props> = ({
     order: Order
   ) => {
     setSelectedOrder(order);
+
     setEditPrice(
       String(order.price || 0)
     );
+
     setSelectedCourier(
       order.courierId || ""
     );
+
     setSelectedStatus(
       order.status
     );
@@ -356,7 +381,126 @@ export const AdminPanel: React.FC<Props> = ({
     setEditPrice("");
   };
 
-  const saveOrderChanges = () => {
+  /*
+   * KURYE EKLEME
+   *
+   * Bu fonksiyon storage.createCourier()
+   * hazır olduğunda otomatik olarak
+   * çalışacaktır.
+   */
+  const handleAddCourier = async (
+    event: React.FormEvent
+  ) => {
+    event.preventDefault();
+
+    const name =
+      courierName.trim();
+
+    const email =
+      courierEmail.trim();
+
+    const phone =
+      courierPhone.trim();
+
+    const password =
+      courierPassword;
+
+    if (!name) {
+      alert("Kurye adı girin.");
+      return;
+    }
+
+    if (!email) {
+      alert("Kurye e-postası girin.");
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      alert(
+        "Şifre en az 6 karakter olmalıdır."
+      );
+      return;
+    }
+
+    setAddingCourier(true);
+
+    try {
+      const createCourier =
+        (
+          storage as typeof storage & {
+            createCourier?: (data: {
+              name: string;
+              email: string;
+              phone: string;
+              password: string;
+            }) => Promise<UserProfile>;
+          }
+        ).createCourier;
+
+      if (!createCourier) {
+        throw new Error(
+          "Kurye oluşturma sistemi henüz storage.ts içine eklenmedi."
+        );
+      }
+
+      await createCourier({
+        name,
+        email,
+        phone,
+        password,
+      });
+
+      setCourierName("");
+      setCourierEmail("");
+      setCourierPhone("");
+      setCourierPassword("");
+
+      setShowAddCourier(false);
+
+      refresh();
+
+      alert(
+        "Kurye hesabı başarıyla oluşturuldu."
+      );
+    } catch (error: any) {
+      console.error(
+        "Kurye oluşturma hatası:",
+        error
+      );
+
+      alert(
+        error?.message ||
+          "Kurye oluşturulamadı."
+      );
+    } finally {
+      setAddingCourier(false);
+    }
+  };
+
+  const changeCourierStatus = (
+    courierId: string,
+    status: CourierAvailability
+  ) => {
+    try {
+      storage.updateCourierStatus(
+        courierId,
+        status
+      );
+
+      refresh();
+    } catch (error) {
+      console.error(
+        "Kurye durumu güncellenemedi:",
+        error
+      );
+
+      alert(
+        "Kurye durumu güncellenemedi."
+      );
+    }
+  };
+
+  const saveOrderChanges = async () => {
     if (!selectedOrder) {
       return;
     }
@@ -382,11 +526,10 @@ export const AdminPanel: React.FC<Props> = ({
           updatedOrder.courierId
       ) {
         updatedOrder =
-          storage.assignCourier(
+          await storage.assignCourier(
             updatedOrder.id,
             selectedCourier
-          ) ||
-          updatedOrder;
+          );
       }
 
       if (
@@ -395,17 +538,20 @@ export const AdminPanel: React.FC<Props> = ({
         selectedStatus
       ) {
         updatedOrder =
-          storage.updateOrderStatus(
+          await storage.updateOrder(
             updatedOrder.id,
-            selectedStatus
-          ) ||
-          updatedOrder;
+            {
+              status: selectedStatus,
+            }
+          );
       }
 
       const numericPrice =
         Number(
-          editPrice
-            .replace(",", ".")
+          editPrice.replace(
+            ",",
+            "."
+          )
         );
 
       if (
@@ -414,16 +560,20 @@ export const AdminPanel: React.FC<Props> = ({
         ) &&
         numericPrice >= 0 &&
         numericPrice !==
-          Number(updatedOrder.price)
+          Number(
+            updatedOrder?.price
+          )
       ) {
         updatedOrder =
-          storage.updateOrderPrice(
+          await storage.updateOrder(
             updatedOrder.id,
-            Math.round(
-              numericPrice
-            )
-          ) ||
-          updatedOrder;
+            {
+              price:
+                Math.round(
+                  numericPrice
+                ),
+            }
+          );
       }
 
       setSelectedOrder(
@@ -435,40 +585,18 @@ export const AdminPanel: React.FC<Props> = ({
       alert(
         "Sipariş başarıyla güncellendi."
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         "Sipariş güncelleme hatası:",
         error
       );
 
       alert(
-        "Sipariş güncellenemedi. Firestore yetkilerini kontrol edin."
+        error?.message ||
+          "Sipariş güncellenemedi. Firestore yetkilerini kontrol edin."
       );
     } finally {
       setSaving(false);
-    }
-  };
-
-  const changeCourierStatus = (
-    courierId: string,
-    status: CourierAvailability
-  ) => {
-    try {
-      storage.updateCourierStatus(
-        courierId,
-        status
-      );
-
-      refresh();
-    } catch (error) {
-      console.error(
-        "Kurye durumu güncellenemedi:",
-        error
-      );
-
-      alert(
-        "Kurye durumu güncellenemedi."
-      );
     }
   };
 
@@ -745,51 +873,6 @@ export const AdminPanel: React.FC<Props> = ({
                 </div>
               </div>
             </div>
-
-            <div className="rounded-2xl border border-[#303036] bg-[#19191E]">
-              <div className="flex items-center justify-between border-b border-[#303036] p-5">
-                <div>
-                  <h2 className="font-semibold">
-                    Son Siparişler
-                  </h2>
-
-                  <p className="text-sm text-[#999999]">
-                    En son oluşturulan gönderiler
-                  </p>
-                </div>
-
-                <button
-                  onClick={() =>
-                    setActiveTab("orders")
-                  }
-                  className="flex items-center gap-1 text-sm text-[#D6A84F]"
-                >
-                  Tümünü Gör
-                  <ChevronRight
-                    size={16}
-                  />
-                </button>
-              </div>
-
-              <div className="divide-y divide-[#303036]">
-                {safeOrders
-                  .slice(0, 8)
-                  .map((order) => (
-                    <OrderRow
-                      key={order.id}
-                      order={order}
-                      onClick={() =>
-                        openOrder(order)
-                      }
-                    />
-                  ))}
-
-                {safeOrders.length ===
-                  0 && (
-                  <EmptyState text="Henüz sipariş bulunmuyor." />
-                )}
-              </div>
-            </div>
           </div>
         )}
 
@@ -862,13 +945,6 @@ export const AdminPanel: React.FC<Props> = ({
                               order.status
                             }
                           />
-
-                          {order.urgency !==
-                            "Normal" && (
-                            <span className="rounded-full bg-red-500/10 border border-red-500/30 px-2 py-0.5 text-[10px] font-bold text-red-400">
-                              {order.urgency}
-                            </span>
-                          )}
                         </div>
 
                         <p className="mt-2 text-sm text-slate-300">
@@ -926,30 +1002,32 @@ export const AdminPanel: React.FC<Props> = ({
 
         {activeTab === "couriers" && (
           <div className="space-y-5">
-            <div>
-              <h2 className="text-xl font-bold">
-                Kuryeler
-              </h2>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-bold">
+                  Kuryeler
+                </h2>
 
-              <p className="text-sm text-[#999999]">
-                {couriers.length} gerçek kurye hesabı
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
-              <div className="flex gap-3">
-                <AlertCircle
-                  size={18}
-                  className="shrink-0"
-                />
-
-                <p>
-                  V1'de admin paneli Firebase
-                  Authentication hesabı oluşturmaz.
-                  Kurye hesabı gerçek Auth hesabı olarak
-                  oluşturulduktan sonra burada yönetilir.
+                <p className="text-sm text-[#999999]">
+                  {couriers.length} gerçek kurye hesabı
                 </p>
               </div>
+
+              <button
+                onClick={() =>
+                  setShowAddCourier(true)
+                }
+                className="flex items-center justify-center gap-2 rounded-xl bg-[#D6A84F] px-4 py-3 font-bold text-[#0B0B0D] transition hover:bg-[#c49740]"
+              >
+                <Plus size={18} />
+                Kurye Ekle
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-200">
+              Artık kurye hesabını Admin panelinden oluşturabilirsiniz.
+              Kurye oluşturulduktan sonra Firebase UID'si otomatik olarak
+              profil ID'si olarak kullanılmalıdır.
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -1079,87 +1157,35 @@ export const AdminPanel: React.FC<Props> = ({
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {customers.map(
-                (customer) => {
-                  const customerOrders =
-                    safeOrders.filter(
-                      (order) =>
-                        order.customerId ===
-                        customer.id
-                    );
-
-                  const customerRevenue =
-                    customerOrders
-                      .filter(
-                        (order) =>
-                          order.status !==
-                          "İptal Edildi"
-                      )
-                      .reduce(
-                        (sum, order) =>
-                          sum +
-                          Number(
-                            order.price ||
-                              0
-                          ),
-                        0
-                      );
-
-                  return (
-                    <div
-                      key={customer.id}
-                      className="rounded-2xl border border-[#303036] bg-[#19191E] p-5"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="rounded-full bg-blue-500/10 p-3">
-                          <Users
-                            size={20}
-                            className="text-blue-400"
-                          />
-                        </div>
-
-                        <div className="min-w-0">
-                          <h3 className="font-semibold truncate">
-                            {customer.name}
-                          </h3>
-
-                          <p className="text-xs text-[#777777] truncate">
-                            {customer.email}
-                          </p>
-
-                          <p className="text-xs text-[#777777]">
-                            {customer.phone}
-                          </p>
-                        </div>
+                (customer) => (
+                  <div
+                    key={customer.id}
+                    className="rounded-2xl border border-[#303036] bg-[#19191E] p-5"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-full bg-blue-500/10 p-3">
+                        <Users
+                          size={20}
+                          className="text-blue-400"
+                        />
                       </div>
 
-                      <div className="mt-5 grid grid-cols-2 gap-3">
-                        <div className="rounded-xl bg-[#0B0B0D] p-3">
-                          <p className="text-xs text-[#777777]">
-                            Sipariş
-                          </p>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold truncate">
+                          {customer.name}
+                        </h3>
 
-                          <p className="mt-1 font-bold">
-                            {
-                              customerOrders.length
-                            }
-                          </p>
-                        </div>
+                        <p className="text-xs text-[#777777] truncate">
+                          {customer.email}
+                        </p>
 
-                        <div className="rounded-xl bg-[#0B0B0D] p-3">
-                          <p className="text-xs text-[#777777]">
-                            Harcama
-                          </p>
-
-                          <p className="mt-1 text-sm font-bold text-[#D6A84F]">
-                            {formatMoney(
-                              customerRevenue
-                            )}
-                          </p>
-                        </div>
+                        <p className="text-xs text-[#777777]">
+                          {customer.phone}
+                        </p>
                       </div>
                     </div>
-                  );
-                }
+                  </div>
+                )
               )}
 
               {customers.length ===
@@ -1176,10 +1202,6 @@ export const AdminPanel: React.FC<Props> = ({
               <h2 className="text-xl font-bold">
                 Fiyatlandırma
               </h2>
-
-              <p className="text-sm text-[#999999]">
-                Yeni siparişlerin fiyat hesaplamasını yönet.
-              </p>
             </div>
 
             <div className="space-y-5 rounded-2xl border border-[#303036] bg-[#19191E] p-5">
@@ -1213,25 +1235,9 @@ export const AdminPanel: React.FC<Props> = ({
                 }
               />
 
-              <div className="rounded-xl border border-[#303036] bg-[#0B0B0D] p-4">
-                <p className="text-xs text-[#777777]">
-                  Mevcut hesaplama
-                </p>
-
-                <p className="mt-1 text-lg font-bold text-[#D6A84F]">
-                  KM ×{" "}
-                  {perKmPrice} TL
-                  <span className="text-xs text-[#777777]">
-                    {" "}
-                    • minimum{" "}
-                    {minPrice} TL
-                  </span>
-                </p>
-              </div>
-
               <button
                 onClick={savePricing}
-                className="w-full rounded-xl bg-[#D6A84F] py-3 font-bold text-[#0B0B0D] hover:bg-[#c49740] transition"
+                className="w-full rounded-xl bg-[#D6A84F] py-3 font-bold text-[#0B0B0D]"
               >
                 Fiyatları Firebase'e Kaydet
               </button>
@@ -1241,22 +1247,14 @@ export const AdminPanel: React.FC<Props> = ({
 
         {activeTab === "settings" && (
           <div className="mx-auto max-w-2xl space-y-5">
-            <div>
-              <h2 className="text-xl font-bold">
-                Sistem
-              </h2>
-
-              <p className="text-sm text-[#999999]">
-                Trustline Express V1 sistem durumu.
-              </p>
-            </div>
+            <h2 className="text-xl font-bold">
+              Sistem
+            </h2>
 
             <div className="space-y-3 rounded-2xl border border-[#303036] bg-[#19191E] p-5">
               <SettingRow
                 icon={
-                  <ShieldCheck
-                    size={20}
-                  />
+                  <ShieldCheck size={20} />
                 }
                 title="Firebase Authentication"
                 description="Gerçek e-posta/şifre kullanıcı hesapları"
@@ -1265,58 +1263,152 @@ export const AdminPanel: React.FC<Props> = ({
 
               <SettingRow
                 icon={
-                  <Activity
-                    size={20}
-                  />
+                  <Activity size={20} />
                 }
                 title="Firestore"
-                description="Sipariş, kullanıcı, fiyat ve konum verileri"
+                description="Sipariş ve kullanıcı verileri"
                 status="Aktif"
               />
 
               <SettingRow
-                icon={
-                  <Zap size={20} />
-                }
+                icon={<Zap size={20} />}
                 title="Yapay Zeka"
-                description="Trustline AI entegrasyonu"
+                description="Trustline AI"
                 status="Aktif"
               />
 
               <SettingRow
-                icon={
-                  <Truck size={20} />
-                }
+                icon={<Truck size={20} />}
                 title="Kurye GPS"
-                description="Canlı kurye konum paylaşımı"
+                description="Canlı konum"
                 status="V1"
               />
-            </div>
-
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5">
-              <div className="flex gap-3">
-                <AlertCircle
-                  size={20}
-                  className="shrink-0 text-amber-400"
-                />
-
-                <div>
-                  <h3 className="font-semibold text-amber-300">
-                    Demo modu kapalı
-                  </h3>
-
-                  <p className="mt-1 text-sm text-amber-100/70">
-                    V1 sürümünde demo kullanıcı değiştirme,
-                    demo veri sıfırlama ve sahte kurye hesabı
-                    oluşturma kullanılmaz.
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
         )}
       </main>
 
+      {/* KURYE EKLE MODAL */}
+      {showAddCourier && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4">
+          <div className="w-full max-w-md rounded-3xl border border-[#303036] bg-[#111116] p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold">
+                  Yeni Kurye Ekle
+                </h2>
+
+                <p className="mt-1 text-sm text-[#777777]">
+                  Kurye hesabı oluştur
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  !addingCourier &&
+                  setShowAddCourier(false)
+                }
+                className="rounded-xl border border-[#303036] bg-[#19191E] p-2 text-[#999999] hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleAddCourier}
+              className="mt-6 space-y-4"
+            >
+              <div>
+                <label className="mb-2 block text-xs text-[#777777]">
+                  Kurye Adı
+                </label>
+
+                <input
+                  value={courierName}
+                  onChange={(event) =>
+                    setCourierName(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Örn. Ahmet Yılmaz"
+                  required
+                  className="w-full rounded-xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm outline-none focus:border-[#D6A84F]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs text-[#777777]">
+                  E-posta
+                </label>
+
+                <input
+                  type="email"
+                  value={courierEmail}
+                  onChange={(event) =>
+                    setCourierEmail(
+                      event.target.value
+                    )
+                  }
+                  placeholder="kurye@example.com"
+                  required
+                  className="w-full rounded-xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm outline-none focus:border-[#D6A84F]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs text-[#777777]">
+                  Telefon
+                </label>
+
+                <input
+                  type="tel"
+                  value={courierPhone}
+                  onChange={(event) =>
+                    setCourierPhone(
+                      event.target.value
+                    )
+                  }
+                  placeholder="05xx xxx xx xx"
+                  className="w-full rounded-xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm outline-none focus:border-[#D6A84F]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs text-[#777777]">
+                  Geçici Şifre
+                </label>
+
+                <input
+                  type="password"
+                  value={courierPassword}
+                  onChange={(event) =>
+                    setCourierPassword(
+                      event.target.value
+                    )
+                  }
+                  placeholder="En az 6 karakter"
+                  minLength={6}
+                  required
+                  className="w-full rounded-xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm outline-none focus:border-[#D6A84F]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={addingCourier}
+                className="w-full rounded-xl bg-[#D6A84F] py-3 font-bold text-[#0B0B0D] transition hover:bg-[#c49740] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {addingCourier
+                  ? "Kurye oluşturuluyor..."
+                  : "Kurye Hesabı Oluştur"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SİPARİŞ MODAL */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4">
           <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-[#303036] bg-[#111116] p-5 sm:rounded-3xl">
@@ -1452,23 +1544,17 @@ export const AdminPanel: React.FC<Props> = ({
                   Sipariş Fiyatı
                 </label>
 
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    value={editPrice}
-                    onChange={(event) =>
-                      setEditPrice(
-                        event.target.value
-                      )
-                    }
-                    className="w-full rounded-xl border border-[#303036] bg-[#19191E] px-4 py-3 pr-14 text-sm outline-none focus:border-[#D6A84F]"
-                  />
-
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-[#777777]">
-                    TL
-                  </span>
-                </div>
+                <input
+                  type="number"
+                  min="0"
+                  value={editPrice}
+                  onChange={(event) =>
+                    setEditPrice(
+                      event.target.value
+                    )
+                  }
+                  className="w-full rounded-xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm outline-none focus:border-[#D6A84F]"
+                />
               </div>
 
               {selectedOrder.deliveryProof && (
@@ -1477,19 +1563,11 @@ export const AdminPanel: React.FC<Props> = ({
                 />
               )}
 
-              {selectedOrder.status ===
-                "Teslim Edildi" &&
-                !selectedOrder.deliveryProof &&
-                !selectedOrder.signature && (
-                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">
-                    Teslim edildi olarak işaretlenmiş
-                    ancak teslim kanıtı bulunmuyor.
-                  </div>
-                )}
-
               <button
                 disabled={saving}
-                onClick={saveOrderChanges}
+                onClick={
+                  saveOrderChanges
+                }
                 className="w-full rounded-xl bg-[#D6A84F] py-3 font-bold text-[#0B0B0D] transition hover:bg-[#c49740] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving
@@ -1556,8 +1634,7 @@ const StatusBadge: React.FC<{
   const classes =
     status === "Teslim Edildi"
       ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-      : status ===
-        "İptal Edildi"
+      : status === "İptal Edildi"
       ? "bg-red-500/10 text-red-400 border-red-500/20"
       : status === "Teslimatta"
       ? "bg-[#D6A84F]/10 text-[#D6A84F] border-[#D6A84F]/20"
@@ -1571,47 +1648,6 @@ const StatusBadge: React.FC<{
     </span>
   );
 };
-
-const OrderRow: React.FC<{
-  order: Order;
-  onClick: () => void;
-}> = ({
-  order,
-  onClick,
-}) => (
-  <button
-    onClick={onClick}
-    className="flex w-full items-center justify-between gap-4 p-4 text-left hover:bg-[#222229] transition"
-  >
-    <div className="min-w-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-semibold text-sm">
-          #{order.id}
-        </span>
-
-        <StatusBadge
-          status={order.status}
-        />
-      </div>
-
-      <p className="mt-1 truncate text-xs text-[#999999]">
-        {order.customerName ||
-          "Müşteri"}{" "}
-        • {order.pickupAddress}
-      </p>
-    </div>
-
-    <div className="shrink-0 text-right">
-      <p className="text-sm font-bold text-[#D6A84F]">
-        {order.price} TL
-      </p>
-
-      <p className="text-[10px] text-[#777777]">
-        {order.distanceKm} km
-      </p>
-    </div>
-  </button>
-);
 
 const EmptyState: React.FC<{
   text: string;
