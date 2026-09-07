@@ -1,4 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   CheckCircle2,
   Clock,
@@ -22,7 +27,7 @@ import type {
 
 import { storage } from "../services/storage";
 import {
-  GeoCoordinate,
+  type GeoCoordinate,
   mapService,
 } from "../services/mapService";
 
@@ -43,10 +48,6 @@ const ACTIVE_STATUSES: OrderStatus[] = [
   "Teslimatta",
 ];
 
-const COMPLETED_STATUSES: OrderStatus[] = [
-  "Teslim Edildi",
-];
-
 const STATUS_STEPS: OrderStatus[] = [
   "Kurye Bekleniyor",
   "Kurye Atandı",
@@ -56,11 +57,13 @@ const STATUS_STEPS: OrderStatus[] = [
   "Teslim Edildi",
 ];
 
-const OrderTrackingCard: React.FC<{ order: Order }> = ({
-  order,
-}) => {
-  const [courierLoc, setCourierLoc] =
-    useState<CourierLocation | null>(null);
+const OrderTrackingCard: React.FC<{
+  order: Order;
+}> = ({ order }) => {
+  const [courierLocation, setCourierLocation] =
+    useState<CourierLocation | undefined>(
+      undefined
+    );
 
   const [pickupCoords, setPickupCoords] =
     useState<GeoCoordinate | null>(null);
@@ -75,72 +78,56 @@ const OrderTrackingCard: React.FC<{ order: Order }> = ({
     let mounted = true;
 
     if (!order.courierId) {
-      setCourierLoc(null);
-      return () => {
-        mounted = false;
-      };
+      setCourierLocation(undefined);
+      return;
     }
 
     const loadLocation = async () => {
       try {
         const location =
-          await storage.getCourierLocation(
-            order.courierId as string
+          await Promise.resolve(
+            storage.getCourierLocation(
+              order.courierId as string
+            )
           );
 
         if (mounted) {
-          setCourierLoc(location || null);
+          setCourierLocation(
+            location || undefined
+          );
         }
       } catch (error) {
         console.warn(
           "Kurye konumu alınamadı:",
           error
         );
-
-        if (mounted) {
-          setCourierLoc(null);
-        }
       }
     };
 
     loadLocation();
 
-    let unsubscribe: (() => void) | undefined;
+    let unsubscribe:
+      | (() => void)
+      | undefined;
 
     try {
-      unsubscribe = storage.subscribe(() => {
-        loadLocation();
-      });
+      unsubscribe = storage.subscribe(
+        loadLocation
+      );
     } catch (error) {
       console.warn(
-        "Sipariş canlı dinleyicisi kurulamadı:",
+        "Kurye konum listener kurulamadı:",
         error
       );
     }
 
-    return () => {
-      mounted = false;
-
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, [order.courierId]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const calculateRoute = async () => {
-      try {
-        const result =
-          await mapService.calculateDistance(
-            order.pickupAddress,
-            order.deliveryAddress
-          );
-
-        if (!mounted) {
-          return;
-        }
+    mapService
+      .calculateDistance(
+        order.pickupAddress,
+        order.deliveryAddress
+      )
+      .then((result) => {
+        if (!mounted) return;
 
         if (result.pickupCoords) {
           setPickupCoords(
@@ -162,55 +149,58 @@ const OrderTrackingCard: React.FC<{ order: Order }> = ({
             result.routePoints
           );
         }
-      } catch (error) {
+      })
+      .catch((error) => {
         console.warn(
-          "Rota hesaplanamadı:",
+          "Rota bilgisi alınamadı:",
           error
         );
-      }
-    };
-
-    calculateRoute();
+      });
 
     return () => {
       mounted = false;
+      unsubscribe?.();
     };
   }, [
+    order.courierId,
     order.pickupAddress,
     order.deliveryAddress,
   ]);
 
   const isSharing =
-    !!courierLoc?.isSharing;
+    !!courierLocation?.isSharing;
 
   return (
-    <div className="bg-[#19191E] border border-[#303036] rounded-2xl p-4 space-y-3">
+    <div className="space-y-3 rounded-2xl border border-[#303036] bg-[#19191E] p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Navigation className="w-4 h-4 text-[#D6A84F]" />
+          <Navigation
+            size={16}
+            className="text-[#D6A84F]"
+          />
 
-          <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-            Kurye Takibi & Canlı Rota
+          <h4 className="text-xs font-bold uppercase tracking-wider">
+            Kurye Takibi
           </h4>
         </div>
 
         <span
-          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 ${
+          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold ${
             isSharing
-              ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-400"
-              : "bg-[#222229] border border-[#303036] text-[#999999]"
+              ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
+              : "border-[#303036] bg-[#222229] text-[#999999]"
           }`}
         >
           <span
-            className={`w-2 h-2 rounded-full ${
+            className={`h-2 w-2 rounded-full ${
               isSharing
-                ? "bg-emerald-400 animate-ping"
+                ? "animate-pulse bg-emerald-400"
                 : "bg-gray-500"
             }`}
           />
 
           {isSharing
-            ? "Canlı GPS Aktif"
+            ? "Canlı GPS"
             : "GPS Bekleniyor"}
         </span>
       </div>
@@ -220,10 +210,10 @@ const OrderTrackingCard: React.FC<{ order: Order }> = ({
         deliveryCoords={deliveryCoords}
         routePoints={routePoints}
         courierCoords={
-          isSharing && courierLoc
+          isSharing && courierLocation
             ? {
-                lat: courierLoc.latitude,
-                lng: courierLoc.longitude,
+                lat: courierLocation.latitude,
+                lng: courierLocation.longitude,
                 name:
                   order.courierName ||
                   "Kurye",
@@ -235,20 +225,23 @@ const OrderTrackingCard: React.FC<{ order: Order }> = ({
         isAutoCalculated={true}
       />
 
-      {isSharing && courierLoc ? (
-        <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs flex items-center justify-between gap-3 text-emerald-300">
-          <div className="flex items-center gap-2 min-w-0">
-            <Radio className="w-4 h-4 text-emerald-400 animate-pulse shrink-0" />
+      {isSharing && courierLocation ? (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+          <div className="flex items-center gap-2">
+            <Radio
+              size={15}
+              className="animate-pulse text-emerald-400"
+            />
 
             <span>
-              Kuryeniz hareket halinde ve
-              konumu anlık iletiliyor.
+              Kurye konumu anlık olarak
+              iletiliyor.
             </span>
           </div>
 
-          <span className="text-[10px] font-mono text-[#999999] shrink-0">
+          <span className="shrink-0 font-mono text-[10px] text-[#999999]">
             {new Date(
-              courierLoc.updatedAt
+              courierLocation.updatedAt
             ).toLocaleTimeString(
               "tr-TR",
               {
@@ -260,19 +253,17 @@ const OrderTrackingCard: React.FC<{ order: Order }> = ({
           </span>
         </div>
       ) : (
-        <div className="p-2.5 bg-[#222229] border border-[#303036] rounded-xl text-[11px] text-[#999999] space-y-1">
-          <p className="flex items-center gap-1.5 text-amber-300/90 font-medium">
-            <Info className="w-3.5 h-3.5 shrink-0" />
-
+        <div className="space-y-1 rounded-xl border border-[#303036] bg-[#222229] p-3 text-[11px] text-[#999999]">
+          <p className="flex items-center gap-1.5 font-medium text-amber-300">
+            <Info size={14} />
             Kurye henüz canlı konum
             paylaşımını başlatmadı.
           </p>
 
-          <p className="text-[10px] text-[#999999]/80">
-            Kurye cihazından konum izni
-            verip paylaşımı başlattığında
-            burada anlık olarak
-            görünecektir.
+          <p className="text-[10px]">
+            Kurye GPS paylaşımını
+            başlattığında konumu burada
+            görüntülenecektir.
           </p>
         </div>
       )}
@@ -288,17 +279,15 @@ export const CustomerOrders: React.FC<Props> = ({
   const [searchTerm, setSearchTerm] =
     useState("");
 
-  const [statusFilter, setStatusFilter] =
+  const [filter, setFilter] =
     useState<
       "all" | "active" | "completed"
     >("all");
 
-  const [
-    expandedOrderId,
-    setExpandedOrderId,
-  ] = useState<string | null>(
-    selectedOrderId || null
-  );
+  const [expandedOrderId, setExpandedOrderId] =
+    useState<string | null>(
+      selectedOrderId || null
+    );
 
   useEffect(() => {
     if (selectedOrderId) {
@@ -308,44 +297,51 @@ export const CustomerOrders: React.FC<Props> = ({
     }
   }, [selectedOrderId]);
 
-  const filteredOrders = useMemo(() => {
-    const query =
-      searchTerm.trim().toLowerCase();
+  const safeOrders = Array.isArray(
+    orders
+  )
+    ? orders
+    : [];
 
-    return [...orders]
+  const filteredOrders = useMemo(() => {
+    const term =
+      searchTerm
+        .trim()
+        .toLowerCase();
+
+    return [...safeOrders]
       .filter((order) => {
+        const searchableText = [
+          order.id,
+          order.pickupAddress,
+          order.deliveryAddress,
+          order.customerName,
+          order.courierName,
+          order.packageType,
+          order.courierType,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
         const matchesSearch =
-          !query ||
-          order.id
-            .toLowerCase()
-            .includes(query) ||
-          order.pickupAddress
-            .toLowerCase()
-            .includes(query) ||
-          order.deliveryAddress
-            .toLowerCase()
-            .includes(query) ||
-          order.courierName
-            ?.toLowerCase()
-            .includes(query);
+          !term ||
+          searchableText.includes(term);
 
         if (!matchesSearch) {
           return false;
         }
 
-        if (
-          statusFilter === "active"
-        ) {
+        if (filter === "active") {
           return ACTIVE_STATUSES.includes(
             order.status
           );
         }
 
-        if (
-          statusFilter === "completed"
-        ) {
-          return COMPLETED_STATUSES.includes(
-            order.status
+        if (filter === "completed") {
+          return (
+            order.status ===
+            "Teslim Edildi"
           );
         }
 
@@ -361,9 +357,9 @@ export const CustomerOrders: React.FC<Props> = ({
           ).getTime()
       );
   }, [
-    orders,
+    safeOrders,
     searchTerm,
-    statusFilter,
+    filter,
   ]);
 
   const getStatusBadge = (
@@ -372,56 +368,62 @@ export const CustomerOrders: React.FC<Props> = ({
     switch (status) {
       case "Kurye Bekleniyor":
         return (
-          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center gap-1">
-            <Clock className="w-3 h-3 animate-spin" />
+          <span className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/15 px-2.5 py-1 text-[10px] font-bold text-amber-400">
+            <Clock
+              size={12}
+              className="animate-spin"
+            />
             Kurye Bekleniyor
           </span>
         );
 
       case "Kurye Atandı":
         return (
-          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center gap-1">
-            <User className="w-3 h-3" />
+          <span className="flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/15 px-2.5 py-1 text-[10px] font-bold text-blue-400">
+            <User size={12} />
             Kurye Atandı
           </span>
         );
 
       case "Kurye Kabul Etti":
         return (
-          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" />
+          <span className="flex items-center gap-1 rounded-full border border-indigo-500/30 bg-indigo-500/15 px-2.5 py-1 text-[10px] font-bold text-indigo-300">
+            <CheckCircle2 size={12} />
             Kurye Kabul Etti
           </span>
         );
 
       case "Paket Alındı":
         return (
-          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 flex items-center gap-1">
-            <Package className="w-3 h-3" />
+          <span className="flex items-center gap-1 rounded-full border border-purple-500/30 bg-purple-500/15 px-2.5 py-1 text-[10px] font-bold text-purple-300">
+            <Package size={12} />
             Paket Alındı
           </span>
         );
 
       case "Teslimatta":
         return (
-          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#D6A84F]/20 border border-[#D6A84F]/40 text-[#D6A84F] flex items-center gap-1">
-            <Truck className="w-3 h-3 animate-pulse" />
+          <span className="flex items-center gap-1 rounded-full border border-[#D6A84F]/40 bg-[#D6A84F]/20 px-2.5 py-1 text-[10px] font-bold text-[#D6A84F]">
+            <Truck
+              size={12}
+              className="animate-pulse"
+            />
             Teslimatta
           </span>
         );
 
       case "Teslim Edildi":
         return (
-          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" />
+          <span className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold text-emerald-400">
+            <CheckCircle2 size={12} />
             Teslim Edildi
           </span>
         );
 
       case "İptal Edildi":
         return (
-          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 flex items-center gap-1">
-            <XCircle className="w-3 h-3" />
+          <span className="flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/15 px-2.5 py-1 text-[10px] font-bold text-red-400">
+            <XCircle size={12} />
             İptal Edildi
           </span>
         );
@@ -443,10 +445,12 @@ export const CustomerOrders: React.FC<Props> = ({
     }
 
     try {
-      await storage.updateOrderStatus(
-        orderId,
-        "İptal Edildi",
-        "Müşteri tarafından iptal edildi."
+      await Promise.resolve(
+        storage.updateOrderStatus(
+          orderId,
+          "İptal Edildi",
+          "Müşteri tarafından iptal edildi."
+        )
       );
     } catch (error) {
       console.error(
@@ -462,41 +466,44 @@ export const CustomerOrders: React.FC<Props> = ({
 
   return (
     <div className="space-y-4 pb-20">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#19191E] border border-[#303036] p-4 rounded-2xl">
+      <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[#303036] bg-[#19191E] p-4 sm:flex-row sm:items-center">
         <div>
-          <h2 className="text-lg font-bold text-white font-['Space_Grotesk']">
-            Siparişlerim ({orders.length})
+          <h2 className="font-['Space_Grotesk'] text-lg font-bold">
+            Siparişlerim ({safeOrders.length})
           </h2>
 
           <p className="text-xs text-[#999999]">
-            Tüm kurye gönderilerinizin
-            anlık durum takibi
+            Kurye gönderilerinizin anlık
+            durumunu takip edin.
           </p>
         </div>
 
         <button
           onClick={onOpenNewOrder}
-          className="bg-[#D6A84F] hover:bg-[#c49740] text-[#0B0B0D] font-bold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md shadow-[#D6A84F]/10 cursor-pointer self-start sm:self-auto"
+          className="flex items-center justify-center gap-2 self-start rounded-xl bg-[#D6A84F] px-4 py-2.5 text-xs font-bold text-[#0B0B0D] transition hover:bg-[#c49740] sm:self-auto"
         >
-          <Truck className="w-4 h-4" />
-          <span>Yeni Kurye Çağır</span>
+          <Truck size={16} />
+          Yeni Kurye Çağır
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-[#999999] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search
+            size={16}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#999999]"
+          />
 
           <input
             type="text"
-            placeholder="Sipariş No, adres veya kurye ara..."
             value={searchTerm}
             onChange={(event) =>
               setSearchTerm(
                 event.target.value
               )
             }
-            className="w-full bg-[#19191E] border border-[#303036] focus:border-[#D6A84F] text-xs text-white placeholder:text-[#999999] rounded-xl pl-9 pr-3 py-2.5 focus:outline-hidden transition-colors"
+            placeholder="Sipariş no, adres veya kurye ara..."
+            className="w-full rounded-xl border border-[#303036] bg-[#19191E] py-2.5 pl-9 pr-3 text-xs text-white outline-none transition focus:border-[#D6A84F]"
           />
         </div>
 
@@ -508,24 +515,22 @@ export const CustomerOrders: React.FC<Props> = ({
             },
             {
               key: "active" as const,
-              label: "Aktif Siparişler",
+              label: "Aktif",
             },
             {
               key: "completed" as const,
-              label: "Tamamlananlar",
+              label: "Tamamlanan",
             },
           ].map((tab) => (
             <button
               key={tab.key}
               onClick={() =>
-                setStatusFilter(
-                  tab.key
-                )
+                setFilter(tab.key)
               }
-              className={`px-3 py-2 text-xs font-semibold rounded-xl whitespace-nowrap transition-colors border ${
-                statusFilter === tab.key
-                  ? "bg-[#D6A84F]/15 text-[#D6A84F] border-[#D6A84F]/40"
-                  : "bg-[#19191E] text-[#999999] border-[#303036] hover:text-white"
+              className={`whitespace-nowrap rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                filter === tab.key
+                  ? "border-[#D6A84F]/40 bg-[#D6A84F]/15 text-[#D6A84F]"
+                  : "border-[#303036] bg-[#19191E] text-[#999999] hover:text-white"
               }`}
             >
               {tab.label}
@@ -535,35 +540,41 @@ export const CustomerOrders: React.FC<Props> = ({
       </div>
 
       {filteredOrders.length === 0 ? (
-        <div className="text-center py-16 bg-[#19191E] border border-[#303036] rounded-2xl p-6">
-          <Package className="w-12 h-12 text-[#999999]/40 mx-auto mb-3" />
+        <div className="rounded-2xl border border-[#303036] bg-[#19191E] p-10 text-center">
+          <Package
+            size={44}
+            className="mx-auto text-[#999999]/40"
+          />
 
-          <h3 className="font-bold text-white text-base">
+          <h3 className="mt-3 font-bold">
             Sipariş Bulunamadı
           </h3>
 
-          <p className="text-xs text-[#999999] mt-1 max-w-sm mx-auto">
+          <p className="mx-auto mt-1 max-w-sm text-xs text-[#999999]">
             {searchTerm ||
-            statusFilter !== "all"
-              ? "Arama kriterlerinize uygun sipariş bulunamadı."
-              : "Henüz bir kurye talebiniz bulunmuyor. Hemen bir kurye çağırabilirsiniz."}
+            filter !== "all"
+              ? "Arama veya filtre kriterlerinize uygun sipariş bulunamadı."
+              : "Henüz bir kurye talebiniz bulunmuyor."}
           </p>
 
-          <button
-            onClick={onOpenNewOrder}
-            className="mt-4 inline-flex items-center gap-2 bg-[#D6A84F] text-[#0B0B0D] px-4 py-2 rounded-xl text-xs font-bold"
-          >
-            İlk Siparişi Oluştur
-          </button>
+          {!searchTerm &&
+            filter === "all" && (
+              <button
+                onClick={onOpenNewOrder}
+                className="mt-4 rounded-xl bg-[#D6A84F] px-4 py-2 text-xs font-bold text-[#0B0B0D]"
+              >
+                İlk Siparişi Oluştur
+              </button>
+            )}
         </div>
       ) : (
         <div className="space-y-3">
           {filteredOrders.map((order) => {
-            const isExpanded =
+            const expanded =
               expandedOrderId ===
               order.id;
 
-            const currentStepIdx =
+            const currentStep =
               STATUS_STEPS.indexOf(
                 order.status
               );
@@ -571,25 +582,26 @@ export const CustomerOrders: React.FC<Props> = ({
             return (
               <div
                 key={order.id}
-                className="bg-[#19191E] border border-[#303036] rounded-2xl overflow-hidden hover:border-[#D6A84F]/40 transition-all shadow-md"
+                className="overflow-hidden rounded-2xl border border-[#303036] bg-[#19191E] transition hover:border-[#D6A84F]/40"
               >
-                <div
+                <button
+                  type="button"
                   onClick={() =>
                     setExpandedOrderId(
-                      isExpanded
+                      expanded
                         ? null
                         : order.id
                     )
                   }
-                  className="p-4 cursor-pointer flex flex-col gap-3"
+                  className="w-full p-4 text-left"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-mono font-bold text-xs text-[#D6A84F] bg-[#0B0B0D] px-2.5 py-1 rounded-lg border border-[#303036] shrink-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="rounded-lg border border-[#303036] bg-[#0B0B0D] px-2.5 py-1 font-mono text-xs font-bold text-[#D6A84F]">
                         #{order.id}
                       </span>
 
-                      <span className="text-xs text-[#999999] truncate">
+                      <span className="truncate text-[10px] text-[#999999]">
                         {new Date(
                           order.createdAt
                         ).toLocaleDateString(
@@ -610,109 +622,124 @@ export const CustomerOrders: React.FC<Props> = ({
                     )}
                   </div>
 
-                  <div className="space-y-2 text-xs">
+                  <div className="mt-4 space-y-2 text-xs">
                     <div className="flex items-start gap-2">
-                      <MapPin className="w-4 h-4 text-[#D6A84F] shrink-0 mt-0.5" />
+                      <MapPin
+                        size={15}
+                        className="mt-0.5 shrink-0 text-[#D6A84F]"
+                      />
 
-                      <div className="flex-1 min-w-0">
-                        <span className="text-[10px] text-[#999999] block">
-                          Alım:
+                      <div className="min-w-0">
+                        <span className="block text-[10px] text-[#999999]">
+                          Alım
                         </span>
 
-                        <p className="text-white font-medium truncate">
-                          {order.pickupAddress}
+                        <p className="truncate font-medium">
+                          {
+                            order.pickupAddress
+                          }
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-start gap-2">
-                      <Navigation className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <Navigation
+                        size={15}
+                        className="mt-0.5 shrink-0 text-emerald-400"
+                      />
 
-                      <div className="flex-1 min-w-0">
-                        <span className="text-[10px] text-[#999999] block">
-                          Teslimat:
+                      <div className="min-w-0">
+                        <span className="block text-[10px] text-[#999999]">
+                          Teslimat
                         </span>
 
-                        <p className="text-white font-medium truncate">
-                          {order.deliveryAddress}
+                        <p className="truncate font-medium">
+                          {
+                            order.deliveryAddress
+                          }
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-3 border-t border-[#303036]/60 text-xs gap-2">
-                    <div className="flex items-center gap-2 text-[#999999] overflow-hidden">
-                      <span className="bg-[#222229] px-2 py-0.5 rounded text-[11px] whitespace-nowrap">
+                  <div className="mt-4 flex items-center justify-between border-t border-[#303036]/60 pt-3">
+                    <div className="flex min-w-0 items-center gap-2 text-[10px] text-[#999999]">
+                      <span className="rounded bg-[#222229] px-2 py-1">
                         {order.packageType}
                       </span>
 
-                      <span className="bg-[#222229] px-2 py-0.5 rounded text-[11px] text-[#D6A84F] whitespace-nowrap">
+                      <span className="hidden rounded bg-[#222229] px-2 py-1 text-[#D6A84F] sm:inline">
                         {order.courierType}
                       </span>
 
-                      <span className="font-mono whitespace-nowrap">
+                      <span>
                         {order.distanceKm} KM
                       </span>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <span className="font-mono font-extrabold text-sm text-white">
-                        {order.price} TL
-                      </span>
-                    </div>
+                    <span className="shrink-0 font-mono text-sm font-extrabold text-white">
+                      {Number(
+                        order.price || 0
+                      ).toLocaleString(
+                        "tr-TR"
+                      )}{" "}
+                      TL
+                    </span>
                   </div>
-                </div>
+                </button>
 
-                {isExpanded && (
-                  <div className="p-4 bg-[#222229] border-t border-[#303036] space-y-4 animate-fadeIn">
+                {expanded && (
+                  <div className="space-y-4 border-t border-[#303036] bg-[#222229] p-4">
                     {order.status !==
                       "İptal Edildi" && (
                       <div>
-                        <span className="text-[11px] font-bold text-[#999999] uppercase tracking-wider block mb-2">
+                        <span className="mb-3 block text-[10px] font-bold uppercase tracking-wider text-[#999999]">
                           Teslimat Süreci
                         </span>
 
-                        <div className="grid grid-cols-6 gap-1 text-center">
+                        <div className="grid grid-cols-6 gap-1">
                           {STATUS_STEPS.map(
                             (
                               step,
-                              idx
+                              index
                             ) => {
-                              const isDone =
-                                currentStepIdx >=
-                                idx;
+                              const done =
+                                currentStep >=
+                                index;
 
-                              const isCurrent =
-                                currentStepIdx ===
-                                idx;
+                              const current =
+                                currentStep ===
+                                index;
 
                               return (
                                 <div
-                                  key={step}
-                                  className="flex flex-col items-center"
+                                  key={
+                                    step
+                                  }
+                                  className="flex min-w-0 flex-col items-center text-center"
                                 >
                                   <div
-                                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold mb-1 transition-all ${
-                                      isCurrent
-                                        ? "bg-[#D6A84F] text-[#0B0B0D] ring-4 ring-[#D6A84F]/20 font-black"
-                                        : isDone
+                                    className={`flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-bold ${
+                                      current
+                                        ? "bg-[#D6A84F] text-[#0B0B0D] ring-4 ring-[#D6A84F]/20"
+                                        : done
                                         ? "bg-emerald-500 text-white"
-                                        : "bg-[#19191E] text-[#999999] border border-[#303036]"
+                                        : "border border-[#303036] bg-[#19191E] text-[#777777]"
                                     }`}
                                   >
-                                    {isDone
+                                    {done
                                       ? "✓"
-                                      : idx +
+                                      : index +
                                         1}
                                   </div>
 
                                   <span
-                                    className={`text-[8px] leading-tight ${
-                                      isCurrent
-                                        ? "text-[#D6A84F] font-bold"
-                                        : isDone
+                                    className={`mt-1 text-[8px] leading-tight ${
+                                      current
+                                        ? "font-bold text-[#D6A84F]"
+                                        : done
                                         ? "text-white"
-                                        : "text-[#999999]"
+                                        : "text-[#777777]"
                                     }`}
                                   >
                                     {step
@@ -734,24 +761,28 @@ export const CustomerOrders: React.FC<Props> = ({
                     )}
 
                     {order.courierName ? (
-                      <div className="bg-[#19191E] border border-[#303036] rounded-xl p-3 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
-                            <Truck className="w-5 h-5" />
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-[#303036] bg-[#19191E] p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/20 text-emerald-400">
+                            <Truck size={18} />
                           </div>
 
-                          <div className="min-w-0">
-                            <span className="text-[10px] text-[#999999] uppercase tracking-wide block">
+                          <div>
+                            <span className="block text-[10px] uppercase tracking-wide text-[#999999]">
                               Atanan Kurye
                             </span>
 
-                            <h4 className="text-xs font-bold text-white truncate">
-                              {order.courierName}
+                            <h4 className="text-xs font-bold">
+                              {
+                                order.courierName
+                              }
                             </h4>
 
                             {order.courierPhone && (
-                              <p className="text-[11px] text-emerald-400 font-mono">
-                                {order.courierPhone}
+                              <p className="font-mono text-[11px] text-emerald-400">
+                                {
+                                  order.courierPhone
+                                }
                               </p>
                             )}
                           </div>
@@ -763,16 +794,19 @@ export const CustomerOrders: React.FC<Props> = ({
                             onClick={(event) =>
                               event.stopPropagation()
                             }
-                            className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/30 transition-colors shrink-0"
+                            className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2 text-emerald-400 transition hover:bg-emerald-500 hover:text-white"
                             title="Kuryeyi Ara"
                           >
-                            <Phone className="w-4 h-4" />
+                            <Phone size={16} />
                           </a>
                         )}
                       </div>
                     ) : (
-                      <div className="text-xs text-[#999999] bg-[#19191E] p-3 rounded-xl border border-[#303036] flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                      <div className="flex items-center gap-2 rounded-xl border border-[#303036] bg-[#19191E] p-3 text-xs text-[#999999]">
+                        <Clock
+                          size={16}
+                          className="shrink-0 text-amber-400"
+                        />
 
                         <span>
                           Kurye atanması
@@ -801,12 +835,12 @@ export const CustomerOrders: React.FC<Props> = ({
                     )}
 
                     {order.note && (
-                      <div className="text-xs bg-[#19191E] p-3 rounded-xl border border-[#303036]">
-                        <span className="text-[10px] text-[#999999] block font-semibold mb-0.5">
-                          Sipariş Notu:
+                      <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3">
+                        <span className="mb-1 block text-[10px] font-semibold text-[#999999]">
+                          Sipariş Notu
                         </span>
 
-                        <p className="text-slate-300 italic">
+                        <p className="text-xs italic text-slate-300">
                           {order.note}
                         </p>
                       </div>
@@ -814,19 +848,17 @@ export const CustomerOrders: React.FC<Props> = ({
 
                     {order.status ===
                       "Kurye Bekleniyor" && (
-                      <div className="pt-2">
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void handleCancelOrder(
-                              order.id
-                            );
-                          }}
-                          className="w-full py-2 rounded-xl bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white text-xs font-bold transition-all border border-red-500/30 cursor-pointer"
-                        >
-                          Siparişi İptal Et
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleCancelOrder(
+                            order.id
+                          )
+                        }
+                        className="w-full rounded-xl border border-red-500/30 bg-red-500/10 py-2.5 text-xs font-bold text-red-400 transition hover:bg-red-500 hover:text-white"
+                      >
+                        Siparişi İptal Et
+                      </button>
                     )}
                   </div>
                 )}
