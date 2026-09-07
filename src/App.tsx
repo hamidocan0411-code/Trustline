@@ -62,12 +62,6 @@ export function App() {
   const [isIPhoneMode, setIsIPhoneMode] =
     useState(false);
 
-  /*
-   * ==========================================
-   * FIREBASE AUTH
-   * ==========================================
-   */
-
   useEffect(() => {
     let mounted = true;
 
@@ -101,28 +95,21 @@ export function App() {
           );
 
           if (
-            resolvedProfile.role ===
-            'customer'
+            resolvedProfile.role === 'customer'
           ) {
             setActiveTab('home');
           }
 
           if (
-            resolvedProfile.role ===
-            'courier'
+            resolvedProfile.role === 'courier'
           ) {
-            setActiveTab(
-              'courier_panel'
-            );
+            setActiveTab('courier_panel');
           }
 
           if (
-            resolvedProfile.role ===
-            'admin'
+            resolvedProfile.role === 'admin'
           ) {
-            setActiveTab(
-              'admin_panel'
-            );
+            setActiveTab('admin_panel');
           }
 
           setAuthLoading(false);
@@ -147,22 +134,11 @@ export function App() {
     };
   }, []);
 
-  /*
-   * ==========================================
-   * STORAGE LISTENER
-   * ==========================================
-   */
-
   useEffect(() => {
     const unsubscribe =
       storage.subscribe(() => {
-        setOrders(
-          storage.getOrders()
-        );
-
-        setPricing(
-          storage.getPricing()
-        );
+        setOrders(storage.getOrders());
+        setPricing(storage.getPricing());
 
         if (currentUser) {
           setNotifications(
@@ -178,12 +154,6 @@ export function App() {
     };
   }, [currentUser?.id]);
 
-  /*
-   * ==========================================
-   * NEW ORDER
-   * ==========================================
-   */
-
   const handleOpenNewOrder = (
     prefill?: Partial<Order>
   ) => {
@@ -197,12 +167,6 @@ export function App() {
     handleOpenNewOrder(draft);
     setActiveTab('home');
   };
-
-  /*
-   * ==========================================
-   * AUTH LOADING
-   * ==========================================
-   */
 
   if (authLoading) {
     return (
@@ -230,23 +194,9 @@ export function App() {
     );
   }
 
-  /*
-   * ==========================================
-   * LOGIN / REGISTER
-   * ==========================================
-   */
-
   if (!currentUser) {
-    return (
-      <AuthScreen />
-    );
+    return <AuthScreen />;
   }
-
-  /*
-   * ==========================================
-   * USER ORDERS
-   * ==========================================
-   */
 
   const myOrders =
     currentUser.role === 'customer'
@@ -266,10 +216,8 @@ export function App() {
   const activeOrders =
     myOrders.filter(
       (order) =>
-        order.status !==
-          'Teslim Edildi' &&
-        order.status !==
-          'İptal Edildi'
+        order.status !== 'Teslim Edildi' &&
+        order.status !== 'İptal Edildi'
     );
 
   const unreadNotificationsCount =
@@ -277,12 +225,6 @@ export function App() {
       (notification) =>
         !notification.read
     ).length;
-
-  /*
-   * ==========================================
-   * MAIN APPLICATION
-   * ==========================================
-   */
 
   return (
     <div
@@ -313,9 +255,7 @@ export function App() {
           onOpenNotifications={() =>
             setIsNotificationsOpen(true)
           }
-          isIPhoneMode={
-            isIPhoneMode
-          }
+          isIPhoneMode={isIPhoneMode}
           onToggleIPhoneMode={() =>
             setIsIPhoneMode(
               (value) => !value
@@ -331,35 +271,25 @@ export function App() {
               : ''
           }`}
         >
-          {/* CUSTOMER */}
-          {currentUser.role ===
-            'customer' && (
+          {currentUser.role === 'customer' && (
             <>
-              {activeTab ===
-                'home' && (
+              {activeTab === 'home' && (
                 <CustomerHome
                   onOpenNewOrder={
                     handleOpenNewOrder
                   }
                   onOpenAI={() =>
-                    setActiveTab(
-                      'ai'
-                    )
+                    setActiveTab('ai')
                   }
                   onGoToOrders={() =>
-                    setActiveTab(
-                      'orders'
-                    )
+                    setActiveTab('orders')
                   }
-                  activeOrders={
-                    activeOrders
-                  }
+                  activeOrders={activeOrders}
                   pricing={pricing}
                 />
               )}
 
-              {activeTab ===
-                'orders' && (
+              {activeTab === 'orders' && (
                 <CustomerOrders
                   orders={myOrders}
                   onOpenNewOrder={
@@ -371,8 +301,7 @@ export function App() {
                 />
               )}
 
-              {activeTab ===
-                'ai' && (
+              {activeTab === 'ai' && (
                 <TrustlineAI
                   onTransferToOrder={
                     handleTransferFromAI
@@ -381,20 +310,15 @@ export function App() {
                 />
               )}
 
-              {activeTab ===
-                'profile' && (
+              {activeTab === 'profile' && (
                 <ProfileView
-                  currentUser={
-                    currentUser
-                  }
+                  currentUser={currentUser}
                 />
               )}
             </>
           )}
 
-          {/* COURIER */}
-          {currentUser.role ===
-            'courier' && (
+          {currentUser.role === 'courier' && (
             <>
               {activeTab ===
                 'courier_panel' && (
@@ -406,35 +330,26 @@ export function App() {
                 />
               )}
 
-              {activeTab ===
-                'profile' && (
+              {activeTab === 'profile' && (
                 <ProfileView
-                  currentUser={
-                    currentUser
-                  }
+                  currentUser={currentUser}
                 />
               )}
             </>
           )}
 
-          {/* ADMIN */}
-          {currentUser.role ===
-            'admin' && (
+          {currentUser.role === 'admin' && (
             <>
-              {activeTab ===
-                'admin_panel' && (
+              {activeTab === 'admin_panel' && (
                 <AdminPanel
                   orders={orders}
                   pricing={pricing}
                 />
               )}
 
-              {activeTab ===
-                'profile' && (
+              {activeTab === 'profile' && (
                 <ProfileView
-                  currentUser={
-                    currentUser
-                  }
+                  currentUser={currentUser}
                 />
               )}
             </>
@@ -457,48 +372,30 @@ export function App() {
         />
       </div>
 
-      {/* NEW ORDER */}
       <NewOrderModal
         isOpen={isNewOrderOpen}
         onClose={() => {
           setIsNewOrderOpen(false);
-          setNewOrderPrefill(
-            undefined
-          );
+          setNewOrderPrefill(undefined);
         }}
         currentUser={currentUser}
         pricing={pricing}
-        prefillData={
-          newOrderPrefill
-        }
+        prefillData={newOrderPrefill}
         onOrderCreated={(order) => {
           setActiveTab('orders');
-          setSelectedOrderId(
-            order.id
-          );
+          setSelectedOrderId(order.id);
         }}
       />
 
-      {/* NOTIFICATIONS */}
       <NotificationDrawer
-        isOpen={
-          isNotificationsOpen
-        }
+        isOpen={isNotificationsOpen}
         onClose={() =>
-          setIsNotificationsOpen(
-            false
-          )
+          setIsNotificationsOpen(false)
         }
-        notifications={
-          notifications
-        }
-        userId={
-          currentUser.id
-        }
+        notifications={notifications}
+        userId={currentUser.id}
         onSelectOrder={(orderId) => {
-          setSelectedOrderId(
-            orderId
-          );
+          setSelectedOrderId(orderId);
           setActiveTab('orders');
         }}
       />
