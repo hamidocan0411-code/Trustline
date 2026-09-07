@@ -374,6 +374,12 @@ class StorageService {
         error,
       );
 
+      if (error?.code === "permission-denied") {
+        throw new Error(
+          "Firestore sipariş oluşturma yetkisini reddetti.",
+        );
+      }
+
       throw new Error(
         error?.message ||
           "Sipariş Firestore'a kaydedilemedi.",
@@ -406,19 +412,21 @@ class StorageService {
         orderId,
       );
 
-      const orderSnapshot =
+      const snapshot =
         await getDoc(orderRef);
 
-      if (!orderSnapshot.exists()) {
+      if (!snapshot.exists()) {
         throw new Error(
           "Sipariş Firestore'da bulunamadı.",
         );
       }
 
       const currentOrder =
-        orderSnapshot.data() as Order;
+        snapshot.data() as Order;
 
-      // KURYE KONTROLÜ
+      // KURYE:
+      // Sadece kendisine atanmış siparişi
+      // güncelleyebilir.
       if (
         this.currentUser?.role === "courier"
       ) {
@@ -431,14 +439,14 @@ class StorageService {
           );
         }
 
-        // Kurye kendi courierId'sini değiştiremez.
+        // Kurye başka bir courierId gönderemez.
         if (
           updates.courierId !== undefined &&
           updates.courierId !==
             currentOrder.courierId
         ) {
           throw new Error(
-            "Kurye siparişi başka bir kuryeye aktaramaz.",
+            "Kurye siparişini başka bir kuryeye aktaramaz.",
           );
         }
       }
@@ -500,7 +508,7 @@ class StorageService {
         "permission-denied"
       ) {
         throw new Error(
-          "Firestore yetkisi reddedildi. Kurye hesabının users kaydındaki role alanını ve siparişin courierId alanını kontrol edin.",
+          "Firestore yetkisi reddedildi. Kullanıcı rolünü ve sipariş courierId alanını kontrol edin.",
         );
       }
 
@@ -509,16 +517,6 @@ class StorageService {
           "Sipariş güncellenemedi.",
       );
     }
-  }
-
-  async cancelOrder(orderId: string) {
-    return this.updateOrder(
-      orderId,
-      {
-        status:
-          "İptal Edildi" as OrderStatus,
-      },
-    );
   }
 
   async assignCourier(
@@ -541,7 +539,6 @@ class StorageService {
     );
   }
 
-  // KURYE SİPARİŞ KABUL
   async acceptOrder(
     orderId: string,
   ) {
@@ -550,6 +547,15 @@ class StorageService {
     if (!firebaseUser) {
       throw new Error(
         "Firebase oturumu bulunamadı. Lütfen tekrar giriş yapın.",
+      );
+    }
+
+    if (
+      this.currentUser?.role !==
+      "courier"
+    ) {
+      throw new Error(
+        "Bu işlem sadece kurye hesabından yapılabilir.",
       );
     }
 
@@ -574,11 +580,11 @@ class StorageService {
     }
 
     if (
-      this.currentUser?.role !==
-      "courier"
+      order.status !==
+      "Kurye Atandı"
     ) {
       throw new Error(
-        "Bu işlem sadece kurye hesabından yapılabilir.",
+        "Bu sipariş şu anda kabul edilebilir durumda değil.",
       );
     }
 
@@ -591,7 +597,18 @@ class StorageService {
     );
   }
 
-  // KURYE TESLİM ALDI / YOLA ÇIKTI
+  async pickupOrder(
+    orderId: string,
+  ) {
+    return this.updateOrder(
+      orderId,
+      {
+        status:
+          "Paket Alındı" as OrderStatus,
+      },
+    );
+  }
+
   async startDelivery(
     orderId: string,
   ) {
@@ -599,20 +616,74 @@ class StorageService {
       orderId,
       {
         status:
-          "Teslimat Başladı" as OrderStatus,
+          "Teslimatta" as OrderStatus,
       },
     );
   }
 
-  // SİPARİŞ TESLİM EDİLDİ
   async completeOrder(
     orderId: string,
+    deliveryData?: {
+      receiverName?: string;
+      deliveryNote?: string;
+      signature?: string;
+      deliveryPhoto?: string;
+    },
   ) {
+    const updates: Partial<Order> = {
+      status:
+        "Teslim Edildi" as OrderStatus,
+    };
+
+    if (deliveryData) {
+      if (
+        deliveryData.receiverName !==
+        undefined
+      ) {
+        updates.receiverName =
+          deliveryData.receiverName;
+      }
+
+      if (
+        deliveryData.deliveryNote !==
+        undefined
+      ) {
+        updates.deliveryNote =
+          deliveryData.deliveryNote;
+      }
+
+      if (
+        deliveryData.signature !==
+        undefined
+      ) {
+        updates.signature =
+          deliveryData.signature;
+      }
+
+      if (
+        deliveryData.deliveryPhoto !==
+        undefined
+      ) {
+        updates.deliveryPhoto =
+          deliveryData.deliveryPhoto;
+      }
+
+      updates.deliveredAt =
+        new Date().toISOString();
+    }
+
+    return this.updateOrder(
+      orderId,
+      updates,
+    );
+  }
+
+  async cancelOrder(orderId: string) {
     return this.updateOrder(
       orderId,
       {
         status:
-          "Teslim Edildi" as OrderStatus,
+          "İptal Edildi" as OrderStatus,
       },
     );
   }
@@ -620,32 +691,23 @@ class StorageService {
   private async getOrderByIdFromFirestore(
     orderId: string,
   ): Promise<Order | null> {
-    try {
-      const orderRef = doc(
-        db,
-        "orders",
-        orderId,
-      );
+    const orderRef = doc(
+      db,
+      "orders",
+      orderId,
+    );
 
-      const snapshot =
-        await getDoc(orderRef);
+    const snapshot =
+      await getDoc(orderRef);
 
-      if (!snapshot.exists()) {
-        return null;
-      }
-
-      return {
-        ...snapshot.data(),
-        id: snapshot.id,
-      } as Order;
-    } catch (error) {
-      console.error(
-        "Sipariş Firestore'dan alınamadı:",
-        error,
-      );
-
-      throw error;
+    if (!snapshot.exists()) {
+      return null;
     }
+
+    return {
+      ...snapshot.data(),
+      id: snapshot.id,
+    } as Order;
   }
 
   async deleteOrder(orderId: string) {
@@ -738,20 +800,11 @@ class StorageService {
       this.notify();
 
       return user;
-    } catch (error: any) {
+    } catch (error) {
       console.error(
         "Kurye eklenemedi:",
         error,
       );
-
-      if (
-        error?.code ===
-        "permission-denied"
-      ) {
-        throw new Error(
-          "Kurye oluşturma yetkisi reddedildi. Admin hesabınızı ve Firestore Rules ayarlarını kontrol edin.",
-        );
-      }
 
       throw error;
     }
@@ -1068,8 +1121,7 @@ class StorageService {
   }
 }
 
-const storage =
-  new StorageService();
+const storage = new StorageService();
 
 export { storage };
 export default storage;
