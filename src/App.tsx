@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { storage } from './services/storage';
 import {
   subscribeToAuth,
+  ensureUserProfile,
 } from './services/auth';
 
 import type {
@@ -71,61 +72,44 @@ export function App() {
     let mounted = true;
 
     const unsubscribe = subscribeToAuth(
-      async (firebaseUser, profile) => {
-        if (!mounted) {
-          return;
-        }
-
-        if (!firebaseUser) {
-          setCurrentUser(null);
-          setNotifications([]);
-          setAuthLoading(false);
-          return;
-        }
+      async (firebaseUser) => {
+        if (!mounted) return;
 
         try {
-          /*
-           * auth.ts artık kullanıcı profilini
-           * Firebase Auth kullanıcısından otomatik
-           * olarak oluşturup callback'e gönderiyor.
-           *
-           * Bu nedenle burada tekrar
-           * getUserProfile(firebaseUser) çağırmıyoruz.
-           */
-
-          if (!profile) {
-            console.error(
-              'Firebase kullanıcı profili bulunamadı.'
-            );
-
+          if (!firebaseUser) {
             setCurrentUser(null);
             setNotifications([]);
             setAuthLoading(false);
             return;
           }
 
-          if (!mounted) {
-            return;
-          }
+          const resolvedProfile =
+            await ensureUserProfile(firebaseUser);
 
-          setCurrentUser(profile);
+          if (!mounted) return;
 
-          storage.setCurrentUser(profile);
+          setCurrentUser(resolvedProfile);
+
+          storage.setCurrentUser(
+            resolvedProfile
+          );
 
           setNotifications(
             storage.getNotifications(
-              profile.id
+              resolvedProfile.id
             )
           );
 
           if (
-            profile.role === 'customer'
+            resolvedProfile.role ===
+            'customer'
           ) {
             setActiveTab('home');
           }
 
           if (
-            profile.role === 'courier'
+            resolvedProfile.role ===
+            'courier'
           ) {
             setActiveTab(
               'courier_panel'
@@ -133,7 +117,8 @@ export function App() {
           }
 
           if (
-            profile.role === 'admin'
+            resolvedProfile.role ===
+            'admin'
           ) {
             setActiveTab(
               'admin_panel'
@@ -143,13 +128,11 @@ export function App() {
           setAuthLoading(false);
         } catch (error) {
           console.error(
-            'Firebase kullanıcı başlatma hatası:',
+            'Trustline auth/profile error:',
             error
           );
 
-          if (!mounted) {
-            return;
-          }
+          if (!mounted) return;
 
           setCurrentUser(null);
           setNotifications([]);
@@ -225,7 +208,6 @@ export function App() {
     return (
       <div className="min-h-screen bg-[#0B0B0D] text-white flex items-center justify-center">
         <div className="text-center">
-
           <div className="w-16 h-16 rounded-2xl bg-[#D6A84F] flex items-center justify-center mx-auto mb-5">
             <span className="text-[#0B0B0D] font-black text-3xl">
               T
@@ -243,7 +225,6 @@ export function App() {
           <p className="text-[#666666] text-xs mt-4">
             Güvenli bağlantı kuruluyor...
           </p>
-
         </div>
       </div>
     );
@@ -318,7 +299,6 @@ export function App() {
             : 'min-h-screen'
         }`}
       >
-
         {isIPhoneMode && (
           <div className="h-8 bg-[#0B0B0D] flex items-center justify-center shrink-0">
             <div className="w-28 h-5 bg-[#222229] rounded-b-xl" />
@@ -351,9 +331,7 @@ export function App() {
               : ''
           }`}
         >
-
           {/* CUSTOMER */}
-
           {currentUser.role ===
             'customer' && (
             <>
@@ -415,7 +393,6 @@ export function App() {
           )}
 
           {/* COURIER */}
-
           {currentUser.role ===
             'courier' && (
             <>
@@ -441,7 +418,6 @@ export function App() {
           )}
 
           {/* ADMIN */}
-
           {currentUser.role ===
             'admin' && (
             <>
@@ -463,7 +439,6 @@ export function App() {
               )}
             </>
           )}
-
         </main>
 
         <BottomNavigation
@@ -480,11 +455,9 @@ export function App() {
             activeOrders.length
           }
         />
-
       </div>
 
       {/* NEW ORDER */}
-
       <NewOrderModal
         isOpen={isNewOrderOpen}
         onClose={() => {
@@ -507,7 +480,6 @@ export function App() {
       />
 
       {/* NOTIFICATIONS */}
-
       <NotificationDrawer
         isOpen={
           isNotificationsOpen
@@ -530,7 +502,6 @@ export function App() {
           setActiveTab('orders');
         }}
       />
-
     </div>
   );
 }
