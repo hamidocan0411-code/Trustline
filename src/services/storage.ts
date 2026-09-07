@@ -385,6 +385,20 @@ class StorageService {
     orderId: string,
     updates: Partial<Order>,
   ) {
+    const firebaseUser = auth.currentUser;
+
+    if (!firebaseUser) {
+      throw new Error(
+        "Firebase oturumu bulunamadı. Lütfen tekrar giriş yapın.",
+      );
+    }
+
+    if (!orderId) {
+      throw new Error(
+        "Sipariş ID bulunamadı.",
+      );
+    }
+
     try {
       const orderRef = doc(
         db,
@@ -392,9 +406,47 @@ class StorageService {
         orderId,
       );
 
+      const orderSnapshot =
+        await getDoc(orderRef);
+
+      if (!orderSnapshot.exists()) {
+        throw new Error(
+          "Sipariş Firestore'da bulunamadı.",
+        );
+      }
+
+      const currentOrder =
+        orderSnapshot.data() as Order;
+
+      // KURYE KONTROLÜ
+      if (
+        this.currentUser?.role === "courier"
+      ) {
+        if (
+          currentOrder.courierId !==
+          firebaseUser.uid
+        ) {
+          throw new Error(
+            "Bu sipariş size atanmamış.",
+          );
+        }
+
+        // Kurye kendi courierId'sini değiştiremez.
+        if (
+          updates.courierId !== undefined &&
+          updates.courierId !==
+            currentOrder.courierId
+        ) {
+          throw new Error(
+            "Kurye siparişi başka bir kuryeye aktaramaz.",
+          );
+        }
+      }
+
       const updatedData = {
         ...updates,
-        updatedAt: new Date().toISOString(),
+        updatedAt:
+          new Date().toISOString(),
       };
 
       await updateDoc(
@@ -402,28 +454,60 @@ class StorageService {
         updatedData,
       );
 
-      const index = this.orders.findIndex(
-        (order) => order.id === orderId,
-      );
+      const updatedOrder = {
+        ...currentOrder,
+        ...updatedData,
+        id: orderId,
+      } as Order;
+
+      const index =
+        this.orders.findIndex(
+          (order) =>
+            order.id === orderId,
+        );
 
       if (index >= 0) {
-        this.orders[index] = {
-          ...this.orders[index],
-          ...updatedData,
-        };
+        this.orders[index] =
+          updatedOrder;
+      } else {
+        this.orders.push(
+          updatedOrder,
+        );
       }
 
       this.saveCache();
       this.notify();
 
-      return this.orders[index];
-    } catch (error) {
+      console.log(
+        "SİPARİŞ BAŞARIYLA GÜNCELLENDİ:",
+        {
+          orderId,
+          updates: updatedData,
+          userId: firebaseUser.uid,
+          role: this.currentUser?.role,
+        },
+      );
+
+      return updatedOrder;
+    } catch (error: any) {
       console.error(
-        "Sipariş güncellenemedi:",
+        "SİPARİŞ GÜNCELLENEMEDİ:",
         error,
       );
 
-      throw error;
+      if (
+        error?.code ===
+        "permission-denied"
+      ) {
+        throw new Error(
+          "Firestore yetkisi reddedildi. Kurye hesabının users kaydındaki role alanını ve siparişin courierId alanını kontrol edin.",
+        );
+      }
+
+      throw new Error(
+        error?.message ||
+          "Sipariş güncellenemedi.",
+      );
     }
   }
 
@@ -431,7 +515,8 @@ class StorageService {
     return this.updateOrder(
       orderId,
       {
-        status: "İptal Edildi" as OrderStatus,
+        status:
+          "İptal Edildi" as OrderStatus,
       },
     );
   }
@@ -440,13 +525,127 @@ class StorageService {
     orderId: string,
     courierId: string,
   ) {
+    if (!courierId) {
+      throw new Error(
+        "Kurye seçilmedi.",
+      );
+    }
+
     return this.updateOrder(
       orderId,
       {
         courierId,
-        status: "Kurye Atandı" as OrderStatus,
+        status:
+          "Kurye Atandı" as OrderStatus,
       },
     );
+  }
+
+  // KURYE SİPARİŞ KABUL
+  async acceptOrder(
+    orderId: string,
+  ) {
+    const firebaseUser = auth.currentUser;
+
+    if (!firebaseUser) {
+      throw new Error(
+        "Firebase oturumu bulunamadı. Lütfen tekrar giriş yapın.",
+      );
+    }
+
+    const order =
+      await this.getOrderByIdFromFirestore(
+        orderId,
+      );
+
+    if (!order) {
+      throw new Error(
+        "Sipariş bulunamadı.",
+      );
+    }
+
+    if (
+      order.courierId !==
+      firebaseUser.uid
+    ) {
+      throw new Error(
+        "Bu sipariş size atanmamış.",
+      );
+    }
+
+    if (
+      this.currentUser?.role !==
+      "courier"
+    ) {
+      throw new Error(
+        "Bu işlem sadece kurye hesabından yapılabilir.",
+      );
+    }
+
+    return this.updateOrder(
+      orderId,
+      {
+        status:
+          "Kurye Kabul Etti" as OrderStatus,
+      },
+    );
+  }
+
+  // KURYE TESLİM ALDI / YOLA ÇIKTI
+  async startDelivery(
+    orderId: string,
+  ) {
+    return this.updateOrder(
+      orderId,
+      {
+        status:
+          "Teslimat Başladı" as OrderStatus,
+      },
+    );
+  }
+
+  // SİPARİŞ TESLİM EDİLDİ
+  async completeOrder(
+    orderId: string,
+  ) {
+    return this.updateOrder(
+      orderId,
+      {
+        status:
+          "Teslim Edildi" as OrderStatus,
+      },
+    );
+  }
+
+  private async getOrderByIdFromFirestore(
+    orderId: string,
+  ): Promise<Order | null> {
+    try {
+      const orderRef = doc(
+        db,
+        "orders",
+        orderId,
+      );
+
+      const snapshot =
+        await getDoc(orderRef);
+
+      if (!snapshot.exists()) {
+        return null;
+      }
+
+      return {
+        ...snapshot.data(),
+        id: snapshot.id,
+      } as Order;
+    } catch (error) {
+      console.error(
+        "Sipariş Firestore'dan alınamadı:",
+        error,
+      );
+
+      throw error;
+    }
   }
 
   async deleteOrder(orderId: string) {
@@ -460,16 +659,26 @@ class StorageService {
       await deleteDoc(orderRef);
 
       this.orders = this.orders.filter(
-        (order) => order.id !== orderId,
+        (order) =>
+          order.id !== orderId,
       );
 
       this.saveCache();
       this.notify();
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         "Sipariş silinemedi:",
         error,
       );
+
+      if (
+        error?.code ===
+        "permission-denied"
+      ) {
+        throw new Error(
+          "Bu siparişi silmek için admin yetkisi gerekiyor.",
+        );
+      }
 
       throw error;
     }
@@ -513,9 +722,11 @@ class StorageService {
       const user =
         courierData as UserProfile;
 
-      const index = this.users.findIndex(
-        (item) => item.id === user.id,
-      );
+      const index =
+        this.users.findIndex(
+          (item) =>
+            item.id === user.id,
+        );
 
       if (index >= 0) {
         this.users[index] = user;
@@ -527,11 +738,20 @@ class StorageService {
       this.notify();
 
       return user;
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         "Kurye eklenemedi:",
         error,
       );
+
+      if (
+        error?.code ===
+        "permission-denied"
+      ) {
+        throw new Error(
+          "Kurye oluşturma yetkisi reddedildi. Admin hesabınızı ve Firestore Rules ayarlarını kontrol edin.",
+        );
+      }
 
       throw error;
     }
@@ -557,9 +777,11 @@ class StorageService {
         },
       );
 
-      const index = this.users.findIndex(
-        (user) => user.id === userId,
-      );
+      const index =
+        this.users.findIndex(
+          (user) =>
+            user.id === userId,
+        );
 
       if (index >= 0) {
         this.users[index] = {
@@ -569,7 +791,8 @@ class StorageService {
       }
 
       if (
-        this.currentUser?.id === userId
+        this.currentUser?.id ===
+        userId
       ) {
         this.currentUser = {
           ...this.currentUser,
@@ -602,7 +825,8 @@ class StorageService {
       await deleteDoc(userRef);
 
       this.users = this.users.filter(
-        (user) => user.id !== userId,
+        (user) =>
+          user.id !== userId,
       );
 
       this.saveCache();
@@ -618,9 +842,11 @@ class StorageService {
   }
 
   async getUserById(userId: string) {
-    const localUser = this.users.find(
-      (user) => user.id === userId,
-    );
+    const localUser =
+      this.users.find(
+        (user) =>
+          user.id === userId,
+      );
 
     if (localUser) {
       return localUser;
@@ -656,15 +882,18 @@ class StorageService {
 
   async getCustomersFromFirestore() {
     try {
-      const usersRef = collection(
-        db,
-        "users",
-      );
+      const usersRef =
+        collection(db, "users");
 
-      const customersQuery = query(
-        usersRef,
-        where("role", "==", "customer"),
-      );
+      const customersQuery =
+        query(
+          usersRef,
+          where(
+            "role",
+            "==",
+            "customer",
+          ),
+        );
 
       return new Promise<Customer[]>(
         (resolve, reject) => {
@@ -701,15 +930,18 @@ class StorageService {
 
   async getCouriersFromFirestore() {
     try {
-      const usersRef = collection(
-        db,
-        "users",
-      );
+      const usersRef =
+        collection(db, "users");
 
-      const couriersQuery = query(
-        usersRef,
-        where("role", "==", "courier"),
-      );
+      const couriersQuery =
+        query(
+          usersRef,
+          where(
+            "role",
+            "==",
+            "courier",
+          ),
+        );
 
       return new Promise<Courier[]>(
         (resolve, reject) => {
@@ -771,9 +1003,11 @@ class StorageService {
     this.currentUser = user;
 
     if (user) {
-      const index = this.users.findIndex(
-        (item) => item.id === user.id,
-      );
+      const index =
+        this.users.findIndex(
+          (item) =>
+            item.id === user.id,
+        );
 
       if (index >= 0) {
         this.users[index] = user;
@@ -790,7 +1024,9 @@ class StorageService {
     return DEFAULT_PRICING;
   }
 
-  getNotifications(userId: string) {
+  getNotifications(
+    userId: string,
+  ) {
     return [];
   }
 
@@ -832,7 +1068,8 @@ class StorageService {
   }
 }
 
-const storage = new StorageService();
+const storage =
+  new StorageService();
 
 export { storage };
 export default storage;
