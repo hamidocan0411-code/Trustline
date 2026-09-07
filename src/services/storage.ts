@@ -15,12 +15,12 @@ import type {
   Customer,
   Order,
   OrderStatus,
-  User,
+  UserProfile,
 } from "../types";
 
 class StorageService {
-  private currentUser: User | null = null;
-  private users: User[] = [];
+  private currentUser: UserProfile | null = null;
+  private users: UserProfile[] = [];
   private orders: Order[] = [];
 
   private userUnsubscribe: (() => void) | null = null;
@@ -77,7 +77,7 @@ class StorageService {
     }
   }
 
-  async initializeForUser(profile: User) {
+  async initializeForUser(profile: UserProfile) {
     this.currentUser = profile;
 
     this.loadCache();
@@ -113,7 +113,7 @@ class StorageService {
     }
   }
 
-  private async ensureUserProfile(profile: User) {
+  private async ensureUserProfile(profile: UserProfile) {
     if (!profile?.id) return;
 
     try {
@@ -132,11 +132,14 @@ class StorageService {
         );
       }
     } catch (error) {
-      console.error("Kullanıcı profili oluşturulamadı:", error);
+      console.error(
+        "Kullanıcı profili oluşturulamadı:",
+        error,
+      );
     }
   }
 
-  private setupUserListener(profile: User) {
+  private setupUserListener(profile: UserProfile) {
     if (!profile?.id) return;
 
     const userRef = doc(db, "users", profile.id);
@@ -146,13 +149,15 @@ class StorageService {
       (snapshot) => {
         if (!snapshot.exists()) return;
 
-        const user = snapshot.data() as User;
+        const user = {
+          ...snapshot.data(),
+          id: profile.id,
+        } as UserProfile;
 
         this.currentUser = {
           ...this.currentUser,
           ...user,
-          id: profile.id,
-        } as User;
+        } as UserProfile;
 
         const index = this.users.findIndex(
           (item) => item.id === profile.id,
@@ -168,58 +173,55 @@ class StorageService {
         this.notify();
       },
       (error) => {
-        console.error("Kullanıcı dinleyicisi hatası:", error);
+        console.error(
+          "Kullanıcı dinleyicisi hatası:",
+          error,
+        );
       },
     );
   }
 
   private setupAdminUsersListener() {
-    try {
-      const usersRef = collection(db, "users");
-      const customersQuery = query(
-        usersRef,
-        where("role", "==", "customer"),
-      );
+    const usersRef = collection(db, "users");
 
-      this.adminUsersUnsubscribe = onSnapshot(
-        customersQuery,
-        (snapshot) => {
-          const customers = snapshot.docs.map(
-            (item) =>
-              ({
-                ...item.data(),
-                id: item.id,
-              }) as User,
-          );
+    const customersQuery = query(
+      usersRef,
+      where("role", "==", "customer"),
+    );
 
-          const nonCustomers = this.users.filter(
-            (user) => user.role !== "customer",
-          );
+    this.adminUsersUnsubscribe = onSnapshot(
+      customersQuery,
+      (snapshot) => {
+        const customers = snapshot.docs.map(
+          (item) =>
+            ({
+              ...item.data(),
+              id: item.id,
+            }) as UserProfile,
+        );
 
-          this.users = [
-            ...nonCustomers,
-            ...customers,
-          ];
+        const nonCustomers = this.users.filter(
+          (user) => user.role !== "customer",
+        );
 
-          this.saveCache();
-          this.notify();
-        },
-        (error) => {
-          console.error(
-            "Admin müşteri listesi dinleyicisi hatası:",
-            error,
-          );
-        },
-      );
-    } catch (error) {
-      console.error(
-        "Admin müşteri listener kurulamadı:",
-        error,
-      );
-    }
+        this.users = [
+          ...nonCustomers,
+          ...customers,
+        ];
+
+        this.saveCache();
+        this.notify();
+      },
+      (error) => {
+        console.error(
+          "Admin müşteri listesi hatası:",
+          error,
+        );
+      },
+    );
   }
 
-  private setupOrderListener(profile: User) {
+  private setupOrderListener(profile: UserProfile) {
     const ordersRef = collection(db, "orders");
 
     this.orderUnsubscribe = onSnapshot(
@@ -235,7 +237,8 @@ class StorageService {
 
         if (profile.role === "customer") {
           orders = orders.filter(
-            (order) => order.customerId === profile.id,
+            (order) =>
+              order.customerId === profile.id,
           );
         }
 
@@ -301,13 +304,10 @@ class StorageService {
     }
 
     /*
-     * EN ÖNEMLİ KISIM:
+     * MÜŞTERİ SİPARİŞ VERİYORSA:
+     * customerId kesinlikle Firebase Auth UID olacak.
      *
-     * Müşteri sipariş oluşturuyorsa customerId kesinlikle
-     * Firebase Auth UID olmalı.
-     *
-     * currentUser.id farklı olsa bile Firestore Rules'a
-     * Firebase UID gönderiyoruz.
+     * Firestore Rules bunu kontrol ediyor.
      */
     const customerId =
       this.currentUser?.role === "customer"
@@ -316,101 +316,66 @@ class StorageService {
           this.currentUser?.id ||
           firebaseUser.uid;
 
-    if (!customerId) {
-      throw new Error(
-        "Müşteri kimliği bulunamadı.",
-      );
-    }
-
     const orderId =
       data.id ||
       `order_${Date.now()}_${Math.random()
         .toString(36)
         .substring(2, 9)}`;
 
-    const order: Order = {
+    const now = new Date().toISOString();
+
+    const order = {
       ...(data as Order),
       id: orderId,
       customerId,
+      courierId: data.courierId ?? null,
       status:
         data.status || "Kurye Bekleniyor",
-      createdAt:
-        data.createdAt ||
-        new Date().toISOString(),
-      updatedAt:
-        new Date().toISOString(),
-    };
+      createdAt: data.createdAt || now,
+      updatedAt: now,
+    } as Order;
 
     /*
-     * Müşteri kendi siparişini oluşturuyorsa tekrar
-     * kesin olarak Firebase UID'sini yaz.
+     * Customer için tekrar kesin UID.
      */
     if (this.currentUser?.role === "customer") {
       order.customerId = firebaseUser.uid;
     }
 
-    await this.writeOrder(order);
-
-    return order;
-  }
-
-  private async writeOrder(order: Order) {
     try {
-      const firebaseUser = auth.currentUser;
-
-      if (!firebaseUser) {
-        throw new Error(
-          "Firebase oturumu bulunamadı.",
-        );
-      }
-
-      const orderToWrite: Order = {
-        ...order,
-        updatedAt: new Date().toISOString(),
-      };
-
-      /*
-       * Customer oluşturma işleminde Rules:
-       * request.resource.data.customerId == request.auth.uid
-       *
-       * Bu nedenle customer için UID zorunlu.
-       */
-      if (
-        this.currentUser?.role === "customer"
-      ) {
-        orderToWrite.customerId =
-          firebaseUser.uid;
-      }
-
       const orderRef = doc(
         db,
         "orders",
-        orderToWrite.id,
+        orderId,
       );
 
-      await setDoc(orderRef, orderToWrite, {
-        merge: true,
+      /*
+       * MERGE FALSE:
+       * Yeni siparişte eski/veri kalıntısı bırakmaz.
+       */
+      await setDoc(orderRef, order, {
+        merge: false,
       });
 
-      const index = this.orders.findIndex(
-        (item) => item.id === orderToWrite.id,
+      console.log(
+        "SİPARİŞ FIRESTORE'A BAŞARIYLA YAZILDI:",
+        order,
       );
 
-      if (index >= 0) {
-        this.orders[index] = orderToWrite;
-      } else {
-        this.orders.unshift(orderToWrite);
-      }
+      /*
+       * Local state.
+       */
+      this.orders = [
+        order,
+        ...this.orders.filter(
+          (item) => item.id !== orderId,
+        ),
+      ];
 
       this.saveCache();
       this.notify();
 
-      console.log(
-        "Sipariş başarıyla Firestore'a yazıldı:",
-        orderToWrite,
-      );
-
-      return orderToWrite;
+      return order;
     } catch (error: any) {
       console.error(
         "SİPARİŞ FIRESTORE'A YAZILAMADI:",
@@ -418,10 +383,12 @@ class StorageService {
       );
 
       /*
-       * Hatanın gerçek sebebini kaybetmemek için
-       * artık hatayı yukarı gönderiyoruz.
+       * Artık hata gizlenmiyor.
        */
-      throw error;
+      throw new Error(
+        error?.message ||
+          "Sipariş Firestore'a kaydedilemedi.",
+      );
     }
   }
 
@@ -429,13 +396,13 @@ class StorageService {
     orderId: string,
     updates: Partial<Order>,
   ) {
-    const orderRef = doc(
-      db,
-      "orders",
-      orderId,
-    );
-
     try {
+      const orderRef = doc(
+        db,
+        "orders",
+        orderId,
+      );
+
       const updatedData = {
         ...updates,
         updatedAt: new Date().toISOString(),
@@ -531,7 +498,7 @@ class StorageService {
     const courierData = {
       ...courier,
       id: courier.id,
-      role: "courier",
+      role: "courier" as const,
       createdAt:
         courier.createdAt ||
         new Date().toISOString(),
@@ -554,7 +521,8 @@ class StorageService {
         { merge: true },
       );
 
-      const user = courierData as User;
+      const user =
+        courierData as UserProfile;
 
       const index = this.users.findIndex(
         (item) => item.id === user.id,
@@ -582,7 +550,7 @@ class StorageService {
 
   async updateUser(
     userId: string,
-    updates: Partial<User>,
+    updates: Partial<UserProfile>,
   ) {
     try {
       const userRef = doc(
@@ -686,7 +654,7 @@ class StorageService {
       return {
         ...snapshot.data(),
         id: snapshot.id,
-      } as User;
+      } as UserProfile;
     } catch (error) {
       console.error(
         "Kullanıcı alınamadı:",
@@ -808,7 +776,9 @@ class StorageService {
     this.notify();
   }
 
-  setCurrentUser(user: User | null) {
+  setCurrentUser(
+    user: UserProfile | null,
+  ) {
     this.currentUser = user;
 
     if (user) {
