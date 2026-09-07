@@ -1,660 +1,575 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, {
+  useRef,
+  useState,
+} from "react";
+
 import {
   Camera,
-  Upload,
-  X,
-  CheckCircle2,
-  AlertCircle,
-  PenTool,
-  RotateCcw,
+  Check,
+  Eraser,
+  Image as ImageIcon,
+  Loader2,
+  PenLine,
   User,
-  FileText,
-  ShieldCheck,
-  Trash2,
-  Sparkles,
-} from 'lucide-react';
-import { Order } from '../types';
-import { storage } from '../services/storage';
+  X,
+} from "lucide-react";
 
-interface DeliveryProofModalProps {
+import type { Order } from "../types";
+
+interface Props {
   order: Order;
-  isOpen: boolean;
   onClose: () => void;
-  onSuccess: (updatedOrder: Order) => void;
+  onSubmit: (data: {
+    receiverName: string;
+    deliveryNote: string;
+    signature: string;
+    photoFile?: File;
+  }) => Promise<void> | void;
 }
 
-export const DeliveryProofModal: React.FC<DeliveryProofModalProps> = ({
+export const DeliveryProofModal: React.FC<
+  Props
+> = ({
   order,
-  isOpen,
   onClose,
-  onSuccess,
+  onSubmit,
 }) => {
-  const pricing = storage.getPricing();
-  const isPhotoRequired = Boolean(pricing.requireDeliveryPhoto);
+  const canvasRef =
+    useRef<HTMLCanvasElement>(null);
 
-  // Form state
-  const [receiverName, setReceiverName] = useState(order.customerName || '');
-  const [deliveryNote, setDeliveryNote] = useState('');
-  const [deliveryPhoto, setDeliveryPhoto] = useState<string | null>(null);
-  const [isPhotoProcessing, setIsPhotoProcessing] = useState(false);
-  const [photoError, setPhotoError] = useState<string | null>(null);
+  const fileInputRef =
+    useRef<HTMLInputElement>(null);
 
-  // Signature canvas state
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [hasDrawnStroke, setHasDrawnStroke] = useState(false);
-  const [isSignatureSaved, setIsSignatureSaved] = useState(false);
-  const [signatureData, setSignatureData] = useState<string | null>(null);
+  const [receiverName, setReceiverName] =
+    useState("");
 
-  // File input refs
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
-  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+  const [deliveryNote, setDeliveryNote] =
+    useState("");
 
-  // Submitting state
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] =
+    useState<File | undefined>();
 
-  // Setup canvas high-DPI scaling
-  const setupCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const [photoPreview, setPhotoPreview] =
+    useState<string | null>(null);
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  const [isSaving, setIsSaving] =
+    useState(false);
 
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+  const [isDrawing, setIsDrawing] =
+    useState(false);
 
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+  const [hasSignature, setHasSignature] =
+    useState(false);
 
-    ctx.scale(dpr, dpr);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#D6A84F';
-    ctx.lineWidth = 2.5;
+  const getCanvasPoint = (
+    event:
+      | React.MouseEvent<HTMLCanvasElement>
+      | React.TouchEvent<HTMLCanvasElement>
+  ) => {
+    const canvas =
+      canvasRef.current;
 
-    // Draw subtle guide baseline
-    ctx.save();
-    ctx.strokeStyle = '#303036';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(16, rect.height - 24);
-    ctx.lineTo(rect.width - 16, rect.height - 24);
-    ctx.stroke();
-    ctx.restore();
-  };
-
-  useEffect(() => {
-    if (isOpen) {
-      // Small timeout to ensure modal DOM is mounted and dimensions calculated
-      const timer = setTimeout(() => {
-        setupCanvas();
-      }, 100);
-      return () => clearTimeout(timer);
+    if (!canvas) {
+      return {
+        x: 0,
+        y: 0,
+      };
     }
-  }, [isOpen]);
 
-  // Window resize re-alignment
-  useEffect(() => {
-    const handleResize = () => {
-      if (isOpen && !hasDrawnStroke) {
-        setupCanvas();
-      }
+    const rect =
+      canvas.getBoundingClientRect();
+
+    if (
+      "touches" in event &&
+      event.touches.length > 0
+    ) {
+      return {
+        x:
+          event.touches[0].clientX -
+          rect.left,
+        y:
+          event.touches[0].clientY -
+          rect.top,
+      };
+    }
+
+    if (
+      "changedTouches" in event &&
+      event.changedTouches.length > 0
+    ) {
+      return {
+        x:
+          event.changedTouches[0].clientX -
+          rect.left,
+        y:
+          event.changedTouches[0].clientY -
+          rect.top,
+      };
+    }
+
+    return {
+      x:
+        (event as React.MouseEvent)
+          .clientX - rect.left,
+      y:
+        (event as React.MouseEvent)
+          .clientY - rect.top,
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [isOpen, hasDrawnStroke]);
-
-  // CANVAS DRAWING LOGIC (TOUCH & MOUSE)
-  const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-
-    if ('touches' in e) {
-      const touch = e.touches[0];
-      return {
-        x: touch.clientX - rect.left,
-        y: touch.clientY - rect.top,
-      };
-    } else {
-      return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      };
-    }
   };
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
+  const startDrawing = (
+    event:
+      | React.MouseEvent<HTMLCanvasElement>
+      | React.TouchEvent<HTMLCanvasElement>
+  ) => {
+    event.preventDefault();
+
+    const canvas =
+      canvasRef.current;
+
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+
+    const point =
+      getCanvasPoint(event);
+
+    const context =
+      canvas.getContext("2d");
+
+    if (!context) return;
+
+    context.beginPath();
+    context.moveTo(
+      point.x,
+      point.y
+    );
 
     setIsDrawing(true);
-    setHasDrawnStroke(true);
-    setIsSignatureSaved(false);
-
-    const { x, y } = getCanvasCoordinates(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  const draw = (
+    event:
+      | React.MouseEvent<HTMLCanvasElement>
+      | React.TouchEvent<HTMLCanvasElement>
+  ) => {
+    event.preventDefault();
 
-    const { x, y } = getCanvasCoordinates(e);
-    ctx.lineTo(x, y);
-    ctx.stroke();
+    if (!isDrawing) return;
+
+    const canvas =
+      canvasRef.current;
+
+    if (!canvas) return;
+
+    const point =
+      getCanvasPoint(event);
+
+    const context =
+      canvas.getContext("2d");
+
+    if (!context) return;
+
+    context.lineWidth = 2.5;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.strokeStyle = "#111111";
+
+    context.lineTo(
+      point.x,
+      point.y
+    );
+
+    context.stroke();
+
+    setHasSignature(true);
   };
 
   const stopDrawing = () => {
-    if (isDrawing) {
-      setIsDrawing(false);
-      // Auto-update signature data from canvas
-      saveSignatureToState();
-    }
+    setIsDrawing(false);
   };
 
-  const handleClearSignature = () => {
-    const canvas = canvasRef.current;
+  const clearSignature = () => {
+    const canvas =
+      canvasRef.current;
+
     if (!canvas) return;
-    setupCanvas();
-    setHasDrawnStroke(false);
-    setIsSignatureSaved(false);
-    setSignatureData(null);
+
+    const context =
+      canvas.getContext("2d");
+
+    if (!context) return;
+
+    context.clearRect(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+    setHasSignature(false);
   };
 
-  const saveSignatureToState = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !hasDrawnStroke) return;
-    try {
-      const dataUrl = canvas.toDataURL('image/png');
-      setSignatureData(dataUrl);
-      setIsSignatureSaved(true);
-    } catch (err) {
-      console.warn('Signature capture error:', err);
-    }
-  };
+  const handlePhotoChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file =
+      event.target.files?.[0];
 
-  const handleExplicitSaveSignature = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!hasDrawnStroke) return;
-    saveSignatureToState();
-  };
+    if (!file) return;
 
-  // PHOTO CAPTURE & COMPRESSION LOGIC
-  const processImageFile = (file: File) => {
-    setPhotoError(null);
-    setIsPhotoProcessing(true);
+    if (
+      !file.type.startsWith(
+        "image/"
+      )
+    ) {
+      window.alert(
+        "Lütfen geçerli bir fotoğraf seçin."
+      );
 
-    if (!file.type.startsWith('image/')) {
-      setPhotoError('Lütfen geçerli bir resim dosyası seçin.');
-      setIsPhotoProcessing(false);
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        // High quality client compression to max 900x900
-        const maxDimension = 900;
-        let width = img.width;
-        let height = img.height;
+    if (
+      file.size >
+      10 * 1024 * 1024
+    ) {
+      window.alert(
+        "Fotoğraf boyutu en fazla 10 MB olabilir."
+      );
 
-        if (width > height) {
-          if (width > maxDimension) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
-          }
-        } else {
-          if (height > maxDimension) {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
-          }
-        }
+      return;
+    }
 
-        const compressCanvas = document.createElement('canvas');
-        compressCanvas.width = width;
-        compressCanvas.height = height;
-        const ctx = compressCanvas.getContext('2d');
+    setPhotoFile(file);
 
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = compressCanvas.toDataURL('image/jpeg', 0.72);
-          setDeliveryPhoto(compressedDataUrl);
-        } else {
-          setDeliveryPhoto(event.target?.result as string);
-        }
-        setIsPhotoProcessing(false);
-      };
+    const reader =
+      new FileReader();
 
-      img.onerror = () => {
-        setPhotoError('Fotoğraf işlenirken bir sorun oluştu.');
-        setIsPhotoProcessing(false);
-      };
-
-      img.src = event.target?.result as string;
-    };
-
-    reader.onerror = () => {
-      setPhotoError('Fotoğraf okunamadı. Lütfen tekrar deneyin.');
-      setIsPhotoProcessing(false);
+    reader.onload = () => {
+      setPhotoPreview(
+        typeof reader.result ===
+          "string"
+          ? reader.result
+          : null
+      );
     };
 
     reader.readAsDataURL(file);
   };
 
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      processImageFile(e.target.files[0]);
+  const getSignatureData = () => {
+    const canvas =
+      canvasRef.current;
+
+    if (
+      !canvas ||
+      !hasSignature
+    ) {
+      return "";
     }
+
+    return canvas.toDataURL(
+      "image/png"
+    );
   };
 
-  // VALIDATION & COMPLETION
-  const isFormValid =
-    receiverName.trim().length >= 2 &&
-    (hasDrawnStroke || Boolean(signatureData)) &&
-    (!isPhotoRequired || Boolean(deliveryPhoto));
+  const handleSubmit = async () => {
+    if (!receiverName.trim()) {
+      window.alert(
+        "Lütfen teslim alan kişinin adını girin."
+      );
 
-  const handleCompleteDelivery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isFormValid) return;
+      return;
+    }
 
-    setIsSubmitting(true);
-    setSubmitError(null);
+    if (!hasSignature) {
+      window.alert(
+        "Lütfen alıcı imzasını alın."
+      );
+
+      return;
+    }
 
     try {
-      // Ensure signature data is captured
-      let finalSignature = signatureData;
-      if (!finalSignature && canvasRef.current && hasDrawnStroke) {
-        finalSignature = canvasRef.current.toDataURL('image/png');
-      }
+      setIsSaving(true);
 
-      if (!finalSignature) {
-        setSubmitError('Lütfen teslim alan kişinin imzasını kaydediniz.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      const updated = storage.completeOrderWithProof(order.id, {
-        receiverName: receiverName.trim(),
-        deliveryNote: deliveryNote.trim(),
-        deliveryPhoto: deliveryPhoto || undefined,
-        signature: finalSignature,
+      await onSubmit({
+        receiverName:
+          receiverName.trim(),
+        deliveryNote:
+          deliveryNote.trim(),
+        signature:
+          getSignatureData(),
+        photoFile,
       });
+    } catch (error) {
+      console.error(
+        "Teslimat kanıtı kaydedilemedi:",
+        error
+      );
 
-      if (updated) {
-        onSuccess(updated);
-        onClose();
-      } else {
-        setSubmitError('Sipariş güncellenirken bir hata oluştu.');
-      }
-    } catch (err: any) {
-      setSubmitError(err.message || 'Teslimat kanıtı kaydedilemedi.');
+      window.alert(
+        "Teslimat bilgileri kaydedilemedi. Lütfen tekrar deneyin."
+      );
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      id="delivery-proof-modal"
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-sm animate-fadeIn"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] bg-[#141418] border-t sm:border border-[#303036] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-white animate-slideUp sm:animate-fadeIn"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#303036] bg-[#19191E] shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#D6A84F]/20 text-[#D6A84F] flex items-center justify-center font-bold">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm sm:text-base text-white">Teslimat Kanıtı</h3>
-                <span className="font-mono text-xs text-[#D6A84F] font-bold">#{order.id}</span>
-              </div>
-              <p className="text-[11px] text-[#999999]">
-                Teslimatı tamamlamak için bilgileri giriniz
-              </p>
-            </div>
+    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="flex max-h-[95vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-[#303036] bg-[#19191E] shadow-2xl sm:rounded-3xl">
+        <div className="flex items-center justify-between border-b border-[#303036] px-5 py-4">
+          <div>
+            <h2 className="text-base font-bold text-white">
+              Teslimatı Tamamla
+            </h2>
+
+            <p className="mt-0.5 text-[10px] text-[#999999]">
+              Sipariş #{order.id}
+            </p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-[#222229] hover:bg-[#303036] text-[#999999] hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+            disabled={isSaving}
+            className="rounded-xl p-2 text-[#999999] transition hover:bg-[#222229] hover:text-white disabled:opacity-50"
           >
-            <X className="w-5 h-5" />
+            <X size={19} />
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form onSubmit={handleCompleteDelivery} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-          {submitError && (
-            <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
-              <span>{submitError}</span>
-            </div>
-          )}
+        <div className="space-y-4 overflow-y-auto p-5">
+          <div className="rounded-xl border border-[#D6A84F]/20 bg-[#D6A84F]/10 p-3">
+            <div className="flex items-start gap-2">
+              <Check
+                size={16}
+                className="mt-0.5 shrink-0 text-[#D6A84F]"
+              />
 
-          {/* 1. TESLİMAT FOTOĞRAFI */}
-          <div className="bg-[#19191E] border border-[#303036] rounded-2xl p-3.5 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="font-bold text-white flex items-center gap-1.5">
-                <Camera className="w-4 h-4 text-[#D6A84F]" />
-                <span>1. Teslimat Fotoğrafı</span>
+              <div>
+                <p className="text-xs font-bold text-[#D6A84F]">
+                  Teslimat doğrulaması
+                </p>
+
+                <p className="mt-1 text-[10px] leading-relaxed text-[#BBBBBB]">
+                  Teslimatı kapatmak için
+                  alıcı adı ve imza
+                  zorunludur. Fotoğraf
+                  eklemek isteğe bağlıdır.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#999999]">
+              Teslim Alan Kişi
+            </label>
+
+            <div className="relative">
+              <User
+                size={15}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#777777]"
+              />
+
+              <input
+                type="text"
+                value={receiverName}
+                onChange={(event) =>
+                  setReceiverName(
+                    event.target.value
+                  )
+                }
+                placeholder="Ad Soyad"
+                className="w-full rounded-xl border border-[#303036] bg-[#0F0F12] py-3 pl-9 pr-3 text-xs text-white outline-none transition focus:border-[#D6A84F]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[#999999]">
+                Alıcı İmzası
               </label>
-              {isPhotoRequired ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
-                  * Zorunlu Alan
-                </span>
-              ) : (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#222229] text-[#888888]">
-                  İsteğe Bağlı
-                </span>
-              )}
+
+              <button
+                type="button"
+                onClick={clearSignature}
+                disabled={!hasSignature}
+                className="flex items-center gap-1 text-[10px] text-[#999999] transition hover:text-white disabled:opacity-30"
+              >
+                <Eraser size={12} />
+                Temizle
+              </button>
             </div>
 
-            <p className="text-[11px] text-[#999999]">
-              Paketin teslim edildiği yeri, binayı veya teslim anını fotoğraflayın.
-            </p>
+            <div className="overflow-hidden rounded-xl border border-[#303036] bg-white">
+              <canvas
+                ref={canvasRef}
+                width={800}
+                height={260}
+                className="h-36 w-full touch-none"
+                onMouseDown={
+                  startDrawing
+                }
+                onMouseMove={draw}
+                onMouseUp={
+                  stopDrawing
+                }
+                onMouseLeave={
+                  stopDrawing
+                }
+                onTouchStart={
+                  startDrawing
+                }
+                onTouchMove={draw}
+                onTouchEnd={
+                  stopDrawing
+                }
+              />
+            </div>
 
-            {/* Hidden file inputs: one with capture for camera, one standard for gallery */}
+            {!hasSignature && (
+              <p className="mt-1.5 flex items-center gap-1 text-[9px] text-[#777777]">
+                <PenLine size={11} />
+                Parmağınızla veya
+                mouse ile imza atın.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#999999]">
+              Teslimat Fotoğrafı
+              <span className="ml-1 font-normal normal-case text-[#666666]">
+                (İsteğe bağlı)
+              </span>
+            </label>
+
             <input
+              ref={fileInputRef}
               type="file"
               accept="image/*"
               capture="environment"
-              ref={cameraInputRef}
-              onChange={handleFileInputChange}
-              className="hidden"
-            />
-            <input
-              type="file"
-              accept="image/*"
-              ref={galleryInputRef}
-              onChange={handleFileInputChange}
+              onChange={
+                handlePhotoChange
+              }
               className="hidden"
             />
 
-            {deliveryPhoto ? (
-              <div className="relative rounded-xl overflow-hidden border border-emerald-500/40 bg-[#0B0B0D] group">
+            {photoPreview ? (
+              <div className="relative overflow-hidden rounded-xl border border-[#303036] bg-[#0F0F12]">
                 <img
-                  src={deliveryPhoto}
-                  alt="Çekilen Teslimat Fotoğrafı"
-                  className="w-full h-44 object-cover"
-                  referrerPolicy="no-referrer"
+                  src={photoPreview}
+                  alt="Teslimat fotoğrafı"
+                  className="max-h-56 w-full object-contain"
                 />
-                <div className="absolute top-2 left-2 px-2 py-1 rounded-md bg-emerald-500/90 text-[#0B0B0D] font-extrabold text-[10px] flex items-center gap-1 shadow-md">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Fotoğraf Hazır</span>
-                </div>
 
-                <div className="absolute inset-x-0 bottom-0 p-2.5 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => cameraInputRef.current?.click()}
-                    className="flex-1 py-1.5 px-3 rounded-lg bg-[#222229]/90 hover:bg-[#303036] text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Camera className="w-3.5 h-3.5 text-[#D6A84F]" />
-                    <span>Yeniden Çek</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeliveryPhoto(null)}
-                    className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300 transition-colors cursor-pointer"
-                    title="Fotoğrafı Kaldır"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoFile(
+                      undefined
+                    );
+                    setPhotoPreview(
+                      null
+                    );
+
+                    if (
+                      fileInputRef.current
+                    ) {
+                      fileInputRef.current.value =
+                        "";
+                    }
+                  }}
+                  className="absolute right-2 top-2 rounded-lg bg-black/70 p-2 text-white backdrop-blur-sm"
+                >
+                  <X size={15} />
+                </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => cameraInputRef.current?.click()}
-                  disabled={isPhotoProcessing}
-                  className="min-h-[48px] py-3 px-3 rounded-xl bg-[#222229] hover:bg-[#D6A84F] hover:text-[#0B0B0D] border border-[#303036] hover:border-[#D6A84F] text-white font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
-                >
-                  <Camera className="w-4 h-4 text-[#D6A84F] group-hover:text-[#0B0B0D]" />
-                  <span>Kamera İle Çek</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => galleryInputRef.current?.click()}
-                  disabled={isPhotoProcessing}
-                  className="min-h-[48px] py-3 px-3 rounded-xl bg-[#222229] hover:bg-[#303036] border border-[#303036] text-white font-bold transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
-                >
-                  <Upload className="w-4 h-4 text-emerald-400" />
-                  <span>Galeriden Seç</span>
-                </button>
-              </div>
-            )}
-
-            {photoError && (
-              <div className="text-[11px] text-red-400 flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                <span>{photoError}</span>
-              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  fileInputRef.current?.click()
+                }
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#404047] bg-[#0F0F12] py-6 text-xs font-semibold text-[#999999] transition hover:border-[#D6A84F]/50 hover:text-[#D6A84F]"
+              >
+                <Camera size={18} />
+                Fotoğraf Çek / Seç
+              </button>
             )}
           </div>
 
-          {/* 2. TESLİM ALAN KİŞİ */}
-          <div className="bg-[#19191E] border border-[#303036] rounded-2xl p-3.5 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="font-bold text-white flex items-center gap-1.5">
-                <User className="w-4 h-4 text-emerald-400" />
-                <span>2. Teslim Alan Kişi *</span>
-              </label>
-              <span className="text-[10px] text-emerald-400 font-bold">Zorunlu</span>
-            </div>
-
-            <input
-              type="text"
-              required
-              value={receiverName}
-              onChange={(e) => setReceiverName(e.target.value)}
-              placeholder="Teslim alan kişi adı ve soyadı"
-              className="w-full bg-[#0B0B0D] border border-[#303036] focus:border-[#D6A84F] rounded-xl px-3.5 py-3 text-sm text-white font-medium focus:outline-hidden"
-            />
-
-            {/* Quick Suggestions Chips for Fast Mobile Entry */}
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {[order.customerName, 'Güvenlik Görevlisi', 'Bina Danışma', 'Aile Bireyi', 'Komşu'].filter(Boolean).map((chip) => (
-                <button
-                  key={chip}
-                  type="button"
-                  onClick={() => setReceiverName(chip!)}
-                  className="px-2.5 py-1 rounded-lg bg-[#222229] hover:bg-[#303036] text-[#999999] hover:text-white border border-[#303036]/60 text-[11px] font-medium transition-colors cursor-pointer"
-                >
-                  + {chip}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 3. TESLİM NOTU */}
-          <div className="bg-[#19191E] border border-[#303036] rounded-2xl p-3.5 space-y-2">
-            <label className="font-bold text-white flex items-center gap-1.5">
-              <FileText className="w-4 h-4 text-[#D6A84F]" />
-              <span>3. Teslim Notu</span>
+          <div>
+            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#999999]">
+              Teslimat Notu
+              <span className="ml-1 font-normal normal-case text-[#666666]">
+                (İsteğe bağlı)
+              </span>
             </label>
 
             <textarea
-              rows={2}
               value={deliveryNote}
-              onChange={(e) => setDeliveryNote(e.target.value)}
-              placeholder="Örn: Mehmet Bey'e kapıda elden sağlam şekilde teslim edildi."
-              className="w-full bg-[#0B0B0D] border border-[#303036] focus:border-[#D6A84F] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-[#666666] focus:outline-hidden resize-none"
+              onChange={(event) =>
+                setDeliveryNote(
+                  event.target.value
+                )
+              }
+              rows={3}
+              placeholder="Örn: Resepsiyona teslim edildi."
+              className="w-full resize-none rounded-xl border border-[#303036] bg-[#0F0F12] px-3 py-3 text-xs text-white outline-none transition focus:border-[#D6A84F]"
             />
-
-            {/* Quick Note Chips */}
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                'Kapıda elden teslim edildi.',
-                'Güvenliğe bırakıldı.',
-                'Alıcının kendisine teslim edildi.',
-                'İmza karşılığı teslim edildi.',
-              ].map((noteText) => (
-                <button
-                  key={noteText}
-                  type="button"
-                  onClick={() => setDeliveryNote(noteText)}
-                  className="px-2 py-0.5 rounded-md bg-[#222229] hover:bg-[#303036] text-[#999999] hover:text-white text-[10px] transition-colors cursor-pointer"
-                >
-                  {noteText}
-                </button>
-              ))}
-            </div>
           </div>
 
-          {/* 4. DİJİTAL İMZA ALANI */}
-          <div className="bg-[#19191E] border border-[#303036] rounded-2xl p-3.5 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="font-bold text-white flex items-center gap-1.5">
-                <PenTool className="w-4 h-4 text-emerald-400" />
-                <span>4. Dijital İmza *</span>
-              </label>
+          {photoFile && (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-[10px] text-emerald-400">
+              <ImageIcon size={15} />
 
-              {isSignatureSaved ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" />
-                  <span>İmza Kaydedildi</span>
-                </span>
-              ) : hasDrawnStroke ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
-                  İmza Çizildi
-                </span>
-              ) : (
-                <span className="text-[10px] text-emerald-400 font-bold">Zorunlu</span>
-              )}
-            </div>
+              <span className="truncate">
+                {photoFile.name}
+              </span>
 
-            <p className="text-[11px] text-[#999999]">
-              Lütfen teslim alan kişiye telefon ekranını uzatarak parmağıyla imza atmasını isteyin.
-            </p>
-
-            {/* Signature Canvas Box with touch-action: none */}
-            <div className="relative rounded-xl border border-[#303036] bg-[#0B0B0D] overflow-hidden">
-              <canvas
-                ref={canvasRef}
-                className="w-full h-36 block cursor-crosshair touch-none"
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={draw}
-                onTouchEnd={stopDrawing}
-              />
-
-              {!hasDrawnStroke && (
-                <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center text-[#555555] text-xs">
-                  <PenTool className="w-5 h-5 mb-1 opacity-30" />
-                  <span>İmza için bu alana dokunup çizin</span>
-                </div>
-              )}
-            </div>
-
-            {/* Signature Control Buttons: "İmzayı Temizle" & "İmzayı Kaydet" */}
-            <div className="flex items-center justify-between gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handleClearSignature}
-                disabled={!hasDrawnStroke}
-                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  hasDrawnStroke
-                    ? 'bg-[#222229] hover:bg-red-500/20 text-red-400 hover:text-red-300 border-[#303036]'
-                    : 'bg-[#222229]/50 text-[#555555] border-transparent cursor-not-allowed'
-                }`}
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>İmzayı Temizle</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleExplicitSaveSignature}
-                disabled={!hasDrawnStroke}
-                className={`py-2 px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  hasDrawnStroke
-                    ? isSignatureSaved
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                      : 'bg-[#D6A84F] hover:bg-[#c49740] text-[#0B0B0D] shadow-md shadow-[#D6A84F]/10'
-                    : 'bg-[#222229] text-[#555555] cursor-not-allowed'
-                }`}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{isSignatureSaved ? 'İmza Onaylandı' : 'İmzayı Kaydet'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Validation Feedback Warning if disabled */}
-          {!isFormValid && (
-            <div className="p-3 rounded-xl bg-[#222229] border border-[#303036] text-[11px] text-[#999999] space-y-1">
-              <span className="font-bold text-white block">Teslimatın tamamlanması için:</span>
-              {receiverName.trim().length < 2 && (
-                <div className="flex items-center gap-1.5 text-amber-400">
-                  <span>•</span>
-                  <span>Teslim alan kişinin adını giriniz.</span>
-                </div>
-              )}
-              {!hasDrawnStroke && (
-                <div className="flex items-center gap-1.5 text-amber-400">
-                  <span>•</span>
-                  <span>Dijital imza alanına imza attırınız.</span>
-                </div>
-              )}
-              {isPhotoRequired && !deliveryPhoto && (
-                <div className="flex items-center gap-1.5 text-amber-400">
-                  <span>•</span>
-                  <span>Teslimat fotoğrafı yükleyiniz (Admin ayarlarında zorunlu kılınmıştır).</span>
-                </div>
-              )}
+              <span className="ml-auto shrink-0 text-[#777777]">
+                {(
+                  photoFile.size /
+                  1024 /
+                  1024
+                ).toFixed(1)}{" "}
+                MB
+              </span>
             </div>
           )}
+        </div>
 
-          {/* TESLİMATI TAMAMLA BUTTON */}
-          <div className="pt-2 sticky bottom-0 bg-[#141418] pb-1">
-            <button
-              type="submit"
-              disabled={!isFormValid || isSubmitting}
-              className={`w-full min-h-[54px] py-3.5 px-5 rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2.5 transition-all shadow-xl cursor-pointer ${
-                isFormValid && !isSubmitting
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-emerald-500/20 active:scale-98'
-                  : 'bg-[#222229] text-[#666666] border border-[#303036] cursor-not-allowed opacity-70'
-              }`}
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Teslimat Kaydediliyor...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-5 h-5" />
-                  <span>Teslimatı Tamamla</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+        <div className="border-t border-[#303036] bg-[#19191E] p-4">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={
+              isSaving ||
+              !receiverName.trim() ||
+              !hasSignature
+            }
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#D6A84F] py-3.5 text-xs font-extrabold text-[#0B0B0D] transition hover:bg-[#c49740] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isSaving ? (
+              <>
+                <Loader2
+                  size={17}
+                  className="animate-spin"
+                />
+                Kaydediliyor...
+              </>
+            ) : (
+              <>
+                <Check size={17} />
+                Teslimatı Tamamla
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
