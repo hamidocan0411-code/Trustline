@@ -5,7 +5,7 @@ import type {
   CourierLocation,
 } from "../types";
 import { calculatePrice } from "../utils/pricing";
-import { seedUsers, seedOrders, seedNotifications } from "../data/seedData";
+import { seedCustomers, seedCouriers, seedAdmin, seedOrders } from "../data/seedData";
 
 const KEYS = {
   users: "trustline_users",
