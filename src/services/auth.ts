@@ -2,8 +2,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged,
   updateProfile,
+  onAuthStateChanged,
   type User,
 } from "firebase/auth";
 
@@ -14,220 +14,198 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-import {
-  auth,
-  db,
-} from "./firebase";
+import { auth, db } from "./firebase";
+import type { UserProfile, UserRole } from "../types";
 
-import type {
-  UserProfile,
-  UserRole,
-} from "../types";
+const ADMIN_EMAIL = "hamidocan0411@gmail.com";
 
-export interface AuthResult {
-  success: boolean;
-  user?: UserProfile;
-  error?: string;
+function getDefaultName(user: User): string {
+  return (
+    user.displayName?.trim() ||
+    user.email?.split("@")[0] ||
+    "Trustline Kullanıcısı"
+  );
 }
 
-function firebaseErrorMessage(error: any): string {
-  const code = error?.code || "";
+function mapUserProfile(
+  user: User,
+  data: Partial<UserProfile> = {}
+): UserProfile {
+  const isAdmin =
+    user.email?.toLowerCase() ===
+    ADMIN_EMAIL.toLowerCase();
 
-  switch (code) {
-    case "auth/invalid-email":
-      return "Geçerli bir e-posta adresi girin.";
-
-    case "auth/email-already-in-use":
-      return "Bu e-posta adresi zaten kayıtlı.";
-
-    case "auth/weak-password":
-      return "Şifre en az 6 karakter olmalıdır.";
-
-    case "auth/invalid-credential":
-    case "auth/wrong-password":
-    case "auth/user-not-found":
-      return "E-posta veya şifre hatalı.";
-
-    case "auth/too-many-requests":
-      return "Çok fazla başarısız deneme yapıldı. Biraz sonra tekrar deneyin.";
-
-    case "auth/network-request-failed":
-      return "İnternet bağlantınızı kontrol edin.";
-
-    default:
-      return error?.message || "Bir hata oluştu.";
-  }
+  return {
+    id: user.uid,
+    name:
+      data.name?.trim() ||
+      getDefaultName(user),
+    email:
+      user.email ||
+      data.email ||
+      "",
+    phone:
+      data.phone ||
+      "",
+    role:
+      isAdmin
+        ? "admin"
+        : data.role || "customer",
+    avatar:
+      data.avatar ||
+      user.photoURL ||
+      undefined,
+    vehicle:
+      data.vehicle,
+    plate:
+      data.plate,
+    courierStatus:
+      data.courierStatus,
+    totalDeliveries:
+      data.totalDeliveries || 0,
+    rating:
+      data.rating || 5,
+    createdAt:
+      data.createdAt ||
+      new Date().toISOString(),
+  };
 }
 
-export async function registerUser(params: {
-  name: string;
-  email: string;
-  password: string;
-  phone: string;
-  role?: UserRole;
-}): Promise<AuthResult> {
-  try {
-    const credential =
-      await createUserWithEmailAndPassword(
-        auth,
-        params.email.trim().toLowerCase(),
-        params.password
-      );
-
-    const firebaseUser = credential.user;
-
-    await updateProfile(firebaseUser, {
-      displayName: params.name.trim(),
-    });
-
-    const profile: UserProfile = {
-      id: firebaseUser.uid,
-      name: params.name.trim(),
-      email: firebaseUser.email || params.email.trim().toLowerCase(),
-      phone: params.phone.trim(),
-      role: params.role || "customer",
-      createdAt: new Date().toISOString(),
-    };
-
-    await setDoc(
-      doc(db, "users", firebaseUser.uid),
-      {
-        ...profile,
-        createdAt: serverTimestamp(),
-      }
+export async function registerUser(
+  email: string,
+  password: string,
+  name: string,
+  phone: string = ""
+): Promise<UserProfile> {
+  const credential =
+    await createUserWithEmailAndPassword(
+      auth,
+      email.trim(),
+      password
     );
 
-    return {
-      success: true,
-      user: profile,
-    };
-  } catch (error: any) {
-    console.error("Kayıt hatası:", error);
+  const user = credential.user;
 
-    return {
-      success: false,
-      error: firebaseErrorMessage(error),
-    };
-  }
+  await updateProfile(user, {
+    displayName: name.trim(),
+  });
+
+  const profile = mapUserProfile(user, {
+    name: name.trim(),
+    email: user.email || email.trim(),
+    phone: phone.trim(),
+    role: "customer",
+    createdAt:
+      new Date().toISOString(),
+  });
+
+  await setDoc(
+    doc(db, "users", user.uid),
+    profile
+  );
+
+  return profile;
 }
 
 export async function loginUser(
   email: string,
   password: string
-): Promise<AuthResult> {
-  try {
-    const credential =
-      await signInWithEmailAndPassword(
-        auth,
-        email.trim().toLowerCase(),
-        password
-      );
+): Promise<UserProfile> {
+  const credential =
+    await signInWithEmailAndPassword(
+      auth,
+      email.trim(),
+      password
+    );
+
+  return ensureUserProfile(
+    credential.user
+  );
+}
+
+export async function ensureUserProfile(
+  user: User
+): Promise<UserProfile> {
+  const userRef =
+    doc(db, "users", user.uid);
+
+  const snapshot =
+    await getDoc(userRef);
+
+  if (snapshot.exists()) {
+    const existing =
+      snapshot.data() as Partial<UserProfile>;
 
     const profile =
-      await getUserProfile(credential.user);
+      mapUserProfile(user, existing);
 
-    if (!profile) {
-      return {
-        success: false,
-        error:
-          "Hesabınız bulundu ancak kullanıcı profiliniz oluşturulmamış.",
-      };
+    if (
+      user.email?.toLowerCase() ===
+        ADMIN_EMAIL.toLowerCase() &&
+      existing.role !== "admin"
+    ) {
+      await setDoc(
+        userRef,
+        {
+          ...existing,
+          ...profile,
+          role: "admin",
+          updatedAt:
+            new Date().toISOString(),
+        },
+        { merge: true }
+      );
     }
 
-    return {
-      success: true,
-      user: profile,
-    };
-  } catch (error: any) {
-    console.error("Giriş hatası:", error);
-
-    return {
-      success: false,
-      error: firebaseErrorMessage(error),
-    };
+    return profile;
   }
+
+  const profile =
+    mapUserProfile(user);
+
+  await setDoc(
+    userRef,
+    {
+      ...profile,
+      createdAt:
+        serverTimestamp(),
+    }
+  );
+
+  return {
+    ...profile,
+    createdAt:
+      new Date().toISOString(),
+  };
+}
+
+export async function getUserProfile(
+  uid: string
+): Promise<UserProfile | null> {
+  const snapshot =
+    await getDoc(
+      doc(db, "users", uid)
+    );
+
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  return snapshot.data() as UserProfile;
 }
 
 export async function logoutUser(): Promise<void> {
   await signOut(auth);
 }
 
-export async function getUserProfile(
-  firebaseUser: User
-): Promise<UserProfile | null> {
-  try {
-    const snapshot = await getDoc(
-      doc(db, "users", firebaseUser.uid)
-    );
-
-    if (!snapshot.exists()) {
-      return null;
-    }
-
-    const data = snapshot.data();
-
-    return {
-      id: firebaseUser.uid,
-      name:
-        data.name ||
-        firebaseUser.displayName ||
-        "Kullanıcı",
-      email:
-        data.email ||
-        firebaseUser.email ||
-        "",
-      phone:
-        data.phone ||
-        "",
-      role:
-        data.role ||
-        "customer",
-      avatar:
-        data.avatar,
-      vehicle:
-        data.vehicle,
-      plate:
-        data.plate,
-      courierStatus:
-        data.courierStatus,
-      totalDeliveries:
-        data.totalDeliveries,
-      rating:
-        data.rating,
-      createdAt:
-        data.createdAt?.toDate?.()?.toISOString?.() ||
-        data.createdAt ||
-        new Date().toISOString(),
-    };
-  } catch (error) {
-    console.error(
-      "Kullanıcı profili alınamadı:",
-      error
-    );
-
-    return null;
-  }
-}
-
 export function subscribeToAuth(
   callback: (
-    user: User | null,
-    profile: UserProfile | null
+    user: User | null
   ) => void
 ) {
   return onAuthStateChanged(
     auth,
-    async (firebaseUser) => {
-      if (!firebaseUser) {
-        callback(null, null);
-        return;
-      }
-
-      const profile =
-        await getUserProfile(firebaseUser);
-
-      callback(firebaseUser, profile);
-    }
+    callback
   );
 }
 
