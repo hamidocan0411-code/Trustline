@@ -17,7 +17,10 @@ import {
   signOut,
 } from "firebase/auth";
 
-import { getApps, initializeApp } from "firebase/app";
+import {
+  getApps,
+  initializeApp,
+} from "firebase/app";
 
 import { DEFAULT_PRICING } from "../utils/pricing";
 
@@ -26,12 +29,14 @@ import type {
   Customer,
   Order,
   OrderStatus,
+  PricingConfig,
   UserProfile,
+  CourierAvailability,
 } from "../types";
 
 import { auth, db } from "./firebase";
 
-type CreateCourierInput = {
+type CreateCourierData = {
   name: string;
   email: string;
   phone: string;
@@ -42,11 +47,15 @@ type CreateCourierInput = {
 
 class StorageService {
   private currentUser: UserProfile | null = null;
+
   private users: UserProfile[] = [];
+
   private orders: Order[] = [];
 
   private userUnsubscribe: (() => void) | null = null;
+
   private orderUnsubscribe: (() => void) | null = null;
+
   private adminUsersUnsubscribe: (() => void) | null = null;
 
   private listeners = new Set<() => void>();
@@ -62,7 +71,9 @@ class StorageService {
   }
 
   private notify() {
-    this.listeners.forEach((listener) => listener());
+    this.listeners.forEach((listener) => {
+      listener();
+    });
   }
 
   private saveCache() {
@@ -75,43 +86,75 @@ class StorageService {
         }),
       );
     } catch (error) {
-      console.error("Cache kaydedilemedi:", error);
+      console.error(
+        "Cache kaydedilemedi:",
+        error,
+      );
     }
   }
 
   private loadCache() {
     try {
-      const raw = localStorage.getItem(this.cacheKey);
+      const raw =
+        localStorage.getItem(
+          this.cacheKey,
+        );
 
       if (!raw) return;
 
-      const cache = JSON.parse(raw);
+      const cache =
+        JSON.parse(raw);
 
-      if (Array.isArray(cache.users)) {
-        this.users = cache.users;
+      if (
+        Array.isArray(
+          cache.users,
+        )
+      ) {
+        this.users =
+          cache.users;
       }
 
-      if (Array.isArray(cache.orders)) {
-        this.orders = cache.orders;
+      if (
+        Array.isArray(
+          cache.orders,
+        )
+      ) {
+        this.orders =
+          cache.orders;
       }
     } catch (error) {
-      console.error("Cache okunamadı:", error);
+      console.error(
+        "Cache okunamadı:",
+        error,
+      );
     }
   }
 
-  async initializeForUser(profile: UserProfile) {
-    this.currentUser = profile;
+  async initializeForUser(
+    profile: UserProfile,
+  ) {
+    this.currentUser =
+      profile;
 
     this.loadCache();
 
     this.cleanupListeners();
 
-    await this.ensureUserProfile(profile);
+    await this.ensureUserProfile(
+      profile,
+    );
 
-    this.setupUserListener(profile);
-    this.setupOrderListener(profile);
+    this.setupUserListener(
+      profile,
+    );
 
-    if (profile.role === "admin") {
+    this.setupOrderListener(
+      profile,
+    );
+
+    if (
+      profile.role === "admin"
+    ) {
       this.setupAdminUsersListener();
     }
 
@@ -119,28 +162,45 @@ class StorageService {
   }
 
   private cleanupListeners() {
-    if (this.userUnsubscribe) {
+    if (
+      this.userUnsubscribe
+    ) {
       this.userUnsubscribe();
-      this.userUnsubscribe = null;
+      this.userUnsubscribe =
+        null;
     }
 
-    if (this.orderUnsubscribe) {
+    if (
+      this.orderUnsubscribe
+    ) {
       this.orderUnsubscribe();
-      this.orderUnsubscribe = null;
+      this.orderUnsubscribe =
+        null;
     }
 
-    if (this.adminUsersUnsubscribe) {
+    if (
+      this.adminUsersUnsubscribe
+    ) {
       this.adminUsersUnsubscribe();
-      this.adminUsersUnsubscribe = null;
+      this.adminUsersUnsubscribe =
+        null;
     }
   }
 
-  private async ensureUserProfile(profile: UserProfile) {
+  private async ensureUserProfile(
+    profile: UserProfile,
+  ) {
     if (!profile?.id) return;
 
     try {
-      const userRef = doc(db, "users", profile.id);
-      const snapshot = await getDoc(userRef);
+      const userRef = doc(
+        db,
+        "users",
+        profile.id,
+      );
+
+      const snapshot =
+        await getDoc(userRef);
 
       if (!snapshot.exists()) {
         await setDoc(
@@ -148,9 +208,12 @@ class StorageService {
           {
             ...profile,
             id: profile.id,
-            updatedAt: new Date().toISOString(),
+            updatedAt:
+              new Date().toISOString(),
           },
-          { merge: true },
+          {
+            merge: true,
+          },
         );
       }
     } catch (error) {
@@ -161,130 +224,166 @@ class StorageService {
     }
   }
 
-  private setupUserListener(profile: UserProfile) {
+  private setupUserListener(
+    profile: UserProfile,
+  ) {
     if (!profile?.id) return;
 
-    const userRef = doc(db, "users", profile.id);
-
-    this.userUnsubscribe = onSnapshot(
-      userRef,
-      (snapshot) => {
-        if (!snapshot.exists()) return;
-
-        const user = {
-          ...snapshot.data(),
-          id: profile.id,
-        } as UserProfile;
-
-        this.currentUser = {
-          ...this.currentUser,
-          ...user,
-        } as UserProfile;
-
-        const index = this.users.findIndex(
-          (item) => item.id === profile.id,
-        );
-
-        if (index >= 0) {
-          this.users[index] = this.currentUser;
-        } else {
-          this.users.push(this.currentUser);
-        }
-
-        this.saveCache();
-        this.notify();
-      },
-      (error) => {
-        console.error(
-          "Kullanıcı dinleyicisi hatası:",
-          error,
-        );
-      },
+    const userRef = doc(
+      db,
+      "users",
+      profile.id,
     );
+
+    this.userUnsubscribe =
+      onSnapshot(
+        userRef,
+        (snapshot) => {
+          if (!snapshot.exists())
+            return;
+
+          const user = {
+            ...snapshot.data(),
+            id: profile.id,
+          } as UserProfile;
+
+          this.currentUser = {
+            ...this.currentUser,
+            ...user,
+          } as UserProfile;
+
+          const index =
+            this.users.findIndex(
+              (item) =>
+                item.id ===
+                profile.id,
+            );
+
+          if (index >= 0) {
+            this.users[index] =
+              this.currentUser;
+          } else {
+            this.users.push(
+              this.currentUser,
+            );
+          }
+
+          this.saveCache();
+
+          this.notify();
+        },
+        (error) => {
+          console.error(
+            "Kullanıcı dinleyicisi hatası:",
+            error,
+          );
+        },
+      );
   }
 
   /**
-   * ADMIN:
-   * Artık sadece müşterileri değil,
-   * users koleksiyonundaki bütün kullanıcıları dinler.
+   * ADMIN TÜM USERS KOLEKSİYONUNU DİNLER.
    *
-   * Böylece yeni oluşturulan kuryeler de
-   * AdminPanel'e otomatik gelir.
+   * Önceki sürüm sadece customer dinliyordu.
+   * Bu yüzden yeni eklenen kuryeler
+   * bazen admin panelinde görünmüyordu.
    */
   private setupAdminUsersListener() {
-    if (this.currentUser?.role !== "admin") {
-      return;
-    }
+    const usersRef =
+      collection(db, "users");
 
-    const usersRef = collection(db, "users");
+    this.adminUsersUnsubscribe =
+      onSnapshot(
+        usersRef,
+        (snapshot) => {
+          const users =
+            snapshot.docs.map(
+              (item) =>
+                ({
+                  ...item.data(),
+                  id: item.id,
+                }) as UserProfile,
+            );
 
-    this.adminUsersUnsubscribe = onSnapshot(
-      usersRef,
-      (snapshot) => {
-        const users = snapshot.docs.map(
-          (item) =>
-            ({
-              ...item.data(),
-              id: item.id,
-            }) as UserProfile,
-        );
+          this.users =
+            users;
 
-        this.users = users;
+          this.saveCache();
 
-        this.saveCache();
-        this.notify();
-      },
-      (error) => {
-        console.error(
-          "Admin kullanıcı listesi hatası:",
-          error,
-        );
-      },
-    );
+          this.notify();
+        },
+        (error) => {
+          console.error(
+            "Admin kullanıcı listesi hatası:",
+            error,
+          );
+        },
+      );
   }
 
-  private setupOrderListener(profile: UserProfile) {
-    const ordersRef = collection(db, "orders");
+  private setupOrderListener(
+    profile: UserProfile,
+  ) {
+    const ordersRef =
+      collection(db, "orders");
 
     let ordersQuery;
 
-    if (profile.role === "customer") {
+    if (
+      profile.role ===
+      "customer"
+    ) {
       ordersQuery = query(
         ordersRef,
-        where("customerId", "==", profile.id),
+        where(
+          "customerId",
+          "==",
+          profile.id,
+        ),
       );
-    } else if (profile.role === "courier") {
+    } else if (
+      profile.role ===
+      "courier"
+    ) {
       ordersQuery = query(
         ordersRef,
-        where("courierId", "==", profile.id),
+        where(
+          "courierId",
+          "==",
+          profile.id,
+        ),
       );
     } else {
       ordersQuery = ordersRef;
     }
 
-    this.orderUnsubscribe = onSnapshot(
-      ordersQuery,
-      (snapshot) => {
-        const orders = snapshot.docs.map(
-          (item) =>
-            ({
-              ...item.data(),
-              id: item.id,
-            }) as Order,
-        );
+    this.orderUnsubscribe =
+      onSnapshot(
+        ordersQuery,
+        (snapshot) => {
+          const orders =
+            snapshot.docs.map(
+              (item) =>
+                ({
+                  ...item.data(),
+                  id: item.id,
+                }) as Order,
+            );
 
-        this.orders = orders;
+          this.orders =
+            orders;
 
-        this.saveCache();
-        this.notify();
-      },
-      (error) => {
-        console.error(
-          "Sipariş listener hatası:",
-          error,
-        );
-      },
-    );
+          this.saveCache();
+
+          this.notify();
+        },
+        (error) => {
+          console.error(
+            "Sipariş listener hatası:",
+            error,
+          );
+        },
+      );
   }
 
   getCurrentUser() {
@@ -292,33 +391,47 @@ class StorageService {
   }
 
   getOrders() {
-    return [...this.orders];
+    return [
+      ...this.orders,
+    ];
   }
 
   getCustomers(): Customer[] {
     return this.users.filter(
-      (user) => user.role === "customer",
+      (user) =>
+        user.role ===
+        "customer",
     ) as Customer[];
   }
 
   getCouriers(): Courier[] {
     return this.users.filter(
-      (user) => user.role === "courier",
+      (user) =>
+        user.role ===
+        "courier",
     ) as Courier[];
   }
 
   getUsers() {
-    return [...this.users];
+    return [
+      ...this.users,
+    ];
   }
 
-  getOrderById(id: string) {
+  getOrderById(
+    id: string,
+  ) {
     return this.orders.find(
-      (order) => order.id === id,
+      (order) =>
+        order.id === id,
     );
   }
 
-  async createOrder(data: Partial<Order>) {
-    const firebaseUser = auth.currentUser;
+  async createOrder(
+    data: Partial<Order>,
+  ) {
+    const firebaseUser =
+      auth.currentUser;
 
     if (!firebaseUser) {
       throw new Error(
@@ -327,7 +440,8 @@ class StorageService {
     }
 
     const customerId =
-      this.currentUser?.role === "customer"
+      this.currentUser?.role ===
+      "customer"
         ? firebaseUser.uid
         : data.customerId ||
           this.currentUser?.id ||
@@ -339,61 +453,87 @@ class StorageService {
         .toString(36)
         .substring(2, 9)}`;
 
-    const now = new Date().toISOString();
+    const now =
+      new Date().toISOString();
 
-    const cleanData = Object.fromEntries(
-      Object.entries(data).filter(
-        ([, value]) => value !== undefined,
-      ),
-    );
+    const cleanData =
+      Object.fromEntries(
+        Object.entries(
+          data,
+        ).filter(
+          ([, value]) =>
+            value !==
+            undefined,
+        ),
+      );
 
     const order = {
       ...cleanData,
       id: orderId,
       customerId,
-      courierId: data.courierId ?? null,
+      courierId:
+        data.courierId ??
+        null,
       status:
-        data.status || "Kurye Bekleniyor",
-      createdAt: data.createdAt || now,
+        data.status ||
+        "Kurye Bekleniyor",
+      createdAt:
+        data.createdAt ||
+        now,
       updatedAt: now,
     } as Order;
 
-    if (this.currentUser?.role === "customer") {
-      order.customerId = firebaseUser.uid;
+    if (
+      this.currentUser
+        ?.role ===
+      "customer"
+    ) {
+      order.customerId =
+        firebaseUser.uid;
     }
 
     try {
-      const orderRef = doc(
-        db,
-        "orders",
-        orderId,
-      );
+      const orderRef =
+        doc(
+          db,
+          "orders",
+          orderId,
+        );
 
-      await setDoc(orderRef, order);
-
-      console.log(
-        "SİPARİŞ FIRESTORE'A BAŞARIYLA YAZILDI:",
+      await setDoc(
+        orderRef,
         order,
       );
 
       this.orders = [
         order,
         ...this.orders.filter(
-          (item) => item.id !== orderId,
+          (item) =>
+            item.id !==
+            orderId,
         ),
       ];
 
       this.saveCache();
+
       this.notify();
+
+      console.log(
+        "Sipariş Firestore'a yazıldı:",
+        order,
+      );
 
       return order;
     } catch (error: any) {
       console.error(
-        "SİPARİŞ FIRESTORE'A YAZILAMADI:",
+        "Sipariş Firestore'a yazılamadı:",
         error,
       );
 
-      if (error?.code === "permission-denied") {
+      if (
+        error?.code ===
+        "permission-denied"
+      ) {
         throw new Error(
           "Firestore sipariş oluşturma yetkisini reddetti.",
         );
@@ -410,11 +550,12 @@ class StorageService {
     orderId: string,
     updates: Partial<Order>,
   ) {
-    const firebaseUser = auth.currentUser;
+    const firebaseUser =
+      auth.currentUser;
 
     if (!firebaseUser) {
       throw new Error(
-        "Firebase oturumu bulunamadı. Lütfen tekrar giriş yapın.",
+        "Firebase oturumu bulunamadı.",
       );
     }
 
@@ -425,14 +566,17 @@ class StorageService {
     }
 
     try {
-      const orderRef = doc(
-        db,
-        "orders",
-        orderId,
-      );
+      const orderRef =
+        doc(
+          db,
+          "orders",
+          orderId,
+        );
 
       const snapshot =
-        await getDoc(orderRef);
+        await getDoc(
+          orderRef,
+        );
 
       if (!snapshot.exists()) {
         throw new Error(
@@ -444,7 +588,9 @@ class StorageService {
         snapshot.data() as Order;
 
       if (
-        this.currentUser?.role === "courier"
+        this.currentUser
+          ?.role ===
+        "courier"
       ) {
         if (
           currentOrder.courierId !==
@@ -456,7 +602,8 @@ class StorageService {
         }
 
         if (
-          updates.courierId !== undefined &&
+          updates.courierId !==
+            undefined &&
           updates.courierId !==
             currentOrder.courierId
         ) {
@@ -466,27 +613,30 @@ class StorageService {
         }
       }
 
-      const updatedData = {
-        ...updates,
-        updatedAt:
-          new Date().toISOString(),
-      };
+      const updatedData =
+        {
+          ...updates,
+          updatedAt:
+            new Date().toISOString(),
+        };
 
       await updateDoc(
         orderRef,
         updatedData,
       );
 
-      const updatedOrder = {
-        ...currentOrder,
-        ...updatedData,
-        id: orderId,
-      } as Order;
+      const updatedOrder =
+        {
+          ...currentOrder,
+          ...updatedData,
+          id: orderId,
+        } as Order;
 
       const index =
         this.orders.findIndex(
           (order) =>
-            order.id === orderId,
+            order.id ===
+            orderId,
         );
 
       if (index >= 0) {
@@ -499,22 +649,13 @@ class StorageService {
       }
 
       this.saveCache();
-      this.notify();
 
-      console.log(
-        "SİPARİŞ BAŞARIYLA GÜNCELLENDİ:",
-        {
-          orderId,
-          updates: updatedData,
-          userId: firebaseUser.uid,
-          role: this.currentUser?.role,
-        },
-      );
+      this.notify();
 
       return updatedOrder;
     } catch (error: any) {
       console.error(
-        "SİPARİŞ GÜNCELLENEMEDİ:",
+        "Sipariş güncellenemedi:",
         error,
       );
 
@@ -523,7 +664,7 @@ class StorageService {
         "permission-denied"
       ) {
         throw new Error(
-          "Firestore yetkisi reddedildi. Kullanıcı rolünü ve sipariş courierId alanını kontrol edin.",
+          "Firestore yetkisi reddedildi. Firestore Rules kontrol edilmeli.",
         );
       }
 
@@ -532,36 +673,6 @@ class StorageService {
           "Sipariş güncellenemedi.",
       );
     }
-  }
-
-  async updateOrderStatus(
-    orderId: string,
-    status: OrderStatus,
-  ) {
-    return this.updateOrder(
-      orderId,
-      {
-        status,
-      },
-    );
-  }
-
-  async updateOrderPrice(
-    orderId: string,
-    price: number,
-  ) {
-    if (!Number.isFinite(price)) {
-      throw new Error(
-        "Geçersiz fiyat.",
-      );
-    }
-
-    return this.updateOrder(
-      orderId,
-      {
-        price: Math.round(price),
-      },
-    );
   }
 
   async assignCourier(
@@ -574,27 +685,10 @@ class StorageService {
       );
     }
 
-    const courier =
-      await this.getUserById(courierId);
-
-    if (!courier) {
-      throw new Error(
-        "Seçilen kurye bulunamadı.",
-      );
-    }
-
-    if (courier.role !== "courier") {
-      throw new Error(
-        "Seçilen kullanıcı kurye değil.",
-      );
-    }
-
     return this.updateOrder(
       orderId,
       {
         courierId,
-        courierName: courier.name,
-        courierPhone: courier.phone,
         status:
           "Kurye Atandı" as OrderStatus,
       },
@@ -604,11 +698,12 @@ class StorageService {
   async acceptOrder(
     orderId: string,
   ) {
-    const firebaseUser = auth.currentUser;
+    const firebaseUser =
+      auth.currentUser;
 
     if (!firebaseUser) {
       throw new Error(
-        "Firebase oturumu bulunamadı. Lütfen tekrar giriş yapın.",
+        "Firebase oturumu bulunamadı.",
       );
     }
 
@@ -692,10 +787,11 @@ class StorageService {
       deliveryPhoto?: string;
     },
   ) {
-    const updates: Partial<Order> = {
-      status:
-        "Teslim Edildi" as OrderStatus,
-    };
+    const updates: Partial<Order> =
+      {
+        status:
+          "Teslim Edildi" as OrderStatus,
+      };
 
     if (deliveryData) {
       if (
@@ -740,7 +836,9 @@ class StorageService {
     );
   }
 
-  async cancelOrder(orderId: string) {
+  async cancelOrder(
+    orderId: string,
+  ) {
     return this.updateOrder(
       orderId,
       {
@@ -753,14 +851,17 @@ class StorageService {
   private async getOrderByIdFromFirestore(
     orderId: string,
   ): Promise<Order | null> {
-    const orderRef = doc(
-      db,
-      "orders",
-      orderId,
-    );
+    const orderRef =
+      doc(
+        db,
+        "orders",
+        orderId,
+      );
 
     const snapshot =
-      await getDoc(orderRef);
+      await getDoc(
+        orderRef,
+      );
 
     if (!snapshot.exists()) {
       return null;
@@ -772,22 +873,30 @@ class StorageService {
     } as Order;
   }
 
-  async deleteOrder(orderId: string) {
+  async deleteOrder(
+    orderId: string,
+  ) {
     try {
-      const orderRef = doc(
-        db,
-        "orders",
-        orderId,
+      const orderRef =
+        doc(
+          db,
+          "orders",
+          orderId,
+        );
+
+      await deleteDoc(
+        orderRef,
       );
 
-      await deleteDoc(orderRef);
-
-      this.orders = this.orders.filter(
-        (order) =>
-          order.id !== orderId,
-      );
+      this.orders =
+        this.orders.filter(
+          (order) =>
+            order.id !==
+            orderId,
+        );
 
       this.saveCache();
+
       this.notify();
     } catch (error: any) {
       console.error(
@@ -795,23 +904,15 @@ class StorageService {
         error,
       );
 
-      if (
-        error?.code ===
-        "permission-denied"
-      ) {
-        throw new Error(
-          "Bu siparişi silmek için admin yetkisi gerekiyor.",
-        );
-      }
-
       throw error;
     }
   }
 
   /**
-   * Eski yöntem:
-   * Firebase Auth hesabı zaten oluşturulmuşsa
-   * Firestore'a kurye profili eklemek için kullanılabilir.
+   * ESKİ YÖNTEM
+   *
+   * Firebase Authentication hesabı zaten
+   * oluşturulmuşsa kullanılabilir.
    */
   async addCourier(
     courier: Partial<Courier>,
@@ -822,30 +923,35 @@ class StorageService {
       );
     }
 
-    const courierData = {
-      ...courier,
-      id: courier.id,
-      role: "courier" as const,
-      createdAt:
-        courier.createdAt ||
-        new Date().toISOString(),
-      updatedAt:
-        new Date().toISOString(),
-      isActive:
-        courier.isActive ?? true,
-    };
+    const courierData =
+      {
+        ...courier,
+        id: courier.id,
+        role: "courier" as const,
+        createdAt:
+          courier.createdAt ||
+          new Date().toISOString(),
+        updatedAt:
+          new Date().toISOString(),
+        isActive:
+          courier.isActive ??
+          true,
+      };
 
     try {
-      const courierRef = doc(
-        db,
-        "users",
-        courier.id,
-      );
+      const courierRef =
+        doc(
+          db,
+          "users",
+          courier.id,
+        );
 
       await setDoc(
         courierRef,
         courierData,
-        { merge: true },
+        {
+          merge: true,
+        },
       );
 
       const user =
@@ -854,16 +960,21 @@ class StorageService {
       const index =
         this.users.findIndex(
           (item) =>
-            item.id === user.id,
+            item.id ===
+            user.id,
         );
 
       if (index >= 0) {
-        this.users[index] = user;
+        this.users[index] =
+          user;
       } else {
-        this.users.push(user);
+        this.users.push(
+          user,
+        );
       }
 
       this.saveCache();
+
       this.notify();
 
       return user;
@@ -878,41 +989,50 @@ class StorageService {
   }
 
   /**
-   * YENİ:
+   * YENİ KURYE OLUŞTURMA
    *
-   * Admin Panel -> Kurye Ekle
+   * Admin panelinden:
    *
-   * Firebase Authentication'da gerçek kullanıcı oluşturur.
-   * Ardından users/{UID} Firestore profilini oluşturur.
+   * 1. Firebase Authentication hesabı oluşturur.
+   * 2. Firebase UID'yi alır.
+   * 3. users/{UID} profili oluşturur.
    *
-   * Admin'in ana oturumu düşmez.
+   * Admin'in mevcut oturumunu kapatmaz.
    */
-  async createCourierAccount(
-    data: CreateCourierInput,
+  async createCourier(
+    data: CreateCourierData,
   ): Promise<UserProfile> {
-    const adminUser = auth.currentUser;
+    const adminUser =
+      auth.currentUser;
 
     if (!adminUser) {
       throw new Error(
-        "Admin oturumu bulunamadı. Lütfen tekrar giriş yapın.",
+        "Admin Firebase oturumu bulunamadı.",
       );
     }
 
     if (
       adminUser.email?.toLowerCase() !==
-      "hamidocan0411@gmail.com"
+      "hamidocan@gmail.com"
     ) {
       throw new Error(
-        "Bu işlem sadece admin hesabı tarafından yapılabilir.",
+        "Bu işlem sadece admin hesabından yapılabilir.",
       );
     }
 
-    const name = data.name.trim();
-    const email = data.email
-      .trim()
-      .toLowerCase();
-    const phone = data.phone.trim();
-    const password = data.password;
+    const name =
+      data.name.trim();
+
+    const email =
+      data.email
+        .trim()
+        .toLowerCase();
+
+    const phone =
+      data.phone.trim();
+
+    const password =
+      data.password;
 
     if (!name) {
       throw new Error(
@@ -922,56 +1042,45 @@ class StorageService {
 
     if (!email) {
       throw new Error(
-        "Kurye e-posta adresi zorunludur.",
+        "Kurye e-postası zorunludur.",
       );
     }
 
-    if (!phone) {
-      throw new Error(
-        "Kurye telefon numarası zorunludur.",
-      );
-    }
-
-    if (!password) {
-      throw new Error(
-        "Kurye şifresi zorunludur.",
-      );
-    }
-
-    if (password.length < 6) {
+    if (
+      !password ||
+      password.length < 6
+    ) {
       throw new Error(
         "Şifre en az 6 karakter olmalıdır.",
       );
     }
 
-    /*
-     * Ana Firebase App'ten farklı bir App oluşturuyoruz.
+    /**
+     * Ana Firebase uygulamasından
+     * farklı bir Firebase App oluşturuyoruz.
      *
-     * Böylece:
-     *
-     * Admin oturumu
-     *       ↓
-     * DEĞİŞMEZ
-     *
-     * Kurye hesabı
-     *       ↓
-     * Secondary Auth üzerinden oluşturulur.
+     * Böylece yeni kurye oluşturulunca
+     * admin hesabının oturumu düşmez.
      */
     const secondaryApp =
       getApps().find(
         (app) =>
           app.name ===
           "TrustlineCourierCreator",
-      ) ??
+      ) ||
       initializeApp(
         auth.app.options,
         "TrustlineCourierCreator",
       );
 
     const secondaryAuth =
-      getAuth(secondaryApp);
+      getAuth(
+        secondaryApp,
+      );
 
-    let createdUser: any = null;
+    let createdUser:
+      | import("firebase/auth").User
+      | null = null;
 
     try {
       const credential =
@@ -981,90 +1090,87 @@ class StorageService {
           password,
         );
 
-      createdUser = credential.user;
+      createdUser =
+        credential.user;
+
+      const uid =
+        createdUser.uid;
 
       const now =
         new Date().toISOString();
 
-      const courierProfile: UserProfile = {
-        id: createdUser.uid,
-        name,
-        email,
-        phone,
-        role: "courier",
-        vehicle:
-          data.vehicle?.trim() || "",
-        plate:
-          data.plate?.trim() || "",
-        courierStatus: "Müsait",
-        totalDeliveries: 0,
-        rating: 5,
-        createdAt: now,
-      };
+      const profile: UserProfile =
+        {
+          id: uid,
+          name,
+          email,
+          phone,
+          role: "courier",
+          courierStatus:
+            "Müsait",
+          totalDeliveries: 0,
+          rating: 5,
+          createdAt: now,
+        };
 
-      /*
-       * ÖNEMLİ:
-       *
-       * Bu Firestore işlemi ana admin auth
-       * oturumuyla yapılır.
+      /**
+       * Firestore'a ana admin oturumu
+       * üzerinden yazılır.
        */
       await setDoc(
         doc(
           db,
           "users",
-          createdUser.uid,
+          uid,
         ),
-        courierProfile,
+        profile,
       );
 
-      /*
-       * Secondary kullanıcıdan çık.
-       * Ana admin hesabı etkilenmez.
-       */
-      await signOut(secondaryAuth);
-
-      /*
-       * Local cache güncelle.
+      /**
+       * Local cache'i hemen güncelle.
        */
       const existingIndex =
         this.users.findIndex(
           (user) =>
-            user.id ===
-            courierProfile.id,
+            user.id === uid,
         );
 
-      if (existingIndex >= 0) {
-        this.users[existingIndex] =
-          courierProfile;
+      if (
+        existingIndex >= 0
+      ) {
+        this.users[
+          existingIndex
+        ] = profile;
       } else {
         this.users.push(
-          courierProfile,
+          profile,
         );
       }
 
       this.saveCache();
+
       this.notify();
 
       console.log(
-        "KURYE HESABI BAŞARIYLA OLUŞTURULDU:",
+        "KURYE HESABI OLUŞTURULDU:",
         {
-          uid: createdUser.uid,
+          uid,
           email,
           name,
         },
       );
 
-      return courierProfile;
+      return profile;
     } catch (error: any) {
       console.error(
-        "KURYE HESABI OLUŞTURULAMADI:",
+        "Kurye hesabı oluşturulamadı:",
         error,
       );
 
-      /*
-       * Auth hesabı oluşturuldu fakat
-       * Firestore kaydı başarısız olduysa
-       * Auth hesabını geri silmeye çalış.
+      /**
+       * Auth oluşturuldu fakat Firestore
+       * yazılamadıysa yeni Auth kullanıcısını
+       * temizlemeye çalış.
        */
       if (createdUser) {
         try {
@@ -1073,16 +1179,10 @@ class StorageService {
           );
         } catch (deleteError) {
           console.error(
-            "Oluşturulan Auth hesabı geri silinemedi:",
+            "Oluşturulan Auth kullanıcısı temizlenemedi:",
             deleteError,
           );
         }
-      }
-
-      try {
-        await signOut(secondaryAuth);
-      } catch {
-        // Zaten çıkış yapılmış olabilir.
       }
 
       if (
@@ -1090,7 +1190,7 @@ class StorageService {
         "auth/email-already-in-use"
       ) {
         throw new Error(
-          "Bu e-posta adresi zaten Firebase'de kullanılıyor.",
+          "Bu e-posta adresi zaten Firebase Authentication'da kayıtlı.",
         );
       }
 
@@ -1117,7 +1217,7 @@ class StorageService {
         "permission-denied"
       ) {
         throw new Error(
-          "Firestore yetkisi reddedildi. Firestore Rules kontrol edilmeli.",
+          "Firestore kurye profili oluşturma yetkisini reddetti. Firestore Rules kontrol edilmeli.",
         );
       }
 
@@ -1125,7 +1225,41 @@ class StorageService {
         error?.message ||
           "Kurye hesabı oluşturulamadı.",
       );
+    } finally {
+      /**
+       * Secondary Auth oturumunu kapat.
+       * Ana admin Auth oturumu etkilenmez.
+       */
+      try {
+        await signOut(
+          secondaryAuth,
+        );
+      } catch {
+        // Bilerek boş bırakıldı.
+      }
     }
+  }
+
+  /**
+   * Kurye durumunu güncelle.
+   */
+  async updateCourierStatus(
+    courierId: string,
+    status: CourierAvailability,
+  ) {
+    if (!courierId) {
+      throw new Error(
+        "Kurye ID bulunamadı.",
+      );
+    }
+
+    return this.updateUser(
+      courierId,
+      {
+        courierStatus:
+          status,
+      },
+    );
   }
 
   async updateUser(
@@ -1133,11 +1267,12 @@ class StorageService {
     updates: Partial<UserProfile>,
   ) {
     try {
-      const userRef = doc(
-        db,
-        "users",
-        userId,
-      );
+      const userRef =
+        doc(
+          db,
+          "users",
+          userId,
+        );
 
       await updateDoc(
         userRef,
@@ -1155,86 +1290,74 @@ class StorageService {
         );
 
       if (index >= 0) {
-        this.users[index] = {
-          ...this.users[index],
-          ...updates,
-        };
+        this.users[index] =
+          {
+            ...this.users[index],
+            ...updates,
+          };
       }
 
       if (
-        this.currentUser?.id ===
-        userId
+        this.currentUser
+          ?.id === userId
       ) {
-        this.currentUser = {
-          ...this.currentUser,
-          ...updates,
-        };
+        this.currentUser =
+          {
+            ...this.currentUser,
+            ...updates,
+          };
       }
 
       this.saveCache();
+
       this.notify();
 
       return index >= 0
         ? this.users[index]
         : undefined;
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         "Kullanıcı güncellenemedi:",
         error,
       );
 
+      if (
+        error?.code ===
+        "permission-denied"
+      ) {
+        throw new Error(
+          "Kullanıcı güncelleme yetkisi reddedildi.",
+        );
+      }
+
       throw error;
     }
   }
 
-  /**
-   * AdminPanel'deki kurye durumunu güncellemek için.
-   */
-  async updateCourierStatus(
-    courierId: string,
-    status: UserProfile["courierStatus"],
+  async deleteUser(
+    userId: string,
   ) {
-    const courier =
-      await this.getUserById(
-        courierId,
-      );
-
-    if (!courier) {
-      throw new Error(
-        "Kurye bulunamadı.",
-      );
-    }
-
-    if (courier.role !== "courier") {
-      throw new Error(
-        "Bu kullanıcı kurye değil.",
-      );
-    }
-
-    return this.updateUser(
-      courierId,
-      {
-        courierStatus: status,
-      },
-    );
-  }
-
-  async deleteUser(userId: string) {
     try {
-      const userRef = doc(
-        db,
-        "users",
-        userId,
+      const userRef =
+        doc(
+          db,
+          "users",
+          userId,
+        );
+
+      await deleteDoc(
+        userRef,
       );
 
-      await deleteDoc(userRef);
-
-      this.users = this.users.filter(
-        (user) =>
-          user.id !== userId,
-      );
+      this.users =
+        this.users.filter(
+          (user) =>
+            user.id !==
+            userId,
+        );
 
       this.saveCache();
+
       this.notify();
     } catch (error) {
       console.error(
@@ -1246,7 +1369,9 @@ class StorageService {
     }
   }
 
-  async getUserById(userId: string) {
+  async getUserById(
+    userId: string,
+  ) {
     const localUser =
       this.users.find(
         (user) =>
@@ -1258,14 +1383,17 @@ class StorageService {
     }
 
     try {
-      const userRef = doc(
-        db,
-        "users",
-        userId,
-      );
+      const userRef =
+        doc(
+          db,
+          "users",
+          userId,
+        );
 
       const snapshot =
-        await getDoc(userRef);
+        await getDoc(
+          userRef,
+        );
 
       if (!snapshot.exists()) {
         return null;
@@ -1300,8 +1428,13 @@ class StorageService {
           ),
         );
 
-      return new Promise<Customer[]>(
-        (resolve, reject) => {
+      return new Promise<
+        Customer[]
+      >(
+        (
+          resolve,
+          reject,
+        ) => {
           const unsubscribe =
             onSnapshot(
               customersQuery,
@@ -1317,7 +1450,9 @@ class StorageService {
                       }) as Customer,
                   );
 
-                resolve(customers);
+                resolve(
+                  customers,
+                );
               },
               reject,
             );
@@ -1348,8 +1483,13 @@ class StorageService {
           ),
         );
 
-      return new Promise<Courier[]>(
-        (resolve, reject) => {
+      return new Promise<
+        Courier[]
+      >(
+        (
+          resolve,
+          reject,
+        ) => {
           const unsubscribe =
             onSnapshot(
               couriersQuery,
@@ -1365,7 +1505,9 @@ class StorageService {
                       }) as Courier,
                   );
 
-                resolve(couriers);
+                resolve(
+                  couriers,
+                );
               },
               reject,
             );
@@ -1384,8 +1526,11 @@ class StorageService {
   clear() {
     this.cleanupListeners();
 
-    this.currentUser = null;
+    this.currentUser =
+      null;
+
     this.users = [];
+
     this.orders = [];
 
     try {
@@ -1405,7 +1550,8 @@ class StorageService {
   setCurrentUser(
     user: UserProfile | null,
   ) {
-    this.currentUser = user;
+    this.currentUser =
+      user;
 
     if (user) {
       const index =
@@ -1415,13 +1561,17 @@ class StorageService {
         );
 
       if (index >= 0) {
-        this.users[index] = user;
+        this.users[index] =
+          user;
       } else {
-        this.users.push(user);
+        this.users.push(
+          user,
+        );
       }
     }
 
     this.saveCache();
+
     this.notify();
   }
 
@@ -1466,14 +1616,20 @@ class StorageService {
       assignedOrders,
       completedOrders,
       totalCustomers:
-        this.getCustomers().length,
+        this.getCustomers()
+          .length,
       totalCouriers:
-        this.getCouriers().length,
+        this.getCouriers()
+          .length,
     };
   }
 }
 
-const storage = new StorageService();
+const storage =
+  new StorageService();
 
-export { storage };
+export {
+  storage,
+};
+
 export default storage;
