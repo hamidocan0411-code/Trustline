@@ -5,14 +5,17 @@ import type {
   CourierLocation,
 } from "../types";
 
-import { calculatePrice } from "../utils/pricing";
+import {
+  SEED_CUSTOMERS,
+  SEED_COURIERS,
+  SEED_ADMIN,
+  SEED_ORDERS,
+} from "../data/seedData";
 
 import {
-  seedCustomers,
-  seedCouriers,
-  seedAdmin,
-  seedOrders,
-} from "../data/seedData";
+  calculateOrderPrice,
+  DEFAULT_PRICING,
+} from "../utils/pricing";
 
 const KEYS = {
   users: "trustline_users",
@@ -25,7 +28,12 @@ const KEYS = {
 function load<T>(key: string, fallback: T): T {
   try {
     const value = localStorage.getItem(key);
-    return value ? JSON.parse(value) : fallback;
+
+    if (!value) {
+      return fallback;
+    }
+
+    return JSON.parse(value) as T;
   } catch {
     return fallback;
   }
@@ -44,16 +52,19 @@ class StorageService {
 
   constructor() {
     const initialUsers = [
-      ...seedCustomers,
-      ...seedCouriers,
-      seedAdmin,
+      ...SEED_CUSTOMERS,
+      ...SEED_COURIERS,
+      SEED_ADMIN,
     ] as User[];
 
-    this.users = load<User[]>(KEYS.users, initialUsers);
+    this.users = load<User[]>(
+      KEYS.users,
+      initialUsers
+    );
 
     this.orders = load<Order[]>(
       KEYS.orders,
-      seedOrders
+      SEED_ORDERS
     );
 
     this.notifications = load<Notification[]>(
@@ -77,9 +88,9 @@ class StorageService {
     save(KEYS.locations, this.locations);
   }
 
-  // =========================
+  // -------------------------
   // USERS
-  // =========================
+  // -------------------------
 
   getUsers(): User[] {
     return this.users;
@@ -94,7 +105,7 @@ class StorageService {
   getUserByEmail(email: string): User | undefined {
     return this.users.find(
       (user) =>
-        user.email.toLowerCase() ===
+        user.email?.toLowerCase() ===
         email.toLowerCase()
     );
   }
@@ -123,9 +134,9 @@ class StorageService {
     save(KEYS.users, this.users);
   }
 
-  // =========================
+  // -------------------------
   // CURRENT USER
-  // =========================
+  // -------------------------
 
   getCurrentUser(): User | null {
     return this.currentUser;
@@ -134,7 +145,10 @@ class StorageService {
   setCurrentUser(user: User | null): void {
     this.currentUser = user;
 
-    save(KEYS.currentUser, user);
+    save(
+      KEYS.currentUser,
+      user
+    );
   }
 
   logout(): void {
@@ -145,15 +159,17 @@ class StorageService {
     );
   }
 
-  // =========================
+  // -------------------------
   // ORDERS
-  // =========================
+  // -------------------------
 
   getOrders(): Order[] {
     return this.orders;
   }
 
-  getOrderById(id: string): Order | undefined {
+  getOrderById(
+    id: string
+  ): Order | undefined {
     return this.orders.find(
       (order) => order.id === id
     );
@@ -206,6 +222,7 @@ class StorageService {
     const updatedOrder = {
       ...order,
       ...updates,
+      updatedAt: new Date().toISOString(),
     };
 
     this.saveOrder(updatedOrder);
@@ -221,9 +238,9 @@ class StorageService {
     save(KEYS.orders, this.orders);
   }
 
-  // =========================
+  // -------------------------
   // CREATE ORDER
-  // =========================
+  // -------------------------
 
   createOrder(
     data: Partial<Order>
@@ -239,44 +256,67 @@ class StorageService {
         .substring(2, 7)
         .toUpperCase();
 
-    const distance =
-      typeof data.distance === "number"
-        ? data.distance
+    const distanceKm =
+      typeof data.distanceKm === "number"
+        ? data.distanceKm
         : 0;
 
-    const serviceType =
-      data.serviceType || "standard";
+    const courierType =
+      data.courierType ||
+      "Standart Kurye";
+
+    const calculatedPrice =
+      calculateOrderPrice(
+        distanceKm,
+        courierType,
+        DEFAULT_PRICING
+      );
 
     const price =
       typeof data.price === "number"
         ? data.price
-        : calculatePrice(
-            distance,
-            serviceType
-          );
+        : calculatedPrice.finalPrice;
+
+    const now =
+      new Date().toISOString();
 
     const order = {
-      ...(data as Order),
+      ...data,
+
       id,
+
+      distanceKm,
+
+      courierType,
+
       price,
-      distance,
+
       status:
-        data.status || ("pending" as Order["status"]),
+        data.status ||
+        "Kurye Bekleniyor",
+
       createdAt:
         data.createdAt ||
-        new Date().toISOString(),
+        now,
+
+      updatedAt:
+        data.updatedAt ||
+        now,
     } as Order;
 
     this.orders.unshift(order);
 
-    save(KEYS.orders, this.orders);
+    save(
+      KEYS.orders,
+      this.orders
+    );
 
     return order;
   }
 
-  // =========================
+  // -------------------------
   // NOTIFICATIONS
-  // =========================
+  // -------------------------
 
   getNotifications(
     userId?: string
@@ -346,9 +386,9 @@ class StorageService {
     );
   }
 
-  // =========================
+  // -------------------------
   // COURIER LOCATIONS
-  // =========================
+  // -------------------------
 
   getCourierLocations(): CourierLocation[] {
     return this.locations;
@@ -374,9 +414,12 @@ class StorageService {
       );
 
     if (index >= 0) {
-      this.locations[index] = location;
+      this.locations[index] =
+        location;
     } else {
-      this.locations.push(location);
+      this.locations.push(
+        location
+      );
     }
 
     save(
@@ -385,9 +428,9 @@ class StorageService {
     );
   }
 
-  // =========================
-  // COURIER ASSIGNMENT
-  // =========================
+  // -------------------------
+  // ASSIGN COURIER
+  // -------------------------
 
   assignCourier(
     orderId: string,
@@ -400,36 +443,55 @@ class StorageService {
       return undefined;
     }
 
+    const courier =
+      this.getUserById(courierId);
+
     const updatedOrder = {
       ...order,
+
       courierId,
+
+      courierName:
+        courier?.name ||
+        order.courierName,
+
       status:
-        "assigned" as Order["status"],
-    };
+        "Kurye Atandı",
 
-    this.saveOrder(updatedOrder);
+      updatedAt:
+        new Date().toISOString(),
+    } as Order;
 
-    const notification = {
-      id: "NOT-" + Date.now(),
-      userId: courierId,
-      title: "Yeni Görev",
+    this.saveOrder(
+      updatedOrder
+    );
+
+    this.addNotification({
+      id:
+        "NOT-" +
+        Date.now(),
+
+      userId:
+        courierId,
+
+      title:
+        "Yeni Görev",
+
       message:
         `Yeni bir teslimat görevi size atandı. Sipariş: ${orderId}`,
+
       read: false,
+
       createdAt:
         new Date().toISOString(),
-    } as Notification;
-
-    this.addNotification(
-      notification
-    );
+    } as Notification);
 
     return updatedOrder;
   }
 
-  // =========================
-  // DELIVERY
-  // =========================
+  // -------------------------
+  // DELIVER ORDER
+  // -------------------------
 
   markOrderDelivered(
     orderId: string,
@@ -444,44 +506,58 @@ class StorageService {
 
     const updatedOrder = {
       ...order,
+
       status:
-        "delivered" as Order["status"],
+        "Teslim Edildi",
+
       deliveredAt:
         new Date().toISOString(),
-      deliveryProof: proof,
-    };
 
-    this.saveOrder(updatedOrder);
+      deliveryProof:
+        proof,
+
+      updatedAt:
+        new Date().toISOString(),
+    } as Order;
+
+    this.saveOrder(
+      updatedOrder
+    );
 
     if (order.customerId) {
-      const notification = {
-        id: "NOT-" + Date.now(),
-        userId: order.customerId,
-        title: "Teslimat Tamamlandı",
+      this.addNotification({
+        id:
+          "NOT-" +
+          Date.now(),
+
+        userId:
+          order.customerId,
+
+        title:
+          "Teslimat Tamamlandı",
+
         message:
           "Siparişiniz başarıyla teslim edildi.",
+
         read: false,
+
         createdAt:
           new Date().toISOString(),
-      } as Notification;
-
-      this.addNotification(
-        notification
-      );
+      } as Notification);
     }
 
     return updatedOrder;
   }
 
-  // =========================
+  // -------------------------
   // RESET
-  // =========================
+  // -------------------------
 
   reset(): void {
     const initialUsers = [
-      ...seedCustomers,
-      ...seedCouriers,
-      seedAdmin,
+      ...SEED_CUSTOMERS,
+      ...SEED_COURIERS,
+      SEED_ADMIN,
     ] as User[];
 
     this.users = [
@@ -489,11 +565,13 @@ class StorageService {
     ];
 
     this.orders = [
-      ...seedOrders,
+      ...SEED_ORDERS,
     ];
 
     this.notifications = [];
+
     this.locations = [];
+
     this.currentUser = null;
 
     save(
