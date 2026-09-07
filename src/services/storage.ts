@@ -7,275 +7,106 @@ import type {
 } from "../types";
 
 import {
-  SEED_CUSTOMERS,
-  SEED_COURIERS,
-  SEED_ADMIN,
-  SEED_ORDERS,
-} from "../data/seedData";
-
-import {
   calculateOrderPrice,
   DEFAULT_PRICING,
 } from "../utils/pricing";
 
 import {
+  auth,
   db,
-  ensureFirebaseAuth,
 } from "./firebase";
 
 import {
   collection,
   doc,
-  deleteDoc,
   getDoc,
   getDocs,
   onSnapshot,
+  query,
   setDoc,
   updateDoc,
+  deleteDoc,
+  where,
+  type Unsubscribe,
 } from "firebase/firestore";
+
+import {
+  onAuthStateChanged,
+} from "firebase/auth";
+
+/* =====================================================
+   FIRESTORE COLLECTIONS
+===================================================== */
+
+const COLLECTIONS = {
+  users: "users",
+  orders: "orders",
+  notifications: "notifications",
+  courierLocations: "courierLocations",
+  pricing: "pricing",
+} as const;
+
+/* =====================================================
+   LOCAL CACHE
+   UI'ın mevcut senkron storage API'sini kırmamak için
+   yalnızca cache olarak kullanılır.
+===================================================== */
+
+const CACHE_KEYS = {
+  users: "trustline_cache_users",
+  orders: "trustline_cache_orders",
+  notifications: "trustline_cache_notifications",
+  locations: "trustline_cache_locations",
+  pricing: "trustline_cache_pricing",
+  currentUser: "trustline_cache_current_user",
+};
+
+/* =====================================================
+   HELPERS
+===================================================== */
 
 type Listener = () => void;
 
-type FirestoreTimestampLike = {
-  toDate?: () => Date;
-};
+function loadCache<T>(
+  key: string,
+  fallback: T
+): T {
+  try {
+    const raw =
+      localStorage.getItem(key);
 
-function normalizeDate(value: unknown): string {
-  if (!value) {
-    return new Date().toISOString();
-  }
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "toDate" in value
-  ) {
-    const timestamp = value as FirestoreTimestampLike;
-
-    if (typeof timestamp.toDate === "function") {
-      return timestamp.toDate().toISOString();
+    if (!raw) {
+      return fallback;
     }
+
+    const parsed =
+      JSON.parse(raw);
+
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
   }
-
-  return new Date().toISOString();
 }
 
-function normalizeUser(
-  data: Partial<UserProfile>
-): UserProfile {
-  return {
-    id: String(data.id || ""),
-    name: String(data.name || ""),
-    email: String(data.email || ""),
-    phone: String(data.phone || ""),
-    role: data.role || "customer",
-    avatar: data.avatar,
-    vehicle: data.vehicle,
-    plate: data.plate,
-    courierStatus: data.courierStatus,
-    totalDeliveries:
-      typeof data.totalDeliveries === "number"
-        ? data.totalDeliveries
-        : 0,
-    rating:
-      typeof data.rating === "number"
-        ? data.rating
-        : undefined,
-    createdAt: normalizeDate(data.createdAt),
-  };
-}
-
-function normalizeOrder(
-  data: Partial<Order>
-): Order {
-  return {
-    id: String(data.id || ""),
-    customerId: String(data.customerId || ""),
-    customerName: String(data.customerName || ""),
-    customerPhone: String(data.customerPhone || ""),
-
-    courierId:
-      data.courierId === undefined
-        ? null
-        : data.courierId,
-
-    courierName: data.courierName,
-    courierPhone: data.courierPhone,
-
-    pickupAddress: String(
-      data.pickupAddress || ""
-    ),
-
-    deliveryAddress: String(
-      data.deliveryAddress || ""
-    ),
-
-    packageType:
-      data.packageType || "Diğer",
-
-    courierType:
-      data.courierType || "Standart Kurye",
-
-    urgency:
-      data.urgency || "Normal",
-
-    distanceKm:
-      typeof data.distanceKm === "number"
-        ? data.distanceKm
-        : 0,
-
-    packageCount:
-      typeof data.packageCount === "number"
-        ? data.packageCount
-        : undefined,
-
-    price:
-      typeof data.price === "number"
-        ? data.price
-        : 0,
-
-    status:
-      data.status || "Kurye Bekleniyor",
-
-    note:
-      typeof data.note === "string"
-        ? data.note
-        : "",
-
-    estimatedDeliveryMinutes:
-      typeof data.estimatedDeliveryMinutes === "number"
-        ? data.estimatedDeliveryMinutes
-        : undefined,
-
-    deliveryProof:
-      data.deliveryProof,
-
-    deliveryPhoto:
-      data.deliveryPhoto,
-
-    receiverName:
-      data.receiverName,
-
-    deliveryNote:
-      data.deliveryNote,
-
-    signature:
-      data.signature,
-
-    deliveredAt:
-      data.deliveredAt
-        ? normalizeDate(data.deliveredAt)
-        : undefined,
-
-    createdAt:
-      normalizeDate(data.createdAt),
-
-    updatedAt:
-      normalizeDate(data.updatedAt),
-  };
-}
-
-function normalizeNotification(
-  data: Partial<NotificationItem>
-): NotificationItem {
-  return {
-    id: String(data.id || ""),
-    userId: String(data.userId || ""),
-    orderId: data.orderId,
-
-    title:
-      String(data.title || ""),
-
-    message:
-      String(data.message || ""),
-
-    type:
-      data.type || "info",
-
-    read:
-      Boolean(data.read),
-
-    createdAt:
-      normalizeDate(data.createdAt),
-  };
-}
-
-function normalizeLocation(
-  data: Partial<CourierLocation>
-): CourierLocation {
-  return {
-    courierId:
-      String(data.courierId || ""),
-
-    latitude:
-      typeof data.latitude === "number"
-        ? data.latitude
-        : 0,
-
-    longitude:
-      typeof data.longitude === "number"
-        ? data.longitude
-        : 0,
-
-    updatedAt:
-      normalizeDate(data.updatedAt),
-
-    isSharing:
-      Boolean(data.isSharing),
-  };
-}
-
-function normalizePricing(
-  data: Partial<PricingConfig>
-): PricingConfig {
-  return {
-    perKmPrice:
-      typeof data.perKmPrice === "number"
-        ? data.perKmPrice
-        : DEFAULT_PRICING.perKmPrice,
-
-    minPrice:
-      typeof data.minPrice === "number"
-        ? data.minPrice
-        : DEFAULT_PRICING.minPrice,
-
-    urgentMultiplier:
-      typeof data.urgentMultiplier === "number"
-        ? data.urgentMultiplier
-        : DEFAULT_PRICING.urgentMultiplier,
-
-    vipMultiplier:
-      typeof data.vipMultiplier === "number"
-        ? data.vipMultiplier
-        : DEFAULT_PRICING.vipMultiplier,
-
-    requireDeliveryPhoto:
-      Boolean(
-        data.requireDeliveryPhoto ??
-        DEFAULT_PRICING.requireDeliveryPhoto
-      ),
-
-    updatedAt:
-      normalizeDate(data.updatedAt),
-  };
+function saveCache<T>(
+  key: string,
+  value: T
+): void {
+  try {
+    localStorage.setItem(
+      key,
+      JSON.stringify(value)
+    );
+  } catch {
+    // Cache hatası uygulamayı düşürmez.
+  }
 }
 
 function generateId(
   prefix: string
 ): string {
   return (
-    prefix +
-    "-" +
-    Date.now().toString(36).toUpperCase() +
-    "-" +
+    `${prefix}-${Date.now().toString(36).toUpperCase()}-` +
     Math.random()
       .toString(36)
       .substring(2, 8)
@@ -283,298 +114,174 @@ function generateId(
   );
 }
 
+function normalizeTimestamp(
+  value: any
+): string {
+  if (
+    value &&
+    typeof value.toDate === "function"
+  ) {
+    return value
+      .toDate()
+      .toISOString();
+  }
+
+  if (
+    typeof value === "string"
+  ) {
+    return value;
+  }
+
+  if (
+    value instanceof Date
+  ) {
+    return value.toISOString();
+  }
+
+  return new Date().toISOString();
+}
+
+/* =====================================================
+   STORAGE SERVICE
+===================================================== */
+
 class StorageService {
   private users: UserProfile[] = [];
 
   private orders: Order[] = [];
 
-  private notifications: NotificationItem[] = [];
+  private notifications:
+    NotificationItem[] = [];
 
-  private locations: CourierLocation[] = [];
+  private locations:
+    CourierLocation[] = [];
 
-  private currentUser: UserProfile;
+  private pricing:
+    PricingConfig = {
+      ...DEFAULT_PRICING,
+    };
 
-  private pricing: PricingConfig =
-    normalizePricing(DEFAULT_PRICING);
+  private currentUser:
+    UserProfile | null = null;
 
-  private listeners: Listener[] = [];
+  private listeners:
+    Listener[] = [];
 
-  private firestoreUnsubscribers: Array<
-    () => void
-  > = [];
+  private firestoreUnsubscribers:
+    Unsubscribe[] = [];
 
   private initialized = false;
 
-  constructor() {
-    const initialUsers: UserProfile[] = [
-      ...SEED_CUSTOMERS,
-      ...SEED_COURIERS,
-      SEED_ADMIN,
-    ].map(normalizeUser);
+  private authUnsubscribe:
+    Unsubscribe | null = null;
 
-    this.users = initialUsers;
+  constructor() {
+    this.loadLocalCache();
+
+    this.authUnsubscribe =
+      onAuthStateChanged(
+        auth,
+        (firebaseUser) => {
+          if (!firebaseUser) {
+            this.clearFirestoreListeners();
+            this.currentUser = null;
+
+            saveCache(
+              CACHE_KEYS.currentUser,
+              null
+            );
+
+            this.notify();
+
+            return;
+          }
+
+          void this.initializeForUser(
+            firebaseUser.uid
+          );
+        }
+      );
+  }
+
+  /* ===================================================
+     CACHE
+  =================================================== */
+
+  private loadLocalCache(): void {
+    this.users =
+      loadCache<UserProfile[]>(
+        CACHE_KEYS.users,
+        []
+      );
 
     this.orders =
-      SEED_ORDERS.map(normalizeOrder);
+      loadCache<Order[]>(
+        CACHE_KEYS.orders,
+        []
+      );
+
+    this.notifications =
+      loadCache<NotificationItem[]>(
+        CACHE_KEYS.notifications,
+        []
+      );
+
+    this.locations =
+      loadCache<CourierLocation[]>(
+        CACHE_KEYS.locations,
+        []
+      );
+
+    this.pricing =
+      loadCache<PricingConfig>(
+        CACHE_KEYS.pricing,
+        {
+          ...DEFAULT_PRICING,
+        }
+      );
 
     this.currentUser =
-      this.users.find(
-        (user) =>
-          user.role === "customer"
-      ) ||
-      this.users[0];
-
-    this.startFirebaseSync();
+      loadCache<UserProfile | null>(
+        CACHE_KEYS.currentUser,
+        null
+      );
   }
 
-  // =====================================================
-  // FIREBASE INITIALIZATION
-  // =====================================================
-
-  private async startFirebaseSync(): Promise<void> {
-    try {
-      await ensureFirebaseAuth();
-
-      if (this.initialized) {
-        return;
-      }
-
-      this.initialized = true;
-
-      this.attachRealtimeListeners();
-
-      await this.ensurePricingDocument();
-
-    } catch (error) {
-      console.warn(
-        "Trustline Firebase sync başlatılamadı:",
-        error
-      );
-    }
-  }
-
-  private attachRealtimeListeners(): void {
-    this.detachRealtimeListeners();
-
-    const usersUnsubscribe =
-      onSnapshot(
-        collection(db, "users"),
-        (snapshot) => {
-          const users =
-            snapshot.docs.map((item) =>
-              normalizeUser({
-                id: item.id,
-                ...item.data(),
-              } as UserProfile)
-            );
-
-          if (users.length > 0) {
-            this.users = users;
-
-            const current =
-              this.users.find(
-                (user) =>
-                  user.id ===
-                  this.currentUser?.id
-              );
-
-            if (current) {
-              this.currentUser = current;
-            } else {
-              const customer =
-                this.users.find(
-                  (user) =>
-                    user.role === "customer"
-                );
-
-              if (customer) {
-                this.currentUser =
-                  customer;
-              }
-            }
-
-            this.notify();
-          }
-        },
-        (error) => {
-          console.warn(
-            "Firestore users listener:",
-            error
-          );
-        }
-      );
-
-    const ordersUnsubscribe =
-      onSnapshot(
-        collection(db, "orders"),
-        (snapshot) => {
-          this.orders =
-            snapshot.docs
-              .map((item) =>
-                normalizeOrder({
-                  id: item.id,
-                  ...item.data(),
-                } as Order)
-              )
-              .sort(
-                (a, b) =>
-                  new Date(
-                    b.createdAt
-                  ).getTime() -
-                  new Date(
-                    a.createdAt
-                  ).getTime()
-              );
-
-          this.notify();
-        },
-        (error) => {
-          console.warn(
-            "Firestore orders listener:",
-            error
-          );
-        }
-      );
-
-    const notificationsUnsubscribe =
-      onSnapshot(
-        collection(
-          db,
-          "notifications"
-        ),
-        (snapshot) => {
-          this.notifications =
-            snapshot.docs
-              .map((item) =>
-                normalizeNotification({
-                  id: item.id,
-                  ...item.data(),
-                } as NotificationItem)
-              )
-              .sort(
-                (a, b) =>
-                  new Date(
-                    b.createdAt
-                  ).getTime() -
-                  new Date(
-                    a.createdAt
-                  ).getTime()
-              );
-
-          this.notify();
-        },
-        (error) => {
-          console.warn(
-            "Firestore notifications listener:",
-            error
-          );
-        }
-      );
-
-    const locationsUnsubscribe =
-      onSnapshot(
-        collection(
-          db,
-          "courierLocations"
-        ),
-        (snapshot) => {
-          this.locations =
-            snapshot.docs.map((item) =>
-              normalizeLocation({
-                courierId: item.id,
-                ...item.data(),
-              } as CourierLocation)
-            );
-
-          this.notify();
-        },
-        (error) => {
-          console.warn(
-            "Firestore courier locations listener:",
-            error
-          );
-        }
-      );
-
-    const pricingUnsubscribe =
-      onSnapshot(
-        doc(
-          db,
-          "pricing",
-          "current"
-        ),
-        (snapshot) => {
-          if (snapshot.exists()) {
-            this.pricing =
-              normalizePricing(
-                snapshot.data() as PricingConfig
-              );
-
-            this.notify();
-          }
-        },
-        (error) => {
-          console.warn(
-            "Firestore pricing listener:",
-            error
-          );
-        }
-      );
-
-    this.firestoreUnsubscribers = [
-      usersUnsubscribe,
-      ordersUnsubscribe,
-      notificationsUnsubscribe,
-      locationsUnsubscribe,
-      pricingUnsubscribe,
-    ];
-  }
-
-  private detachRealtimeListeners(): void {
-    this.firestoreUnsubscribers.forEach(
-      (unsubscribe) => {
-        try {
-          unsubscribe();
-        } catch {
-          // ignore
-        }
-      }
+  private persistCache(): void {
+    saveCache(
+      CACHE_KEYS.users,
+      this.users
     );
 
-    this.firestoreUnsubscribers = [];
+    saveCache(
+      CACHE_KEYS.orders,
+      this.orders
+    );
+
+    saveCache(
+      CACHE_KEYS.notifications,
+      this.notifications
+    );
+
+    saveCache(
+      CACHE_KEYS.locations,
+      this.locations
+    );
+
+    saveCache(
+      CACHE_KEYS.pricing,
+      this.pricing
+    );
+
+    saveCache(
+      CACHE_KEYS.currentUser,
+      this.currentUser
+    );
   }
 
-  private async ensurePricingDocument(): Promise<void> {
-    try {
-      const pricingRef =
-        doc(
-          db,
-          "pricing",
-          "current"
-        );
-
-      const snapshot =
-        await getDoc(pricingRef);
-
-      if (!snapshot.exists()) {
-        await setDoc(
-          pricingRef,
-          normalizePricing(
-            DEFAULT_PRICING
-          )
-        );
-      }
-    } catch (error) {
-      console.warn(
-        "Pricing document oluşturulamadı:",
-        error
-      );
-    }
-  }
-
-  // =====================================================
-  // SUBSCRIBE
-  // =====================================================
+  /* ===================================================
+     LISTENERS
+  =================================================== */
 
   subscribe(
     listener: Listener
@@ -595,20 +302,671 @@ class StorageService {
       (listener) => {
         try {
           listener();
-        } catch {
-          // Bir listener hata verse bile
-          // diğerleri çalışmaya devam eder.
+        } catch (error) {
+          console.warn(
+            "Storage listener hatası:",
+            error
+          );
         }
       }
     );
   }
 
-  // =====================================================
-  // USERS
-  // =====================================================
+  /* ===================================================
+     FIRESTORE INITIALIZATION
+  =================================================== */
+
+  private async initializeForUser(
+    uid: string
+  ): Promise<void> {
+    if (
+      this.initialized &&
+      this.currentUser?.id === uid
+    ) {
+      return;
+    }
+
+    this.clearFirestoreListeners();
+
+    try {
+      const userSnapshot =
+        await getDoc(
+          doc(
+            db,
+            COLLECTIONS.users,
+            uid
+          )
+        );
+
+      if (
+        !userSnapshot.exists()
+      ) {
+        console.warn(
+          "Firebase kullanıcı profili bulunamadı:",
+          uid
+        );
+
+        return;
+      }
+
+      const profile =
+        this.mapUserProfile(
+          userSnapshot.id,
+          userSnapshot.data()
+        );
+
+      this.currentUser =
+        profile;
+
+      saveCache(
+        CACHE_KEYS.currentUser,
+        profile
+      );
+
+      await this.loadPricing();
+
+      this.setupUserListener();
+
+      this.setupOrderListener(
+        profile
+      );
+
+      this.setupNotificationListener(
+        profile.id
+      );
+
+      this.setupLocationListener(
+        profile
+      );
+
+      this.initialized = true;
+
+      this.notify();
+    } catch (error) {
+      console.error(
+        "Firestore başlatma hatası:",
+        error
+      );
+    }
+  }
+
+  private clearFirestoreListeners(): void {
+    this.firestoreUnsubscribers.forEach(
+      (unsubscribe) => {
+        try {
+          unsubscribe();
+        } catch {
+          // ignore
+        }
+      }
+    );
+
+    this.firestoreUnsubscribers = [];
+
+    this.initialized = false;
+  }
+
+  /* ===================================================
+     USER LISTENER
+  =================================================== */
+
+  private setupUserListener(): void {
+    const user = auth.currentUser;
+
+    if (!user) {
+      return;
+    }
+
+    const unsubscribe =
+      onSnapshot(
+        doc(
+          db,
+          COLLECTIONS.users,
+          user.uid
+        ),
+        (snapshot) => {
+          if (
+            !snapshot.exists()
+          ) {
+            return;
+          }
+
+          const profile =
+            this.mapUserProfile(
+              snapshot.id,
+              snapshot.data()
+            );
+
+          this.currentUser =
+            profile;
+
+          this.upsertUser(
+            profile
+          );
+
+          saveCache(
+            CACHE_KEYS.currentUser,
+            profile
+          );
+
+          this.notify();
+        },
+        (error) => {
+          console.error(
+            "Kullanıcı listener hatası:",
+            error
+          );
+        }
+      );
+
+    this.firestoreUnsubscribers.push(
+      unsubscribe
+    );
+  }
+
+  /* ===================================================
+     ORDER LISTENER
+  =================================================== */
+
+  private setupOrderListener(
+    profile: UserProfile
+  ): void {
+    if (
+      profile.role === "admin"
+    ) {
+      const unsubscribe =
+        onSnapshot(
+          collection(
+            db,
+            COLLECTIONS.orders
+          ),
+          (snapshot) => {
+            this.orders =
+              snapshot.docs.map(
+                (item) =>
+                  this.mapOrder(
+                    item.id,
+                    item.data()
+                  )
+              );
+
+            this.orders.sort(
+              (a, b) =>
+                new Date(
+                  b.createdAt
+                ).getTime() -
+                new Date(
+                  a.createdAt
+                ).getTime()
+            );
+
+            saveCache(
+              CACHE_KEYS.orders,
+              this.orders
+            );
+
+            this.notify();
+          },
+          (error) => {
+            console.error(
+              "Admin sipariş listener hatası:",
+              error
+            );
+          }
+        );
+
+      this.firestoreUnsubscribers.push(
+        unsubscribe
+      );
+
+      return;
+    }
+
+    if (
+      profile.role === "customer"
+    ) {
+      const ordersQuery =
+        query(
+          collection(
+            db,
+            COLLECTIONS.orders
+          ),
+          where(
+            "customerId",
+            "==",
+            profile.id
+          )
+        );
+
+      const unsubscribe =
+        onSnapshot(
+          ordersQuery,
+          (snapshot) => {
+            const incoming =
+              snapshot.docs.map(
+                (item) =>
+                  this.mapOrder(
+                    item.id,
+                    item.data()
+                  )
+              );
+
+            this.mergeOrders(
+              incoming
+            );
+
+            this.notify();
+          },
+          (error) => {
+            console.error(
+              "Müşteri sipariş listener hatası:",
+              error
+            );
+          }
+        );
+
+      this.firestoreUnsubscribers.push(
+        unsubscribe
+      );
+
+      return;
+    }
+
+    if (
+      profile.role === "courier"
+    ) {
+      const assignedQuery =
+        query(
+          collection(
+            db,
+            COLLECTIONS.orders
+          ),
+          where(
+            "courierId",
+            "==",
+            profile.id
+          )
+        );
+
+      const pendingQuery =
+        query(
+          collection(
+            db,
+            COLLECTIONS.orders
+          ),
+          where(
+            "status",
+            "==",
+            "Kurye Bekleniyor"
+          )
+        );
+
+      const assignedUnsubscribe =
+        onSnapshot(
+          assignedQuery,
+          (snapshot) => {
+            const incoming =
+              snapshot.docs.map(
+                (item) =>
+                  this.mapOrder(
+                    item.id,
+                    item.data()
+                  )
+              );
+
+            this.mergeOrders(
+              incoming
+            );
+
+            this.notify();
+          },
+          (error) => {
+            console.error(
+              "Kurye sipariş listener hatası:",
+              error
+            );
+          }
+        );
+
+      const pendingUnsubscribe =
+        onSnapshot(
+          pendingQuery,
+          (snapshot) => {
+            const incoming =
+              snapshot.docs.map(
+                (item) =>
+                  this.mapOrder(
+                    item.id,
+                    item.data()
+                  )
+              );
+
+            this.mergeOrders(
+              incoming
+            );
+
+            this.notify();
+          },
+          (error) => {
+            console.error(
+              "Bekleyen sipariş listener hatası:",
+              error
+            );
+          }
+        );
+
+      this.firestoreUnsubscribers.push(
+        assignedUnsubscribe,
+        pendingUnsubscribe
+      );
+    }
+  }
+
+  private mergeOrders(
+    incoming: Order[]
+  ): void {
+    const map =
+      new Map<string, Order>();
+
+    this.orders.forEach(
+      (order) => {
+        map.set(
+          order.id,
+          order
+        );
+      }
+    );
+
+    incoming.forEach(
+      (order) => {
+        map.set(
+          order.id,
+          order
+        );
+      }
+    );
+
+    this.orders =
+      Array.from(
+        map.values()
+      ).sort(
+        (a, b) =>
+          new Date(
+            b.createdAt
+          ).getTime() -
+          new Date(
+            a.createdAt
+          ).getTime()
+      );
+
+    saveCache(
+      CACHE_KEYS.orders,
+      this.orders
+    );
+  }
+
+  /* ===================================================
+     NOTIFICATION LISTENER
+  =================================================== */
+
+  private setupNotificationListener(
+    userId: string
+  ): void {
+    const notificationQuery =
+      query(
+        collection(
+          db,
+          COLLECTIONS.notifications
+        ),
+        where(
+          "userId",
+          "==",
+          userId
+        )
+      );
+
+    const unsubscribe =
+      onSnapshot(
+        notificationQuery,
+        (snapshot) => {
+          this.notifications =
+            snapshot.docs.map(
+              (item) =>
+                this.mapNotification(
+                  item.id,
+                  item.data()
+                )
+            );
+
+          this.notifications.sort(
+            (a, b) =>
+              new Date(
+                b.createdAt
+              ).getTime() -
+              new Date(
+                a.createdAt
+              ).getTime()
+          );
+
+          saveCache(
+            CACHE_KEYS.notifications,
+            this.notifications
+          );
+
+          this.notify();
+        },
+        (error) => {
+          console.error(
+            "Bildirim listener hatası:",
+            error
+          );
+        }
+      );
+
+    this.firestoreUnsubscribers.push(
+      unsubscribe
+    );
+  }
+
+  /* ===================================================
+     LOCATION LISTENER
+  =================================================== */
+
+  private setupLocationListener(
+    profile: UserProfile
+  ): void {
+    if (
+      profile.role !== "admin" &&
+      profile.role !== "customer"
+    ) {
+      return;
+    }
+
+    const unsubscribe =
+      onSnapshot(
+        collection(
+          db,
+          COLLECTIONS.courierLocations
+        ),
+        (snapshot) => {
+          this.locations =
+            snapshot.docs.map(
+              (item) => {
+                const data =
+                  item.data();
+
+                return {
+                  courierId:
+                    data.courierId ||
+                    item.id,
+                  latitude:
+                    Number(
+                      data.latitude ||
+                      0
+                    ),
+                  longitude:
+                    Number(
+                      data.longitude ||
+                      0
+                    ),
+                  updatedAt:
+                    normalizeTimestamp(
+                      data.updatedAt
+                    ),
+                  isSharing:
+                    Boolean(
+                      data.isSharing
+                    ),
+                };
+              }
+            );
+
+          saveCache(
+            CACHE_KEYS.locations,
+            this.locations
+          );
+
+          this.notify();
+        },
+        (error) => {
+          console.error(
+            "Konum listener hatası:",
+            error
+          );
+        }
+      );
+
+    this.firestoreUnsubscribers.push(
+      unsubscribe
+    );
+  }
+
+  /* ===================================================
+     PRICING
+  =================================================== */
+
+  private async loadPricing(): Promise<void> {
+    try {
+      const snapshot =
+        await getDoc(
+          doc(
+            db,
+            COLLECTIONS.pricing,
+            "current"
+          )
+        );
+
+      if (
+        snapshot.exists()
+      ) {
+        this.pricing =
+          {
+            ...DEFAULT_PRICING,
+            ...snapshot.data(),
+            updatedAt:
+              normalizeTimestamp(
+                snapshot.data()
+                  .updatedAt
+              ),
+          };
+
+        saveCache(
+          CACHE_KEYS.pricing,
+          this.pricing
+        );
+
+        return;
+      }
+
+      this.pricing =
+        {
+          ...DEFAULT_PRICING,
+          updatedAt:
+            new Date().toISOString(),
+        };
+
+      saveCache(
+        CACHE_KEYS.pricing,
+        this.pricing
+      );
+    } catch (error) {
+      console.error(
+        "Fiyatlandırma alınamadı:",
+        error
+      );
+    }
+  }
+
+  getPricing(): PricingConfig {
+    return {
+      ...this.pricing,
+    };
+  }
+
+  setPricing(
+    pricing: PricingConfig
+  ): void {
+    this.pricing = {
+      ...pricing,
+      updatedAt:
+        new Date().toISOString(),
+    };
+
+    saveCache(
+      CACHE_KEYS.pricing,
+      this.pricing
+    );
+
+    void this.writePricing();
+
+    this.notify();
+  }
+
+  updatePricing(
+    pricing: Partial<PricingConfig>
+  ): void {
+    this.setPricing({
+      ...this.pricing,
+      ...pricing,
+    });
+  }
+
+  private async writePricing(): Promise<void> {
+    const user =
+      auth.currentUser;
+
+    if (!user) {
+      return;
+    }
+
+    try {
+      await setDoc(
+        doc(
+          db,
+          COLLECTIONS.pricing,
+          "current"
+        ),
+        this.pricing,
+        {
+          merge: true,
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Fiyatlandırma kaydedilemedi:",
+        error
+      );
+    }
+  }
+
+  /* ===================================================
+     USERS
+  =================================================== */
 
   getUsers(): UserProfile[] {
-    return [...this.users];
+    return [
+      ...this.users,
+    ];
   }
 
   getUserById(
@@ -625,14 +983,13 @@ class StorageService {
   ): UserProfile | undefined {
     return this.users.find(
       (user) =>
-        user.email?.toLowerCase() ===
-        email.toLowerCase()
+        user.email
+          ?.toLowerCase() ===
+        email
+          .trim()
+          .toLowerCase()
     );
   }
-
-  // =====================================================
-  // COURIERS
-  // =====================================================
 
   getCouriers(): UserProfile[] {
     return this.users.filter(
@@ -641,10 +998,6 @@ class StorageService {
     );
   }
 
-  // =====================================================
-  // CUSTOMERS
-  // =====================================================
-
   getCustomers(): UserProfile[] {
     return this.users.filter(
       (user) =>
@@ -652,62 +1005,58 @@ class StorageService {
     );
   }
 
-  // =====================================================
-  // SAVE USER
-  // =====================================================
-
-  saveUser(
+  private upsertUser(
     user: UserProfile
-  ): UserProfile {
-    const normalized =
-      normalizeUser(user);
-
+  ): void {
     const index =
       this.users.findIndex(
         (item) =>
-          item.id ===
-          normalized.id
+          item.id === user.id
       );
 
     if (index >= 0) {
       this.users[index] = {
         ...this.users[index],
-        ...normalized,
+        ...user,
       };
     } else {
-      this.users.push(normalized);
+      this.users.push(user);
     }
 
-    if (
-      this.currentUser &&
-      this.currentUser.id ===
-        normalized.id
-    ) {
-      this.currentUser = {
-        ...this.currentUser,
-        ...normalized,
-      };
-    }
+    saveCache(
+      CACHE_KEYS.users,
+      this.users
+    );
+  }
 
-    void this.writeUserToFirestore(
-      normalized
+  saveUser(
+    user: UserProfile
+  ): UserProfile {
+    this.upsertUser(
+      user
+    );
+
+    void this.writeUser(
+      user
     );
 
     this.notify();
 
-    return normalized;
+    return user;
   }
 
-  private async writeUserToFirestore(
+  private async writeUser(
     user: UserProfile
   ): Promise<void> {
-    try {
-      await ensureFirebaseAuth();
+    if (!auth.currentUser) {
+      return;
+    }
 
+    try {
       await setDoc(
         doc(
           db,
-          "users",
+          COLLECTIONS.users,
           user.id
         ),
         user,
@@ -716,8 +1065,8 @@ class StorageService {
         }
       );
     } catch (error) {
-      console.warn(
-        "Kullanıcı Firestore'a yazılamadı:",
+      console.error(
+        "Kullanıcı kaydedilemedi:",
         error
       );
     }
@@ -732,39 +1081,47 @@ class StorageService {
           user.id !== id
       );
 
-    void this.deleteUserFromFirestore(
+    saveCache(
+      CACHE_KEYS.users,
+      this.users
+    );
+
+    void this.deleteFirestoreUser(
       id
     );
 
     this.notify();
   }
 
-  private async deleteUserFromFirestore(
+  private async deleteFirestoreUser(
     id: string
   ): Promise<void> {
-    try {
-      await ensureFirebaseAuth();
+    if (!auth.currentUser) {
+      return;
+    }
 
+    try {
       await deleteDoc(
         doc(
           db,
-          "users",
+          COLLECTIONS.users,
           id
         )
       );
     } catch (error) {
-      console.warn(
+      console.error(
         "Kullanıcı silinemedi:",
         error
       );
     }
   }
 
-  // =====================================================
-  // CURRENT USER
-  // =====================================================
+  /* ===================================================
+     CURRENT USER
+  =================================================== */
 
-  getCurrentUser(): UserProfile {
+  getCurrentUser():
+    UserProfile | null {
     return this.currentUser;
   }
 
@@ -772,91 +1129,78 @@ class StorageService {
     user: UserProfile
   ): void {
     this.currentUser =
-      normalizeUser(user);
+      user;
 
-    const existingIndex =
-      this.users.findIndex(
-        (item) =>
-          item.id ===
-          user.id
-      );
+    this.upsertUser(
+      user
+    );
 
-    if (existingIndex >= 0) {
-      this.users[
-        existingIndex
-      ] = {
-        ...this.users[
-          existingIndex
-        ],
-        ...this.currentUser,
-      };
-    } else {
-      this.users.push(
-        this.currentUser
-      );
-    }
+    saveCache(
+      CACHE_KEYS.currentUser,
+      user
+    );
 
     this.notify();
   }
 
   logout(): void {
-    const defaultUser =
-      this.users.find(
-        (user) =>
-          user.role ===
-          "customer"
-      ) ||
-      this.users[0];
+    this.currentUser =
+      null;
 
-    if (defaultUser) {
-      this.currentUser =
-        defaultUser;
-    }
+    saveCache(
+      CACHE_KEYS.currentUser,
+      null
+    );
 
     this.notify();
   }
 
-  // =====================================================
-  // COURIER STATUS
-  // =====================================================
+  /* ===================================================
+     COURIER STATUS
+  =================================================== */
 
   updateCourierStatus(
     courierId: string,
-    status: UserProfile["courierStatus"]
+    status:
+      UserProfile["courierStatus"]
   ): UserProfile | undefined {
-    const index =
-      this.users.findIndex(
-        (user) =>
-          user.id ===
-            courierId &&
-          user.role ===
-            "courier"
+    const courier =
+      this.getUserById(
+        courierId
       );
 
-    if (index < 0) {
+    if (
+      !courier ||
+      courier.role !== "courier"
+    ) {
       return undefined;
     }
 
-    const updatedCourier =
-      normalizeUser({
-        ...this.users[index],
+    const updatedCourier:
+      UserProfile = {
+        ...courier,
         courierStatus:
           status,
-      });
+      };
 
-    this.users[index] =
-      updatedCourier;
+    this.upsertUser(
+      updatedCourier
+    );
 
     if (
-      this.currentUser &&
-      this.currentUser.id ===
-        courierId
+      this.currentUser?.id ===
+      courierId
     ) {
       this.currentUser =
         updatedCourier;
+
+      saveCache(
+        CACHE_KEYS.currentUser,
+        this.currentUser
+      );
     }
 
-    void this.writeUserToFirestore(
+    void this.writeUser(
       updatedCourier
     );
 
@@ -865,73 +1209,14 @@ class StorageService {
     return updatedCourier;
   }
 
-  // =====================================================
-  // PRICING
-  // =====================================================
-
-  getPricing(): PricingConfig {
-    return {
-      ...this.pricing,
-    };
-  }
-
-  setPricing(
-    pricing: PricingConfig
-  ): void {
-    this.pricing =
-      normalizePricing({
-        ...pricing,
-        updatedAt:
-          new Date().toISOString(),
-      });
-
-    void this.writePricingToFirestore(
-      this.pricing
-    );
-
-    this.notify();
-  }
-
-  updatePricing(
-    pricing: Partial<PricingConfig>
-  ): void {
-    this.setPricing({
-      ...this.pricing,
-      ...pricing,
-    });
-  }
-
-  private async writePricingToFirestore(
-    pricing: PricingConfig
-  ): Promise<void> {
-    try {
-      await ensureFirebaseAuth();
-
-      await setDoc(
-        doc(
-          db,
-          "pricing",
-          "current"
-        ),
-        pricing,
-        {
-          merge: true,
-        }
-      );
-    } catch (error) {
-      console.warn(
-        "Fiyatlandırma Firestore'a yazılamadı:",
-        error
-      );
-    }
-  }
-
-  // =====================================================
-  // ORDERS
-  // =====================================================
+  /* ===================================================
+     ORDERS
+  =================================================== */
 
   getOrders(): Order[] {
-    return [...this.orders];
+    return [
+      ...this.orders,
+    ];
   }
 
   getOrderById(
@@ -966,57 +1251,70 @@ class StorageService {
   saveOrder(
     order: Order
   ): Order {
-    const normalized =
-      normalizeOrder({
-        ...order,
-        updatedAt:
-          new Date().toISOString(),
-      });
+    const updatedOrder:
+      Order = {
+      ...order,
+      updatedAt:
+        new Date().toISOString(),
+    };
 
     const index =
       this.orders.findIndex(
         (item) =>
           item.id ===
-          normalized.id
+          order.id
       );
 
     if (index >= 0) {
       this.orders[index] =
-        normalized;
+        updatedOrder;
     } else {
       this.orders.unshift(
-        normalized
+        updatedOrder
       );
     }
 
-    void this.writeOrderToFirestore(
-      normalized
+    saveCache(
+      CACHE_KEYS.orders,
+      this.orders
+    );
+
+    void this.writeOrder(
+      updatedOrder
     );
 
     this.notify();
 
-    return normalized;
+    return updatedOrder;
   }
 
-  private async writeOrderToFirestore(
+  private async writeOrder(
     order: Order
   ): Promise<void> {
-    try {
-      await ensureFirebaseAuth();
+    if (!auth.currentUser) {
+      console.warn(
+        "Sipariş kaydedilemedi: Firebase oturumu yok."
+      );
 
+      return;
+    }
+
+    try {
       await setDoc(
         doc(
           db,
-          "orders",
+          COLLECTIONS.orders,
           order.id
         ),
-        order,
+        {
+          ...order,
+        },
         {
           merge: true,
         }
       );
     } catch (error) {
-      console.warn(
+      console.error(
         "Sipariş Firestore'a yazılamadı:",
         error
       );
@@ -1037,7 +1335,7 @@ class StorageService {
     return this.saveOrder({
       ...order,
       ...updates,
-    } as Order);
+    });
   }
 
   updateOrderStatus(
@@ -1073,56 +1371,75 @@ class StorageService {
           order.id !== id
       );
 
-    void this.deleteOrderFromFirestore(
+    saveCache(
+      CACHE_KEYS.orders,
+      this.orders
+    );
+
+    void this.deleteFirestoreOrder(
       id
     );
 
     this.notify();
   }
 
-  private async deleteOrderFromFirestore(
+  private async deleteFirestoreOrder(
     id: string
   ): Promise<void> {
-    try {
-      await ensureFirebaseAuth();
+    if (!auth.currentUser) {
+      return;
+    }
 
+    try {
       await deleteDoc(
         doc(
           db,
-          "orders",
+          COLLECTIONS.orders,
           id
         )
       );
     } catch (error) {
-      console.warn(
+      console.error(
         "Sipariş silinemedi:",
         error
       );
     }
   }
 
-  // =====================================================
-  // CREATE ORDER
-  // =====================================================
+  /* ===================================================
+     CREATE ORDER
+  =================================================== */
 
   createOrder(
     data: Partial<Order>
   ): Order {
-    const id =
-      "ORD-" +
-      Date.now()
-        .toString(36)
-        .toUpperCase() +
-      "-" +
-      Math.random()
-        .toString(36)
-        .substring(2, 7)
-        .toUpperCase();
+    const firebaseUser =
+      auth.currentUser;
+
+    const customerId =
+      data.customerId ||
+      firebaseUser?.uid ||
+      this.currentUser?.id ||
+      "";
+
+    const customerName =
+      data.customerName ||
+      this.currentUser?.name ||
+      firebaseUser?.displayName ||
+      "";
+
+    const customerPhone =
+      data.customerPhone ||
+      this.currentUser?.phone ||
+      "";
 
     const distanceKm =
       typeof data.distanceKm ===
       "number"
-        ? data.distanceKm
+        ? Math.max(
+            0,
+            data.distanceKm
+          )
         : 0;
 
     const courierType =
@@ -1136,49 +1453,101 @@ class StorageService {
         this.pricing
       );
 
-    /*
-     * V1 NOTU:
-     *
-     * Frontend'den gelen fiyatı doğrudan
-     * güvenilir kabul etmiyoruz.
-     *
-     * Fiyatlandırma sisteminin hesapladığı
-     * değer ana değer olarak kullanılıyor.
-     */
-    const price =
-      calculated.finalPrice;
-
     const now =
       new Date().toISOString();
 
-    const order =
-      normalizeOrder({
-        ...data,
+    const order: Order = {
+      id: generateId("ORD"),
 
-        id,
+      customerId,
 
-        distanceKm,
+      customerName,
 
-        courierType,
+      customerPhone,
 
-        price,
+      courierId:
+        data.courierId ||
+        null,
 
-        status:
-          data.status ||
-          "Kurye Bekleniyor",
+      courierName:
+        data.courierName,
 
-        createdAt:
-          data.createdAt ||
-          now,
+      courierPhone:
+        data.courierPhone,
 
-        updatedAt: now,
-      });
+      pickupAddress:
+        data.pickupAddress ||
+        "",
+
+      deliveryAddress:
+        data.deliveryAddress ||
+        "",
+
+      packageType:
+        data.packageType ||
+        "Evrak",
+
+      courierType,
+
+      urgency:
+        data.urgency ||
+        "Normal",
+
+      distanceKm,
+
+      packageCount:
+        data.packageCount,
+
+      price:
+        calculated.finalPrice,
+
+      status:
+        data.status ||
+        "Kurye Bekleniyor",
+
+      note:
+        data.note ||
+        "",
+
+      estimatedDeliveryMinutes:
+        data.estimatedDeliveryMinutes,
+
+      deliveryProof:
+        data.deliveryProof,
+
+      deliveryPhoto:
+        data.deliveryPhoto,
+
+      receiverName:
+        data.receiverName,
+
+      deliveryNote:
+        data.deliveryNote,
+
+      signature:
+        data.signature,
+
+      deliveredAt:
+        data.deliveredAt,
+
+      createdAt:
+        data.createdAt ||
+        now,
+
+      updatedAt:
+        now,
+    };
 
     this.orders.unshift(
       order
     );
 
-    void this.writeOrderToFirestore(
+    saveCache(
+      CACHE_KEYS.orders,
+      this.orders
+    );
+
+    void this.writeOrder(
       order
     );
 
@@ -1187,9 +1556,9 @@ class StorageService {
     return order;
   }
 
-  // =====================================================
-  // NOTIFICATIONS
-  // =====================================================
+  /* ===================================================
+     NOTIFICATIONS
+  =================================================== */
 
   getNotifications(
     userId?: string
@@ -1203,41 +1572,41 @@ class StorageService {
     return this.notifications.filter(
       (notification) =>
         notification.userId ===
-          userId ||
-        notification.userId ===
-          "all"
+        userId
     );
   }
 
   addNotification(
     notification: NotificationItem
   ): void {
-    const normalized =
-      normalizeNotification(
-        notification
-      );
-
     this.notifications.unshift(
-      normalized
+      notification
     );
 
-    void this.writeNotificationToFirestore(
-      normalized
+    saveCache(
+      CACHE_KEYS.notifications,
+      this.notifications
+    );
+
+    void this.writeNotification(
+      notification
     );
 
     this.notify();
   }
 
-  private async writeNotificationToFirestore(
+  private async writeNotification(
     notification: NotificationItem
   ): Promise<void> {
-    try {
-      await ensureFirebaseAuth();
+    if (!auth.currentUser) {
+      return;
+    }
 
+    try {
       await setDoc(
         doc(
           db,
-          "notifications",
+          COLLECTIONS.notifications,
           notification.id
         ),
         notification,
@@ -1246,8 +1615,8 @@ class StorageService {
         }
       );
     } catch (error) {
-      console.warn(
-        "Bildirim Firestore'a yazılamadı:",
+      console.error(
+        "Bildirim kaydedilemedi:",
         error
       );
     }
@@ -1256,19 +1625,25 @@ class StorageService {
   markNotificationRead(
     id: string
   ): void {
-    this.notifications =
-      this.notifications.map(
-        (notification) =>
-          notification.id ===
-          id
-            ? {
-                ...notification,
-                read: true,
-              }
-            : notification
+    const notification =
+      this.notifications.find(
+        (item) =>
+          item.id === id
       );
 
-    void this.updateNotificationInFirestore(
+    if (!notification) {
+      return;
+    }
+
+    notification.read =
+      true;
+
+    saveCache(
+      CACHE_KEYS.notifications,
+      this.notifications
+    );
+
+    void this.updateNotification(
       id,
       {
         read: true,
@@ -1285,9 +1660,7 @@ class StorageService {
       this.notifications.map(
         (notification) =>
           notification.userId ===
-              userId ||
-          notification.userId ===
-              "all"
+          userId
             ? {
                 ...notification,
                 read: true,
@@ -1295,57 +1668,62 @@ class StorageService {
             : notification
       );
 
-    const affected =
-      this.notifications.filter(
+    saveCache(
+      CACHE_KEYS.notifications,
+      this.notifications
+    );
+
+    this.notifications
+      .filter(
         (notification) =>
           notification.userId ===
-            userId ||
-          notification.userId ===
-            "all"
+          userId
+      )
+      .forEach(
+        (notification) => {
+          void this.updateNotification(
+            notification.id,
+            {
+              read: true,
+            }
+          );
+        }
       );
-
-    affected.forEach(
-      (notification) => {
-        void this.updateNotificationInFirestore(
-          notification.id,
-          {
-            read: true,
-          }
-        );
-      }
-    );
 
     this.notify();
   }
 
-  private async updateNotificationInFirestore(
+  private async updateNotification(
     id: string,
     updates: Partial<NotificationItem>
   ): Promise<void> {
-    try {
-      await ensureFirebaseAuth();
+    if (!auth.currentUser) {
+      return;
+    }
 
+    try {
       await updateDoc(
         doc(
           db,
-          "notifications",
+          COLLECTIONS.notifications,
           id
         ),
         updates
       );
     } catch (error) {
-      console.warn(
+      console.error(
         "Bildirim güncellenemedi:",
         error
       );
     }
   }
 
-  // =====================================================
-  // COURIER LOCATIONS
-  // =====================================================
+  /* ===================================================
+     COURIER LOCATIONS
+  =================================================== */
 
-  getCourierLocations(): CourierLocation[] {
+  getCourierLocations():
+    CourierLocation[] {
     return [
       ...this.locations,
     ];
@@ -1353,7 +1731,8 @@ class StorageService {
 
   getCourierLocation(
     courierId: string
-  ): CourierLocation | undefined {
+  ):
+    CourierLocation | undefined {
     return this.locations.find(
       (location) =>
         location.courierId ===
@@ -1364,50 +1743,48 @@ class StorageService {
   updateCourierLocation(
     location: CourierLocation
   ): void {
-    const normalized =
-      normalizeLocation(
-        location
-      );
-
     const index =
       this.locations.findIndex(
         (item) =>
           item.courierId ===
-          normalized.courierId
+          location.courierId
       );
 
     if (index >= 0) {
-      this.locations[
-        index
-      ] = {
-        ...this.locations[
-          index
-        ],
-        ...normalized,
+      this.locations[index] = {
+        ...this.locations[index],
+        ...location,
       };
     } else {
       this.locations.push(
-        normalized
+        location
       );
     }
 
-    void this.writeCourierLocationToFirestore(
-      normalized
+    saveCache(
+      CACHE_KEYS.locations,
+      this.locations
+    );
+
+    void this.writeCourierLocation(
+      location
     );
 
     this.notify();
   }
 
-  private async writeCourierLocationToFirestore(
+  private async writeCourierLocation(
     location: CourierLocation
   ): Promise<void> {
-    try {
-      await ensureFirebaseAuth();
+    if (!auth.currentUser) {
+      return;
+    }
 
+    try {
       await setDoc(
         doc(
           db,
-          "courierLocations",
+          COLLECTIONS.courierLocations,
           location.courierId
         ),
         location,
@@ -1416,16 +1793,16 @@ class StorageService {
         }
       );
     } catch (error) {
-      console.warn(
-        "Kurye konumu Firestore'a yazılamadı:",
+      console.error(
+        "Kurye konumu kaydedilemedi:",
         error
       );
     }
   }
 
-  // =====================================================
-  // ASSIGN COURIER
-  // =====================================================
+  /* ===================================================
+     ASSIGN COURIER
+  =================================================== */
 
   assignCourier(
     orderId: string,
@@ -1447,71 +1824,83 @@ class StorageService {
 
     if (
       !courier ||
-      courier.role !==
-        "courier"
+      courier.role !== "courier"
     ) {
       return undefined;
     }
 
-    const updatedOrder =
-      normalizeOrder({
-        ...order,
+    const updatedOrder:
+      Order = {
+      ...order,
 
-        courierId,
+      courierId,
 
-        courierName:
-          courier.name,
+      courierName:
+        courier.name,
 
-        courierPhone:
-          courier.phone,
+      courierPhone:
+        courier.phone,
 
-        status:
-          "Kurye Atandı",
+      status:
+        "Kurye Atandı",
 
-        updatedAt:
-          new Date().toISOString(),
-      });
+      updatedAt:
+        new Date().toISOString(),
+    };
 
     this.orders =
       this.orders.map(
         (item) =>
-          item.id ===
-          orderId
+          item.id === orderId
             ? updatedOrder
             : item
       );
 
-    void this.writeOrderToFirestore(
+    saveCache(
+      CACHE_KEYS.orders,
+      this.orders
+    );
+
+    void this.writeOrder(
       updatedOrder
     );
 
-    const notification: NotificationItem =
-      {
-        id: generateId(
-          "NOT"
-        ),
+    const notification:
+      NotificationItem = {
+      id:
+        generateId("NOT"),
 
-        userId:
-          courierId,
+      userId:
+        courierId,
 
-        orderId,
+      orderId,
 
-        title:
-          "Yeni Görev",
+      title:
+        "Yeni Görev",
 
-        message:
-          `Yeni teslimat görevi atandı. Sipariş: ${orderId}`,
+      message:
+        `Yeni teslimat görevi atandı. Sipariş: ${orderId}`,
 
-        type:
-          "assignment",
+      type:
+        "assignment",
 
-        read: false,
+      read:
+        false,
 
-        createdAt:
-          new Date().toISOString(),
-      };
+      createdAt:
+        new Date().toISOString(),
+    };
 
-    this.addNotification(
+    this.notifications.unshift(
+      notification
+    );
+
+    saveCache(
+      CACHE_KEYS.notifications,
+      this.notifications
+    );
+
+    void this.writeNotification(
       notification
     );
 
@@ -1520,9 +1909,9 @@ class StorageService {
     return updatedOrder;
   }
 
-  // =====================================================
-  // DELIVER ORDER
-  // =====================================================
+  /* ===================================================
+     DELIVER ORDER
+  =================================================== */
 
   markOrderDelivered(
     orderId: string,
@@ -1537,87 +1926,83 @@ class StorageService {
       return undefined;
     }
 
-    const now =
+    const deliveredAt =
       new Date().toISOString();
 
-    const updatedOrder =
-      normalizeOrder({
-        ...order,
+    const updatedOrder:
+      Order = {
+      ...order,
 
-        status:
-          "Teslim Edildi",
+      status:
+        "Teslim Edildi",
 
-        deliveredAt:
-          now,
+      deliveredAt,
 
-        deliveryProof:
-          proof
-            ? {
-                ...(order.deliveryProof ||
-                  {
-                    receiverName:
-                      "",
-                    signature:
-                      "",
-                    deliveredAt:
-                      now,
-                  }),
+      deliveryPhoto:
+        proof ||
+        order.deliveryPhoto,
 
-                deliveryPhoto:
-                  proof,
-
-                deliveredAt:
-                  now,
-              }
-            : order.deliveryProof,
-
-        deliveryPhoto:
-          proof ||
-          order.deliveryPhoto,
-
-        updatedAt:
-          now,
-      });
+      updatedAt:
+        deliveredAt,
+    };
 
     this.orders =
       this.orders.map(
         (item) =>
-          item.id ===
-          orderId
+          item.id === orderId
             ? updatedOrder
             : item
       );
 
-    void this.writeOrderToFirestore(
+    saveCache(
+      CACHE_KEYS.orders,
+      this.orders
+    );
+
+    void this.writeOrder(
       updatedOrder
     );
 
-    if (order.customerId) {
-      this.addNotification(
-        {
-          id: generateId(
-            "NOT"
-          ),
+    if (
+      order.customerId
+    ) {
+      const notification:
+        NotificationItem = {
+        id:
+          generateId("NOT"),
 
-          userId:
-            order.customerId,
+        userId:
+          order.customerId,
 
-          orderId,
+        orderId,
 
-          title:
-            "Teslimat Tamamlandı",
+        title:
+          "Teslimat Tamamlandı",
 
-          message:
-            "Siparişiniz başarıyla teslim edildi.",
+        message:
+          "Siparişiniz başarıyla teslim edildi.",
 
-          type:
-            "order_status",
+        type:
+          "order_status",
 
-          read: false,
+        read:
+          false,
 
-          createdAt:
-            now,
-        }
+        createdAt:
+          deliveredAt,
+      };
+
+      this.notifications.unshift(
+        notification
+      );
+
+      saveCache(
+        CACHE_KEYS.notifications,
+        this.notifications
+      );
+
+      void this.writeNotification(
+        notification
       );
     }
 
@@ -1626,51 +2011,57 @@ class StorageService {
     return updatedOrder;
   }
 
-  // =====================================================
-  // ADD COURIER
-  // =====================================================
+  /* ===================================================
+     ADD COURIER
+     
+     Not:
+     Firebase Authentication hesabı oluşturmaz.
+     AdminPanel'deki eski API uyumluluğu için tutulur.
+     Gerçek kurye hesabı Firebase Auth üzerinden
+     ayrı onboarding akışıyla oluşturulacaktır.
+  =================================================== */
 
   addCourier(data: {
     name: string;
     phone: string;
     email?: string;
   }): UserProfile {
-    const courier =
-      normalizeUser({
-        id:
-          "COURIER-" +
-          Date.now()
-            .toString(36)
-            .toUpperCase(),
+    const courier:
+      UserProfile = {
+      id:
+        generateId("COURIER"),
 
-        name:
-          data.name,
+      name:
+        data.name.trim(),
 
-        phone:
-          data.phone,
+      phone:
+        data.phone.trim(),
 
-        email:
-          data.email ||
-          `courier${Date.now()}@trustlineexpress.com`,
+      email:
+        data.email?.trim() ||
+        "",
 
-        role:
-          "courier",
+      role:
+        "courier",
 
-        courierStatus:
-          "Müsait",
+      courierStatus:
+        "Müsait",
 
-        totalDeliveries:
-          0,
+      totalDeliveries:
+        0,
 
-        createdAt:
-          new Date().toISOString(),
-      });
+      rating:
+        0,
 
-    this.users.push(
+      createdAt:
+        new Date().toISOString(),
+    };
+
+    this.upsertUser(
       courier
     );
 
-    void this.writeUserToFirestore(
+    void this.writeUser(
       courier
     );
 
@@ -1679,49 +2070,228 @@ class StorageService {
     return courier;
   }
 
-  // =====================================================
-  // RESET
-  // =====================================================
+  /* ===================================================
+     FIRESTORE MAPPERS
+  =================================================== */
+
+  private mapUserProfile(
+    id: string,
+    data: any
+  ): UserProfile {
+    return {
+      id,
+
+      name:
+        data.name ||
+        "Kullanıcı",
+
+      email:
+        data.email ||
+        "",
+
+      phone:
+        data.phone ||
+        "",
+
+      role:
+        data.role ||
+        "customer",
+
+      avatar:
+        data.avatar,
+
+      vehicle:
+        data.vehicle,
+
+      plate:
+        data.plate,
+
+      courierStatus:
+        data.courierStatus,
+
+      totalDeliveries:
+        data.totalDeliveries,
+
+      rating:
+        data.rating,
+
+      createdAt:
+        normalizeTimestamp(
+          data.createdAt
+        ),
+    };
+  }
+
+  private mapOrder(
+    id: string,
+    data: any
+  ): Order {
+    return {
+      id,
+
+      customerId:
+        data.customerId ||
+        "",
+
+      customerName:
+        data.customerName ||
+        "",
+
+      customerPhone:
+        data.customerPhone ||
+        "",
+
+      courierId:
+        data.courierId ||
+        null,
+
+      courierName:
+        data.courierName,
+
+      courierPhone:
+        data.courierPhone,
+
+      pickupAddress:
+        data.pickupAddress ||
+        "",
+
+      deliveryAddress:
+        data.deliveryAddress ||
+        "",
+
+      packageType:
+        data.packageType ||
+        "Evrak",
+
+      courierType:
+        data.courierType ||
+        "Standart Kurye",
+
+      urgency:
+        data.urgency ||
+        "Normal",
+
+      distanceKm:
+        Number(
+          data.distanceKm ||
+          0
+        ),
+
+      packageCount:
+        data.packageCount,
+
+      price:
+        Number(
+          data.price ||
+          0
+        ),
+
+      status:
+        data.status ||
+        "Kurye Bekleniyor",
+
+      note:
+        data.note ||
+        "",
+
+      estimatedDeliveryMinutes:
+        data.estimatedDeliveryMinutes,
+
+      deliveryProof:
+        data.deliveryProof,
+
+      deliveryPhoto:
+        data.deliveryPhoto,
+
+      receiverName:
+        data.receiverName,
+
+      deliveryNote:
+        data.deliveryNote,
+
+      signature:
+        data.signature,
+
+      deliveredAt:
+        data.deliveredAt
+          ? normalizeTimestamp(
+              data.deliveredAt
+            )
+          : undefined,
+
+      createdAt:
+        normalizeTimestamp(
+          data.createdAt
+        ),
+
+      updatedAt:
+        normalizeTimestamp(
+          data.updatedAt
+        ),
+    };
+  }
+
+  private mapNotification(
+    id: string,
+    data: any
+  ): NotificationItem {
+    return {
+      id,
+
+      userId:
+        data.userId ||
+        "",
+
+      orderId:
+        data.orderId,
+
+      title:
+        data.title ||
+        "",
+
+      message:
+        data.message ||
+        "",
+
+      type:
+        data.type ||
+        "info",
+
+      read:
+        Boolean(
+          data.read
+        ),
+
+      createdAt:
+        normalizeTimestamp(
+          data.createdAt
+        ),
+    };
+  }
+
+  /* ===================================================
+     RESET
+     
+     V1'de reset artık demo verisi üretmez.
+     Sadece local cache temizlenir.
+  =================================================== */
 
   reset(): void {
-    /*
-     * RESET artık yalnızca demo verisini
-     * bellekte sıfırlamak için kullanılır.
-     *
-     * Production Firestore verilerini
-     * yanlışlıkla silmemek için
-     * toplu delete yapılmaz.
-     */
-
-    this.users = [
-      ...SEED_CUSTOMERS,
-      ...SEED_COURIERS,
-      SEED_ADMIN,
-    ].map(normalizeUser);
-
-    this.orders =
-      SEED_ORDERS.map(
-        normalizeOrder
-      );
-
+    this.users = [];
+    this.orders = [];
     this.notifications = [];
-
     this.locations = [];
 
-    this.pricing =
-      normalizePricing({
-        ...DEFAULT_PRICING,
-        updatedAt:
-          new Date().toISOString(),
-      });
+    this.pricing = {
+      ...DEFAULT_PRICING,
+      updatedAt:
+        new Date().toISOString(),
+    };
 
     this.currentUser =
-      this.users.find(
-        (user) =>
-          user.role ===
-          "customer"
-      ) ||
-      this.users[0];
+      null;
+
+    this.persistCache();
 
     this.notify();
   }
@@ -1730,19 +2300,29 @@ class StorageService {
     this.reset();
   }
 
-  // =====================================================
-  // CLEANUP
-  // =====================================================
+  /* ===================================================
+     CLEANUP
+  =================================================== */
 
   destroy(): void {
-    this.detachRealtimeListeners();
+    this.clearFirestoreListeners();
+
+    if (
+      this.authUnsubscribe
+    ) {
+      this.authUnsubscribe();
+
+      this.authUnsubscribe =
+        null;
+    }
 
     this.listeners = [];
-
-    this.initialized =
-      false;
   }
 }
+
+/* =====================================================
+   SINGLETON
+===================================================== */
 
 export const storage =
   new StorageService();
