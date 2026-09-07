@@ -5,9 +5,8 @@ import {
   subscribeToAuth,
   getUserProfile,
 } from './services/auth';
-import { auth } from './services/firebase';
 
-import {
+import type {
   NotificationItem,
   Order,
   PricingConfig,
@@ -24,6 +23,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { ProfileView } from './components/ProfileView';
 import { NewOrderModal } from './components/NewOrderModal';
 import { NotificationDrawer } from './components/NotificationDrawer';
+import { AuthScreen } from './components/AuthScreen';
 
 export function App() {
   const [currentUser, setCurrentUser] =
@@ -45,15 +45,13 @@ export function App() {
     useState(true);
 
   const [activeTab, setActiveTab] =
-    useState<string>('home');
+    useState('home');
 
   const [isNewOrderOpen, setIsNewOrderOpen] =
     useState(false);
 
   const [newOrderPrefill, setNewOrderPrefill] =
-    useState<Partial<Order> | undefined>(
-      undefined
-    );
+    useState<Partial<Order> | undefined>();
 
   const [isNotificationsOpen, setIsNotificationsOpen] =
     useState(false);
@@ -65,9 +63,9 @@ export function App() {
     useState(false);
 
   /*
-   * =====================================================
-   * FIREBASE AUTH LISTENER
-   * =====================================================
+   * ==========================================
+   * FIREBASE AUTH
+   * ==========================================
    */
 
   useEffect(() => {
@@ -75,9 +73,7 @@ export function App() {
 
     const unsubscribe = subscribeToAuth(
       async (firebaseUser, profile) => {
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
 
         if (!firebaseUser) {
           setCurrentUser(null);
@@ -88,30 +84,16 @@ export function App() {
 
         let resolvedProfile = profile;
 
-        /*
-         * Profil listener tarafından bulunamazsa
-         * Firestore'dan bir kez daha almaya çalış.
-         */
         if (!resolvedProfile) {
           resolvedProfile =
-            await getUserProfile(
-              firebaseUser
-            );
+            await getUserProfile(firebaseUser);
         }
 
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
 
         if (resolvedProfile) {
-          setCurrentUser(
-            resolvedProfile
-          );
+          setCurrentUser(resolvedProfile);
 
-          /*
-           * Eski storage API'si ile uyumluluk.
-           * Gerçek kimlik Firebase UID'dir.
-           */
           storage.setCurrentUser(
             resolvedProfile
           );
@@ -122,22 +104,26 @@ export function App() {
             )
           );
 
-          /*
-           * Kullanıcı rolüne göre başlangıç ekranı.
-           */
           if (
             resolvedProfile.role ===
             'customer'
           ) {
             setActiveTab('home');
-          } else if (
+          }
+
+          if (
             resolvedProfile.role ===
             'courier'
           ) {
             setActiveTab(
               'courier_panel'
             );
-          } else {
+          }
+
+          if (
+            resolvedProfile.role ===
+            'admin'
+          ) {
             setActiveTab(
               'admin_panel'
             );
@@ -155,9 +141,9 @@ export function App() {
   }, []);
 
   /*
-   * =====================================================
-   * STORAGE / FIRESTORE REACTIVITY
-   * =====================================================
+   * ==========================================
+   * STORAGE LISTENER
+   * ==========================================
    */
 
   useEffect(() => {
@@ -186,165 +172,85 @@ export function App() {
   }, [currentUser?.id]);
 
   /*
-   * =====================================================
-   * NOTIFICATIONS
-   * =====================================================
-   */
-
-  useEffect(() => {
-    if (!currentUser) {
-      setNotifications([]);
-      return;
-    }
-
-    setNotifications(
-      storage.getNotifications(
-        currentUser.id
-      )
-    );
-
-    if (
-      currentUser.role ===
-      'customer'
-    ) {
-      setActiveTab('home');
-    } else if (
-      currentUser.role ===
-      'courier'
-    ) {
-      setActiveTab(
-        'courier_panel'
-      );
-    } else {
-      setActiveTab(
-        'admin_panel'
-      );
-    }
-  }, [
-    currentUser?.id,
-    currentUser?.role,
-  ]);
-
-  /*
-   * =====================================================
+   * ==========================================
    * NEW ORDER
-   * =====================================================
+   * ==========================================
    */
 
   const handleOpenNewOrder = (
     prefill?: Partial<Order>
   ) => {
-    setNewOrderPrefill(
-      prefill
-    );
-
+    setNewOrderPrefill(prefill);
     setIsNewOrderOpen(true);
   };
 
   const handleTransferFromAI = (
     draft: Partial<Order>
   ) => {
-    handleOpenNewOrder(
-      draft
-    );
-
+    handleOpenNewOrder(draft);
     setActiveTab('home');
   };
 
   /*
-   * =====================================================
-   * LOADING SCREEN
-   * =====================================================
+   * ==========================================
+   * AUTH LOADING
+   * ==========================================
    */
 
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#0B0B0D] text-white flex items-center justify-center">
         <div className="text-center">
-          <div className="w-14 h-14 rounded-2xl bg-[#D6A84F] flex items-center justify-center mx-auto mb-4 shadow-[0_0_30px_rgba(214,168,79,0.25)]">
-            <span className="text-[#0B0B0D] font-black text-2xl">
-              T
-            </span>
-          </div>
 
-          <p className="text-[#D6A84F] font-bold tracking-widest text-sm">
-            TRUSTLINE EXPRESS
-          </p>
-
-          <p className="text-[#777777] text-xs mt-2">
-            Hesap kontrol ediliyor...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  /*
-   * =====================================================
-   * AUTH GEREKİYOR
-   * =====================================================
-   *
-   * Login/Register ekranını bir sonraki adımda
-   * ekleyeceğiz.
-   */
-
-  if (!currentUser) {
-    return (
-      <div className="min-h-screen bg-[#0B0B0D] text-white flex items-center justify-center px-6">
-        <div className="w-full max-w-md bg-[#19191E] border border-[#303036] rounded-3xl p-8 text-center shadow-2xl">
           <div className="w-16 h-16 rounded-2xl bg-[#D6A84F] flex items-center justify-center mx-auto mb-5">
             <span className="text-[#0B0B0D] font-black text-3xl">
               T
             </span>
           </div>
 
-          <h1 className="text-2xl font-black tracking-tight">
-            Trustline Express
-          </h1>
+          <div className="text-[#D6A84F] font-black tracking-[0.2em] text-sm">
+            TRUSTLINE
+          </div>
 
-          <p className="text-sm text-[#999999] mt-2">
-            Devam etmek için hesabınıza
-            giriş yapmanız gerekiyor.
+          <div className="text-[#888888] text-[10px] tracking-[0.3em] mt-1">
+            EXPRESS
+          </div>
+
+          <p className="text-[#666666] text-xs mt-4">
+            Güvenli bağlantı kuruluyor...
           </p>
 
-          <div className="mt-6 bg-[#222229] border border-[#303036] rounded-2xl p-4">
-            <p className="text-xs text-[#777777]">
-              V1 kimlik doğrulama sistemi
-              aktif.
-            </p>
-
-            <p className="text-sm text-[#D6A84F] font-semibold mt-1">
-              Giriş / Kayıt ekranı
-              hazırlanıyor.
-            </p>
-          </div>
         </div>
       </div>
     );
   }
 
   /*
-   * =====================================================
-   * USER DATA
-   * =====================================================
+   * ==========================================
+   * LOGIN / REGISTER
+   * ==========================================
    */
 
-  const unreadNotificationsCount =
-    notifications.filter(
-      (notification) =>
-        !notification.read
-    ).length;
+  if (!currentUser) {
+    return (
+      <AuthScreen />
+    );
+  }
+
+  /*
+   * ==========================================
+   * USER ORDERS
+   * ==========================================
+   */
 
   const myOrders =
-    currentUser.role ===
-    'customer'
+    currentUser.role === 'customer'
       ? orders.filter(
           (order) =>
             order.customerId ===
             currentUser.id
         )
-      : currentUser.role ===
-        'courier'
+      : currentUser.role === 'courier'
       ? orders.filter(
           (order) =>
             order.courierId ===
@@ -355,93 +261,75 @@ export function App() {
   const activeOrders =
     myOrders.filter(
       (order) =>
-        ![
-          'Teslim Edildi',
-          'İptal Edildi',
-        ].includes(
-          order.status
-        )
+        order.status !==
+          'Teslim Edildi' &&
+        order.status !==
+          'İptal Edildi'
     );
 
+  const unreadNotificationsCount =
+    notifications.filter(
+      (notification) =>
+        !notification.read
+    ).length;
+
   /*
-   * =====================================================
-   * MAIN UI
-   * =====================================================
+   * ==========================================
+   * MAIN APPLICATION
+   * ==========================================
    */
 
   return (
     <div
-      className={`min-h-screen bg-[#0B0B0D] text-white flex flex-col font-sans transition-all ${
+      className={`min-h-screen bg-[#0B0B0D] text-white flex flex-col ${
         isIPhoneMode
-          ? 'py-4 sm:py-8 px-2 sm:px-4 items-center justify-center bg-zinc-950'
+          ? 'py-4 px-2 items-center justify-center'
           : ''
       }`}
     >
+
       <div
-        className={`w-full flex flex-col transition-all ${
+        className={`w-full flex flex-col ${
           isIPhoneMode
-            ? 'w-full max-w-[390px] h-[820px] bg-[#19191E] rounded-[48px] border-[8px] border-[#222229] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden relative'
+            ? 'max-w-[390px] h-[820px] bg-[#19191E] rounded-[48px] border-[8px] border-[#222229] overflow-hidden shadow-2xl'
             : 'min-h-screen'
         }`}
       >
+
         {isIPhoneMode && (
-          <>
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#222229] rounded-b-2xl z-50 flex items-center justify-center">
-              <div className="w-3 h-3 rounded-full bg-black/60 border border-[#303036]/60" />
-            </div>
-
-            <div className="h-9 bg-[#0B0B0D] flex items-center justify-between px-7 text-[11px] text-[#999999] shrink-0 font-medium select-none z-40 border-b border-[#303036]/30">
-              <span className="font-semibold text-white">
-                09:41
-              </span>
-
-              <div className="flex items-center gap-1.5 ml-auto">
-                <span className="text-[10px]">
-                  5G
-                </span>
-
-                <div className="w-4 h-2 border border-[#999999] rounded-xs p-0.5">
-                  <div className="w-full h-full bg-[#999999]" />
-                </div>
-              </div>
-            </div>
-          </>
+          <div className="h-8 bg-[#0B0B0D] flex items-center justify-center shrink-0">
+            <div className="w-28 h-5 bg-[#222229] rounded-b-xl" />
+          </div>
         )}
 
         <Navbar
           currentUser={currentUser}
-          onSwitchUser={() => {
-            /*
-             * Gerçek Auth V1'de rol değişimi
-             * demo üzerinden yapılmayacak.
-             */
-          }}
           unreadNotificationsCount={
             unreadNotificationsCount
           }
           onOpenNotifications={() =>
-            setIsNotificationsOpen(
-              true
-            )
+            setIsNotificationsOpen(true)
           }
           isIPhoneMode={
             isIPhoneMode
           }
           onToggleIPhoneMode={() =>
             setIsIPhoneMode(
-              !isIPhoneMode
+              (value) => !value
             )
           }
           activeTab={activeTab}
         />
 
         <main
-          className={`flex-1 overflow-y-auto px-4 py-5 max-w-7xl w-full mx-auto ${
+          className={`flex-1 overflow-y-auto px-4 py-5 ${
             isIPhoneMode
-              ? 'overflow-y-auto max-h-[740px]'
+              ? 'max-h-[740px]'
               : ''
           }`}
         >
+
+          {/* CUSTOMER */}
           {currentUser.role ===
             'customer' && (
             <>
@@ -452,7 +340,9 @@ export function App() {
                     handleOpenNewOrder
                   }
                   onOpenAI={() =>
-                    setActiveTab('ai')
+                    setActiveTab(
+                      'ai'
+                    )
                   }
                   onGoToOrders={() =>
                     setActiveTab(
@@ -495,12 +385,12 @@ export function App() {
                   currentUser={
                     currentUser
                   }
-                  onSwitchUser={() => {}}
                 />
               )}
             </>
           )}
 
+          {/* COURIER */}
           {currentUser.role ===
             'courier' && (
             <>
@@ -520,12 +410,12 @@ export function App() {
                   currentUser={
                     currentUser
                   }
-                  onSwitchUser={() => {}}
                 />
               )}
             </>
           )}
 
+          {/* ADMIN */}
           {currentUser.role ===
             'admin' && (
             <>
@@ -543,11 +433,11 @@ export function App() {
                   currentUser={
                     currentUser
                   }
-                  onSwitchUser={() => {}}
                 />
               )}
             </>
           )}
+
         </main>
 
         <BottomNavigation
@@ -555,9 +445,7 @@ export function App() {
           activeTab={activeTab}
           onTabChange={(tab) => {
             setActiveTab(tab);
-            setSelectedOrderId(
-              null
-            );
+            setSelectedOrderId(null);
           }}
           onOpenNewOrder={() =>
             handleOpenNewOrder()
@@ -566,14 +454,14 @@ export function App() {
             activeOrders.length
           }
         />
+
       </div>
 
+      {/* NEW ORDER */}
       <NewOrderModal
         isOpen={isNewOrderOpen}
         onClose={() => {
-          setIsNewOrderOpen(
-            false
-          );
+          setIsNewOrderOpen(false);
           setNewOrderPrefill(
             undefined
           );
@@ -583,19 +471,15 @@ export function App() {
         prefillData={
           newOrderPrefill
         }
-        onOrderCreated={(
-          newOrder
-        ) => {
-          setActiveTab(
-            'orders'
-          );
-
+        onOrderCreated={(order) => {
+          setActiveTab('orders');
           setSelectedOrderId(
-            newOrder.id
+            order.id
           );
         }}
       />
 
+      {/* NOTIFICATIONS */}
       <NotificationDrawer
         isOpen={
           isNotificationsOpen
@@ -611,18 +495,14 @@ export function App() {
         userId={
           currentUser.id
         }
-        onSelectOrder={(
-          orderId
-        ) => {
+        onSelectOrder={(orderId) => {
           setSelectedOrderId(
             orderId
           );
-
-          setActiveTab(
-            'orders'
-          );
+          setActiveTab('orders');
         }}
       />
+
     </div>
   );
 }
