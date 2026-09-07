@@ -1,10 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
 import { storage } from './services/storage';
-import {
-  subscribeToAuth,
-  ensureUserProfile,
-} from './services/auth';
+import { subscribeToAuth } from './services/auth';
 
 import type {
   NotificationItem,
@@ -62,53 +59,44 @@ export function App() {
   const [isIPhoneMode, setIsIPhoneMode] =
     useState(false);
 
+  /*
+   * ==========================================
+   * FIREBASE AUTH
+   * ==========================================
+   */
+
   useEffect(() => {
     let mounted = true;
 
     const unsubscribe = subscribeToAuth(
-      async (firebaseUser) => {
+      async (firebaseUser, profile) => {
         if (!mounted) return;
 
         try {
-          if (!firebaseUser) {
+          if (!firebaseUser || !profile) {
             setCurrentUser(null);
             setNotifications([]);
             setAuthLoading(false);
             return;
           }
 
-          const resolvedProfile =
-            await ensureUserProfile(firebaseUser);
+          setCurrentUser(profile);
 
-          if (!mounted) return;
-
-          setCurrentUser(resolvedProfile);
-
-          storage.setCurrentUser(
-            resolvedProfile
-          );
+          storage.setCurrentUser(profile);
 
           setNotifications(
-            storage.getNotifications(
-              resolvedProfile.id
-            )
+            storage.getNotifications(profile.id)
           );
 
-          if (
-            resolvedProfile.role === 'customer'
-          ) {
+          if (profile.role === 'customer') {
             setActiveTab('home');
           }
 
-          if (
-            resolvedProfile.role === 'courier'
-          ) {
+          if (profile.role === 'courier') {
             setActiveTab('courier_panel');
           }
 
-          if (
-            resolvedProfile.role === 'admin'
-          ) {
+          if (profile.role === 'admin') {
             setActiveTab('admin_panel');
           }
 
@@ -134,11 +122,22 @@ export function App() {
     };
   }, []);
 
+  /*
+   * ==========================================
+   * STORAGE LISTENER
+   * ==========================================
+   */
+
   useEffect(() => {
     const unsubscribe =
       storage.subscribe(() => {
-        setOrders(storage.getOrders());
-        setPricing(storage.getPricing());
+        setOrders(
+          storage.getOrders()
+        );
+
+        setPricing(
+          storage.getPricing()
+        );
 
         if (currentUser) {
           setNotifications(
@@ -154,6 +153,12 @@ export function App() {
     };
   }, [currentUser?.id]);
 
+  /*
+   * ==========================================
+   * NEW ORDER
+   * ==========================================
+   */
+
   const handleOpenNewOrder = (
     prefill?: Partial<Order>
   ) => {
@@ -168,10 +173,17 @@ export function App() {
     setActiveTab('home');
   };
 
+  /*
+   * ==========================================
+   * AUTH LOADING
+   * ==========================================
+   */
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#0B0B0D] text-white flex items-center justify-center">
         <div className="text-center">
+
           <div className="w-16 h-16 rounded-2xl bg-[#D6A84F] flex items-center justify-center mx-auto mb-5">
             <span className="text-[#0B0B0D] font-black text-3xl">
               T
@@ -189,14 +201,29 @@ export function App() {
           <p className="text-[#666666] text-xs mt-4">
             Güvenli bağlantı kuruluyor...
           </p>
+
         </div>
       </div>
     );
   }
 
+  /*
+   * ==========================================
+   * LOGIN / REGISTER
+   * ==========================================
+   */
+
   if (!currentUser) {
-    return <AuthScreen />;
+    return (
+      <AuthScreen />
+    );
   }
+
+  /*
+   * ==========================================
+   * USER ORDERS
+   * ==========================================
+   */
 
   const myOrders =
     currentUser.role === 'customer'
@@ -216,8 +243,10 @@ export function App() {
   const activeOrders =
     myOrders.filter(
       (order) =>
-        order.status !== 'Teslim Edildi' &&
-        order.status !== 'İptal Edildi'
+        order.status !==
+          'Teslim Edildi' &&
+        order.status !==
+          'İptal Edildi'
     );
 
   const unreadNotificationsCount =
@@ -225,6 +254,12 @@ export function App() {
       (notification) =>
         !notification.read
     ).length;
+
+  /*
+   * ==========================================
+   * MAIN APPLICATION
+   * ==========================================
+   */
 
   return (
     <div
@@ -241,6 +276,7 @@ export function App() {
             : 'min-h-screen'
         }`}
       >
+
         {isIPhoneMode && (
           <div className="h-8 bg-[#0B0B0D] flex items-center justify-center shrink-0">
             <div className="w-28 h-5 bg-[#222229] rounded-b-xl" />
@@ -255,7 +291,9 @@ export function App() {
           onOpenNotifications={() =>
             setIsNotificationsOpen(true)
           }
-          isIPhoneMode={isIPhoneMode}
+          isIPhoneMode={
+            isIPhoneMode
+          }
           onToggleIPhoneMode={() =>
             setIsIPhoneMode(
               (value) => !value
@@ -271,25 +309,38 @@ export function App() {
               : ''
           }`}
         >
-          {currentUser.role === 'customer' && (
+
+          {/* CUSTOMER */}
+
+          {currentUser.role ===
+            'customer' && (
             <>
-              {activeTab === 'home' && (
+
+              {activeTab ===
+                'home' && (
                 <CustomerHome
                   onOpenNewOrder={
                     handleOpenNewOrder
                   }
                   onOpenAI={() =>
-                    setActiveTab('ai')
+                    setActiveTab(
+                      'ai'
+                    )
                   }
                   onGoToOrders={() =>
-                    setActiveTab('orders')
+                    setActiveTab(
+                      'orders'
+                    )
                   }
-                  activeOrders={activeOrders}
+                  activeOrders={
+                    activeOrders
+                  }
                   pricing={pricing}
                 />
               )}
 
-              {activeTab === 'orders' && (
+              {activeTab ===
+                'orders' && (
                 <CustomerOrders
                   orders={myOrders}
                   onOpenNewOrder={
@@ -301,7 +352,8 @@ export function App() {
                 />
               )}
 
-              {activeTab === 'ai' && (
+              {activeTab ===
+                'ai' && (
                 <TrustlineAI
                   onTransferToOrder={
                     handleTransferFromAI
@@ -310,16 +362,24 @@ export function App() {
                 />
               )}
 
-              {activeTab === 'profile' && (
+              {activeTab ===
+                'profile' && (
                 <ProfileView
-                  currentUser={currentUser}
+                  currentUser={
+                    currentUser
+                  }
                 />
               )}
+
             </>
           )}
 
-          {currentUser.role === 'courier' && (
+          {/* COURIER */}
+
+          {currentUser.role ===
+            'courier' && (
             <>
+
               {activeTab ===
                 'courier_panel' && (
                 <CourierPanel
@@ -330,30 +390,44 @@ export function App() {
                 />
               )}
 
-              {activeTab === 'profile' && (
+              {activeTab ===
+                'profile' && (
                 <ProfileView
-                  currentUser={currentUser}
+                  currentUser={
+                    currentUser
+                  }
                 />
               )}
+
             </>
           )}
 
-          {currentUser.role === 'admin' && (
+          {/* ADMIN */}
+
+          {currentUser.role ===
+            'admin' && (
             <>
-              {activeTab === 'admin_panel' && (
+
+              {activeTab ===
+                'admin_panel' && (
                 <AdminPanel
                   orders={orders}
                   pricing={pricing}
                 />
               )}
 
-              {activeTab === 'profile' && (
+              {activeTab ===
+                'profile' && (
                 <ProfileView
-                  currentUser={currentUser}
+                  currentUser={
+                    currentUser
+                  }
                 />
               )}
+
             </>
           )}
+
         </main>
 
         <BottomNavigation
@@ -370,35 +444,57 @@ export function App() {
             activeOrders.length
           }
         />
+
       </div>
+
+      {/* NEW ORDER */}
 
       <NewOrderModal
         isOpen={isNewOrderOpen}
         onClose={() => {
           setIsNewOrderOpen(false);
-          setNewOrderPrefill(undefined);
+          setNewOrderPrefill(
+            undefined
+          );
         }}
         currentUser={currentUser}
         pricing={pricing}
-        prefillData={newOrderPrefill}
+        prefillData={
+          newOrderPrefill
+        }
         onOrderCreated={(order) => {
           setActiveTab('orders');
-          setSelectedOrderId(order.id);
+          setSelectedOrderId(
+            order.id
+          );
         }}
       />
 
+      {/* NOTIFICATIONS */}
+
       <NotificationDrawer
-        isOpen={isNotificationsOpen}
-        onClose={() =>
-          setIsNotificationsOpen(false)
+        isOpen={
+          isNotificationsOpen
         }
-        notifications={notifications}
-        userId={currentUser.id}
+        onClose={() =>
+          setIsNotificationsOpen(
+            false
+          )
+        }
+        notifications={
+          notifications
+        }
+        userId={
+          currentUser.id
+        }
         onSelectOrder={(orderId) => {
-          setSelectedOrderId(orderId);
+          setSelectedOrderId(
+            orderId
+          );
           setActiveTab('orders');
         }}
       />
+
     </div>
   );
 }
