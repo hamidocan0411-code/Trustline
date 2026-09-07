@@ -10,50 +10,85 @@ export const DEFAULT_PRICING: PricingConfig = {
 };
 
 /**
- * Calculates delivery price according to official Trustline Express formulas:
- * 1. Base price = distanceKm * perKmPrice
- * 2. If base price < minPrice => minPrice
- * 3. Multiply by courier type multiplier (Standart: 1.0, Acil: urgentMultiplier, VIP: vipMultiplier)
- * 4. Round to nearest integer or 2 decimals
+ * Trustline Express paket ebat ek ücretleri
+ */
+export type PackageSize = 'Küçük' | 'Orta' | 'Büyük' | 'Çok Büyük';
+
+export const PACKAGE_SIZE_FEES: Record<PackageSize, number> = {
+  'Küçük': 0,
+  'Orta': 50,
+  'Büyük': 100,
+  'Çok Büyük': 200,
+};
+
+/**
+ * Calculates delivery price:
+ * 1. KM ücreti hesaplanır
+ * 2. Minimum fiyat uygulanır
+ * 3. Kurye tipine göre çarpan uygulanır
+ * 4. Paket ebat ek ücreti eklenir
  */
 export function calculateOrderPrice(
   distanceKm: number,
   courierType: CourierType,
-  pricing: PricingConfig = DEFAULT_PRICING
-): { basePrice: number; finalPrice: number; multiplier: number; isMinimumApplied: boolean } {
+  pricing: PricingConfig = DEFAULT_PRICING,
+  packageSize: PackageSize = 'Küçük'
+): {
+  basePrice: number;
+  finalPrice: number;
+  multiplier: number;
+  isMinimumApplied: boolean;
+  packageSizeFee: number;
+} {
   const safeKm = Math.max(0, distanceKm || 0);
+
   const rawKmCost = safeKm * pricing.perKmPrice;
+
   const isMinimumApplied = rawKmCost < pricing.minPrice;
-  const basePrice = Math.max(rawKmCost, pricing.minPrice);
+
+  const basePrice = Math.max(
+    rawKmCost,
+    pricing.minPrice
+  );
 
   let multiplier = 1.0;
+
   if (courierType === 'Acil Kurye') {
     multiplier = pricing.urgentMultiplier;
   } else if (courierType === 'VIP Kurye') {
     multiplier = pricing.vipMultiplier;
   }
 
-  const finalPrice = Math.round(basePrice * multiplier);
+  const packageSizeFee =
+    PACKAGE_SIZE_FEES[packageSize] ?? 0;
+
+  const courierPrice = basePrice * multiplier;
+
+  const finalPrice = Math.round(
+    courierPrice + packageSizeFee
+  );
 
   return {
     basePrice,
     finalPrice,
     multiplier,
     isMinimumApplied,
+    packageSizeFee,
   };
 }
 
 /**
  * Modular geocoding and distance calculation utility.
- * Ready for future Google Maps Distance Matrix or Directions API integration.
  */
-export function estimateDistanceBetweenAddresses(pickup: string, delivery: string): number {
+export function estimateDistanceBetweenAddresses(
+  pickup: string,
+  delivery: string
+): number {
   if (!pickup || !delivery) return 10;
 
   const p = pickup.toLowerCase();
   const d = delivery.toLowerCase();
 
-  // Approximate realistic Istanbul district distances
   const districtDistances: Record<string, number> = {
     'kadıköy-beşiktaş': 14,
     'beşiktaş-kadıköy': 14,
@@ -79,12 +114,16 @@ export function estimateDistanceBetweenAddresses(pickup: string, delivery: strin
 
   for (const key of Object.keys(districtDistances)) {
     const [from, to] = key.split('-');
+
     if (p.includes(from) && d.includes(to)) {
       return districtDistances[key];
     }
   }
 
-  // Length-based synthetic hash between 6 and 32 km if not in pre-mapped table
-  const hash = Math.abs((p.length * 7 + d.length * 13) % 27) + 5;
+  const hash =
+    Math.abs(
+      (p.length * 7 + d.length * 13) % 27
+    ) + 5;
+
   return hash;
 }
