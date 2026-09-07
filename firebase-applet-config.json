@@ -1,8 +1,9 @@
 {
-  "projectId": "trustline-8729d",
-  "appId": "1:95555518174:web:61f2ffa0ad9316369a8c4f",
-  "apiKey": "AIzaSyCFNecgQj3kBN6Dj5mqycy0Io7kDMofQEM",
+  "apiKey": "BURAYA_API_KEY_GELECEK",
   "authDomain": "trustline-8729d.firebaseapp.com",
+  "projectId": "trustline-8729d",
   "storageBucket": "trustline-8729d.firebasestorage.app",
   "messagingSenderId": "95555518174",
+  "appId": "BURAYA_APP_ID_GELECEK",
   "measurementId": "G-RRLL4QMFXP"
+}
