@@ -6,7 +6,6 @@ import {
 
 import {
   getAuth,
-  signInAnonymously,
   onAuthStateChanged,
   type Auth,
   type User,
@@ -29,37 +28,13 @@ const app =
     ? getApp()
     : initializeApp(firebaseConfig);
 
-/* ================================
-   FIREBASE AUTH
-================================ */
-
-export const auth: Auth =
-  getAuth(app);
-
-/* ================================
-   FIRESTORE
-   Named database varsa onu kullanır.
-   Yoksa default database kullanılır.
-================================ */
+export const auth: Auth = getAuth(app);
 
 export const db: Firestore =
-  firebaseConfig.firestoreDatabaseId
-    ? getFirestore(
-        app,
-        firebaseConfig.firestoreDatabaseId
-      )
-    : getFirestore(app);
-
-/* ================================
-   FIREBASE STORAGE
-================================ */
+  getFirestore(app);
 
 export const storage: FirebaseStorage =
   getStorage(app);
-
-/* ================================
-   AUTH STATE
-================================ */
 
 let authReadyPromise:
   | Promise<User | null>
@@ -67,9 +42,7 @@ let authReadyPromise:
 
 export function waitForAuthState(): Promise<User | null> {
   if (auth.currentUser) {
-    return Promise.resolve(
-      auth.currentUser
-    );
+    return Promise.resolve(auth.currentUser);
   }
 
   if (authReadyPromise) {
@@ -91,50 +64,6 @@ export function waitForAuthState(): Promise<User | null> {
   return authReadyPromise;
 }
 
-/* ================================
-   AUTH
-   Geçiş sürecinde anonymous auth
-   desteğini koruyoruz.
-================================ */
-
-export async function ensureFirebaseAuth(): Promise<User | null> {
-  if (auth.currentUser) {
-    return auth.currentUser;
-  }
-
-  try {
-    const currentUser =
-      await waitForAuthState();
-
-    if (currentUser) {
-      return currentUser;
-    }
-  } catch (error) {
-    console.warn(
-      "Firebase auth state okunamadı:",
-      error
-    );
-  }
-
-  try {
-    const credential =
-      await signInAnonymously(auth);
-
-    return credential.user;
-  } catch (error) {
-    console.error(
-      "Firebase anonymous authentication başarısız:",
-      error
-    );
-
-    return null;
-  }
-}
-
-/* ================================
-   CURRENT USER
-================================ */
-
 export function getFirebaseUser(): User | null {
   return auth.currentUser;
 }
@@ -142,10 +71,6 @@ export function getFirebaseUser(): User | null {
 export function isFirebaseAuthenticated(): boolean {
   return !!auth.currentUser;
 }
-
-/* ================================
-   FIREBASE STATUS
-================================ */
 
 export function getFirebaseStatus() {
   return {
@@ -156,8 +81,7 @@ export function getFirebaseStatus() {
       !!auth.currentUser,
 
     userId:
-      auth.currentUser?.uid ||
-      null,
+      auth.currentUser?.uid || null,
 
     hasFirestore:
       !!db,
@@ -166,9 +90,5 @@ export function getFirebaseStatus() {
       !!storage,
   };
 }
-
-/* ================================
-   APP EXPORT
-================================ */
 
 export { app };
