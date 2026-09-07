@@ -125,12 +125,7 @@ export function AuthScreen({
 
         case 'auth/network-request-failed':
           message =
-            'İnternet bağlantısı kurulamadı. Lütfen tekrar deneyin.';
-          break;
-
-        case 'auth/too-many-requests':
-          message =
-            'Çok fazla başarısız deneme yapıldı. Lütfen daha sonra tekrar deneyin.';
+            'İnternet bağlantısı kurulamadı.';
           break;
 
         default:
@@ -180,10 +175,11 @@ export function AuthScreen({
         <div className="bg-[#19191E] border border-[#303036] rounded-[28px] p-5 sm:p-7 shadow-2xl">
 
           <div className="grid grid-cols-2 gap-1 bg-[#0F0F12] rounded-2xl p-1 mb-6">
-
             <button
               type="button"
-              onClick={() => switchMode('login')}
+              onClick={() =>
+                switchMode('login')
+              }
               className={`rounded-xl py-3 text-sm font-bold transition ${
                 mode === 'login'
                   ? 'bg-[#D6A84F] text-[#0B0B0D]'
@@ -195,7 +191,9 @@ export function AuthScreen({
 
             <button
               type="button"
-              onClick={() => switchMode('register')}
+              onClick={() =>
+                switchMode('register')
+              }
               className={`rounded-xl py-3 text-sm font-bold transition ${
                 mode === 'register'
                   ? 'bg-[#D6A84F] text-[#0B0B0D]'
@@ -204,7 +202,6 @@ export function AuthScreen({
             >
               Kayıt Ol
             </button>
-
           </div>
 
           <form
@@ -222,11 +219,12 @@ export function AuthScreen({
                   type="text"
                   value={name}
                   onChange={(event) =>
-                    setName(event.target.value)
+                    setName(
+                      event.target.value
+                    )
                   }
                   placeholder="Adınız Soyadınız"
                   autoComplete="name"
-                  disabled={loading}
                   className="w-full h-12 rounded-xl bg-[#222229] border border-[#303036] px-4 text-sm text-white placeholder:text-[#555555] outline-none focus:border-[#D6A84F] transition"
                 />
               </div>
@@ -242,11 +240,12 @@ export function AuthScreen({
                   type="tel"
                   value={phone}
                   onChange={(event) =>
-                    setPhone(event.target.value)
+                    setPhone(
+                      event.target.value
+                    )
                   }
                   placeholder="05XX XXX XX XX"
                   autoComplete="tel"
-                  disabled={loading}
                   className="w-full h-12 rounded-xl bg-[#222229] border border-[#303036] px-4 text-sm text-white placeholder:text-[#555555] outline-none focus:border-[#D6A84F] transition"
                 />
               </div>
@@ -261,11 +260,12 @@ export function AuthScreen({
                 type="email"
                 value={email}
                 onChange={(event) =>
-                  setEmail(event.target.value)
+                  setEmail(
+                    event.target.value
+                  )
                 }
                 placeholder="ornek@mail.com"
                 autoComplete="email"
-                disabled={loading}
                 className="w-full h-12 rounded-xl bg-[#222229] border border-[#303036] px-4 text-sm text-white placeholder:text-[#555555] outline-none focus:border-[#D6A84F] transition"
               />
             </div>
@@ -279,7 +279,9 @@ export function AuthScreen({
                 type="password"
                 value={password}
                 onChange={(event) =>
-                  setPassword(event.target.value)
+                  setPassword(
+                    event.target.value
+                  )
                 }
                 placeholder="En az 6 karakter"
                 autoComplete={
@@ -287,7 +289,6 @@ export function AuthScreen({
                     ? 'new-password'
                     : 'current-password'
                 }
-                disabled={loading}
                 className="w-full h-12 rounded-xl bg-[#222229] border border-[#303036] px-4 text-sm text-white placeholder:text-[#555555] outline-none focus:border-[#D6A84F] transition"
               />
             </div>
