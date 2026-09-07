@@ -11,25 +11,20 @@ import {
   doc,
   getDoc,
   setDoc,
-  serverTimestamp,
 } from "firebase/firestore";
 
 import { auth, db } from "./firebase";
-import type { UserProfile, UserRole } from "../types";
 
-const ADMIN_EMAIL = "hamidocan0411@gmail.com";
+import type {
+  UserProfile,
+} from "../types";
 
-function getDefaultName(user: User): string {
-  return (
-    user.displayName?.trim() ||
-    user.email?.split("@")[0] ||
-    "Trustline Kullanıcısı"
-  );
-}
+const ADMIN_EMAIL =
+  "hamidocan0411@gmail.com";
 
-function mapUserProfile(
+function createProfile(
   user: User,
-  data: Partial<UserProfile> = {}
+  existing?: Partial<UserProfile>
 ): UserProfile {
   const isAdmin =
     user.email?.toLowerCase() ===
@@ -37,38 +32,107 @@ function mapUserProfile(
 
   return {
     id: user.uid,
+
     name:
-      data.name?.trim() ||
-      getDefaultName(user),
+      existing?.name?.trim() ||
+      user.displayName?.trim() ||
+      user.email?.split("@")[0] ||
+      "Trustline Kullanıcısı",
+
     email:
       user.email ||
-      data.email ||
+      existing?.email ||
       "",
+
     phone:
-      data.phone ||
+      existing?.phone ||
       "",
+
     role:
       isAdmin
         ? "admin"
-        : data.role || "customer",
+        : existing?.role ||
+          "customer",
+
     avatar:
-      data.avatar ||
+      existing?.avatar ||
       user.photoURL ||
       undefined,
+
     vehicle:
-      data.vehicle,
+      existing?.vehicle,
+
     plate:
-      data.plate,
+      existing?.plate,
+
     courierStatus:
-      data.courierStatus,
+      existing?.courierStatus,
+
     totalDeliveries:
-      data.totalDeliveries || 0,
+      existing?.totalDeliveries ||
+      0,
+
     rating:
-      data.rating || 5,
+      existing?.rating ||
+      5,
+
     createdAt:
-      data.createdAt ||
+      existing?.createdAt ||
       new Date().toISOString(),
   };
+}
+
+export async function ensureUserProfile(
+  user: User
+): Promise<UserProfile> {
+  const userRef =
+    doc(db, "users", user.uid);
+
+  const snapshot =
+    await getDoc(userRef);
+
+  if (snapshot.exists()) {
+    const existing =
+      snapshot.data() as Partial<UserProfile>;
+
+    const profile =
+      createProfile(
+        user,
+        existing
+      );
+
+    if (
+      user.email?.toLowerCase() ===
+        ADMIN_EMAIL.toLowerCase() &&
+      existing.role !== "admin"
+    ) {
+      await setDoc(
+        userRef,
+        {
+          ...existing,
+          ...profile,
+          role: "admin",
+          updatedAt:
+            new Date().toISOString(),
+        },
+        {
+          merge: true,
+        }
+      );
+    }
+
+    return profile;
+  }
+
+  const profile =
+    createProfile(user);
+
+  await setDoc(
+    userRef,
+    profile
+  );
+
+  return profile;
 }
 
 export async function registerUser(
@@ -84,23 +148,32 @@ export async function registerUser(
       password
     );
 
-  const user = credential.user;
+  const user =
+    credential.user;
 
   await updateProfile(user, {
-    displayName: name.trim(),
+    displayName:
+      name.trim(),
   });
 
-  const profile = mapUserProfile(user, {
-    name: name.trim(),
-    email: user.email || email.trim(),
-    phone: phone.trim(),
-    role: "customer",
-    createdAt:
-      new Date().toISOString(),
-  });
+  const profile =
+    createProfile(user, {
+      name: name.trim(),
+      email:
+        user.email ||
+        email.trim(),
+      phone: phone.trim(),
+      role: "customer",
+      createdAt:
+        new Date().toISOString(),
+    });
 
   await setDoc(
-    doc(db, "users", user.uid),
+    doc(
+      db,
+      "users",
+      user.uid
+    ),
     profile
   );
 
@@ -123,68 +196,16 @@ export async function loginUser(
   );
 }
 
-export async function ensureUserProfile(
-  user: User
-): Promise<UserProfile> {
-  const userRef =
-    doc(db, "users", user.uid);
-
-  const snapshot =
-    await getDoc(userRef);
-
-  if (snapshot.exists()) {
-    const existing =
-      snapshot.data() as Partial<UserProfile>;
-
-    const profile =
-      mapUserProfile(user, existing);
-
-    if (
-      user.email?.toLowerCase() ===
-        ADMIN_EMAIL.toLowerCase() &&
-      existing.role !== "admin"
-    ) {
-      await setDoc(
-        userRef,
-        {
-          ...existing,
-          ...profile,
-          role: "admin",
-          updatedAt:
-            new Date().toISOString(),
-        },
-        { merge: true }
-      );
-    }
-
-    return profile;
-  }
-
-  const profile =
-    mapUserProfile(user);
-
-  await setDoc(
-    userRef,
-    {
-      ...profile,
-      createdAt:
-        serverTimestamp(),
-    }
-  );
-
-  return {
-    ...profile,
-    createdAt:
-      new Date().toISOString(),
-  };
-}
-
 export async function getUserProfile(
   uid: string
 ): Promise<UserProfile | null> {
   const snapshot =
     await getDoc(
-      doc(db, "users", uid)
+      doc(
+        db,
+        "users",
+        uid
+      )
     );
 
   if (!snapshot.exists()) {
@@ -200,12 +221,43 @@ export async function logoutUser(): Promise<void> {
 
 export function subscribeToAuth(
   callback: (
-    user: User | null
+    user: User | null,
+    profile?: UserProfile | null
   ) => void
 ) {
   return onAuthStateChanged(
     auth,
-    callback
+    async (user) => {
+      if (!user) {
+        callback(
+          null,
+          null
+        );
+        return;
+      }
+
+      try {
+        const profile =
+          await ensureUserProfile(
+            user
+          );
+
+        callback(
+          user,
+          profile
+        );
+      } catch (error) {
+        console.error(
+          "Firebase kullanıcı profili oluşturulamadı:",
+          error
+        );
+
+        callback(
+          user,
+          null
+        );
+      }
+    }
   );
 }
 
