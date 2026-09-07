@@ -18,6 +18,8 @@ import type {
   Order,
   OrderStatus,
   UserProfile,
+} from "../types";
+
 import { auth, db } from "./firebase";
 
 class StorageService {
@@ -224,48 +226,48 @@ class StorageService {
   }
 
   private setupOrderListener(profile: UserProfile) {
-  const ordersRef = collection(db, "orders");
+    const ordersRef = collection(db, "orders");
 
-  let ordersQuery;
+    let ordersQuery;
 
-  if (profile.role === "customer") {
-    ordersQuery = query(
-      ordersRef,
-      where("customerId", "==", profile.id)
-    );
-  } else if (profile.role === "courier") {
-    ordersQuery = query(
-      ordersRef,
-      where("courierId", "==", profile.id)
-    );
-  } else {
-    ordersQuery = ordersRef;
-  }
-
-  this.orderUnsubscribe = onSnapshot(
-    ordersQuery,
-    (snapshot) => {
-      const orders = snapshot.docs.map(
-        (item) =>
-          ({
-            ...item.data(),
-            id: item.id,
-          }) as Order
+    if (profile.role === "customer") {
+      ordersQuery = query(
+        ordersRef,
+        where("customerId", "==", profile.id),
       );
-
-      this.orders = orders;
-
-      this.saveCache();
-      this.notify();
-    },
-    (error) => {
-      console.error(
-        "Sipariş listener hatası:",
-        error
+    } else if (profile.role === "courier") {
+      ordersQuery = query(
+        ordersRef,
+        where("courierId", "==", profile.id),
       );
+    } else {
+      ordersQuery = ordersRef;
     }
-  );
-}
+
+    this.orderUnsubscribe = onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        const orders = snapshot.docs.map(
+          (item) =>
+            ({
+              ...item.data(),
+              id: item.id,
+            }) as Order,
+        );
+
+        this.orders = orders;
+
+        this.saveCache();
+        this.notify();
+      },
+      (error) => {
+        console.error(
+          "Sipariş listener hatası:",
+          error,
+        );
+      },
+    );
+  }
 
   getCurrentUser() {
     return this.currentUser;
@@ -298,94 +300,14 @@ class StorageService {
   }
 
   async createOrder(data: Partial<Order>) {
-  const firebaseUser = auth.currentUser;
+    const firebaseUser = auth.currentUser;
 
-  if (!firebaseUser) {
-    throw new Error(
-      "Firebase oturumu bulunamadı. Lütfen tekrar giriş yapın."
-    );
-  }
+    if (!firebaseUser) {
+      throw new Error(
+        "Firebase oturumu bulunamadı. Lütfen tekrar giriş yapın.",
+      );
+    }
 
-  const customerId =
-    this.currentUser?.role === "customer"
-      ? firebaseUser.uid
-      : data.customerId ||
-        this.currentUser?.id ||
-        firebaseUser.uid;
-
-  const orderId =
-    data.id ||
-    `order_${Date.now()}_${Math.random()
-      .toString(36)
-      .substring(2, 9)}`;
-
-  const now = new Date().toISOString();
-
-  // undefined alanları Firestore'a göndermiyoruz
-  const cleanData = Object.fromEntries(
-    Object.entries(data).filter(
-      ([, value]) => value !== undefined
-    )
-  );
-
-  const order = {
-    ...cleanData,
-    id: orderId,
-    customerId,
-    courierId: data.courierId ?? null,
-    status: data.status || "Kurye Bekleniyor",
-    createdAt: data.createdAt || now,
-    updatedAt: now,
-  } as Order;
-
-  // Müşteri sipariş oluşturuyorsa Auth UID kesin olarak kullanılır
-  if (this.currentUser?.role === "customer") {
-    order.customerId = firebaseUser.uid;
-  }
-
-  try {
-    const orderRef = doc(
-      db,
-      "orders",
-      orderId
-    );
-
-    await setDoc(orderRef, order);
-
-    console.log(
-      "SİPARİŞ BAŞARIYLA KAYDEDİLDİ:",
-      order
-    );
-
-    this.orders = [
-      order,
-      ...this.orders.filter(
-        (item) => item.id !== orderId
-      ),
-    ];
-
-    this.saveCache();
-    this.notify();
-
-    return order;
-  } catch (error: any) {
-    console.error(
-      "SİPARİŞ FIRESTORE HATASI:",
-      error
-    );
-
-    throw new Error(
-      error?.message ||
-        "Sipariş Firestore'a kaydedilemedi."
-    );
-  }
-}
-    /*
-     * MÜŞTERİ SİPARİŞ VERİYORSA:
-     * customerId kesinlikle Firebase Auth UID olacak.
-     *
-     * Firestore Rules bunu kontrol ediyor.
-     */
     const customerId =
       this.currentUser?.role === "customer"
         ? firebaseUser.uid
@@ -401,20 +323,22 @@ class StorageService {
 
     const now = new Date().toISOString();
 
+    const cleanData = Object.fromEntries(
+      Object.entries(data).filter(
+        ([, value]) => value !== undefined,
+      ),
+    );
+
     const order = {
-      ...(data as Order),
+      ...cleanData,
       id: orderId,
       customerId,
       courierId: data.courierId ?? null,
-      status:
-        data.status || "Kurye Bekleniyor",
+      status: data.status || "Kurye Bekleniyor",
       createdAt: data.createdAt || now,
       updatedAt: now,
     } as Order;
 
-    /*
-     * Customer için tekrar kesin UID.
-     */
     if (this.currentUser?.role === "customer") {
       order.customerId = firebaseUser.uid;
     }
@@ -426,22 +350,13 @@ class StorageService {
         orderId,
       );
 
-      /*
-       * MERGE FALSE:
-       * Yeni siparişte eski/veri kalıntısı bırakmaz.
-       */
-      await setDoc(orderRef, order, {
-        merge: false,
-      });
+      await setDoc(orderRef, order);
 
       console.log(
         "SİPARİŞ FIRESTORE'A BAŞARIYLA YAZILDI:",
         order,
       );
 
-      /*
-       * Local state.
-       */
       this.orders = [
         order,
         ...this.orders.filter(
@@ -459,9 +374,6 @@ class StorageService {
         error,
       );
 
-      /*
-       * Artık hata gizlenmiyor.
-       */
       throw new Error(
         error?.message ||
           "Sipariş Firestore'a kaydedilemedi.",
@@ -873,13 +785,15 @@ class StorageService {
     this.saveCache();
     this.notify();
   }
-getPricing() {
-  return DEFAULT_PRICING;
-}
 
-getNotifications(userId: string) {
-  return [];
-}
+  getPricing() {
+    return DEFAULT_PRICING;
+  }
+
+  getNotifications(userId: string) {
+    return [];
+  }
+
   getStats() {
     const totalOrders =
       this.orders.length;
