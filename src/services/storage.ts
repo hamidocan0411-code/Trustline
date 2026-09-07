@@ -222,47 +222,48 @@ class StorageService {
   }
 
   private setupOrderListener(profile: UserProfile) {
-    const ordersRef = collection(db, "orders");
+  const ordersRef = collection(db, "orders");
 
-    this.orderUnsubscribe = onSnapshot(
+  let ordersQuery;
+
+  if (profile.role === "customer") {
+    ordersQuery = query(
       ordersRef,
-      (snapshot) => {
-        let orders = snapshot.docs.map(
-          (item) =>
-            ({
-              ...item.data(),
-              id: item.id,
-            }) as Order,
-        );
-
-        if (profile.role === "customer") {
-          orders = orders.filter(
-            (order) =>
-              order.customerId === profile.id,
-          );
-        }
-
-        if (profile.role === "courier") {
-          orders = orders.filter(
-            (order) =>
-              order.courierId === profile.id ||
-              order.status === "Kurye Bekleniyor",
-          );
-        }
-
-        this.orders = orders;
-
-        this.saveCache();
-        this.notify();
-      },
-      (error) => {
-        console.error(
-          "Sipariş listener hatası:",
-          error,
-        );
-      },
+      where("customerId", "==", profile.id)
     );
+  } else if (profile.role === "courier") {
+    ordersQuery = query(
+      ordersRef,
+      where("courierId", "==", profile.id)
+    );
+  } else {
+    ordersQuery = ordersRef;
   }
+
+  this.orderUnsubscribe = onSnapshot(
+    ordersQuery,
+    (snapshot) => {
+      const orders = snapshot.docs.map(
+        (item) =>
+          ({
+            ...item.data(),
+            id: item.id,
+          }) as Order
+      );
+
+      this.orders = orders;
+
+      this.saveCache();
+      this.notify();
+    },
+    (error) => {
+      console.error(
+        "Sipariş listener hatası:",
+        error
+      );
+    }
+  );
+}
 
   getCurrentUser() {
     return this.currentUser;
