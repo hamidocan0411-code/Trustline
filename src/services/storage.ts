@@ -9,7 +9,9 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+
 import { DEFAULT_PRICING } from "../utils/pricing";
+
 import type {
   Courier,
   Customer,
