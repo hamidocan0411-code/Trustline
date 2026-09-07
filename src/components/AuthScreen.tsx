@@ -1,385 +1,281 @@
-import React, { useState } from 'react';
-import {
-  loginUser,
-  registerUser,
-} from '../services/auth';
-
-type AuthMode = 'login' | 'register';
+import React, { useState } from “react”;
+import { loginUser, registerUser } from “../services/auth”;
 
 interface AuthScreenProps {
-  onAuthenticated?: () => void;
+onAuthenticated?: () => void;
 }
 
-export function AuthScreen({
-  onAuthenticated,
-}: AuthScreenProps) {
-  const [mode, setMode] =
-    useState<AuthMode>('login');
+const AuthScreen: React.FC = ({ onAuthenticated }) => {
+const [isRegister, setIsRegister] = useState(false);
 
-  const [name, setName] =
-    useState('');
+const [name, setName] = useState(””);
+const [phone, setPhone] = useState(””);
+const [email, setEmail] = useState(””);
+const [password, setPassword] = useState(””);
 
-  const [phone, setPhone] =
-    useState('');
+const [error, setError] = useState(””);
+const [success, setSuccess] = useState(””);
+const [loading, setLoading] = useState(false);
 
-  const [email, setEmail] =
-    useState('');
+const handleSubmit = async (
+event: React.FormEvent
+) => {
+event.preventDefault();
 
-  const [password, setPassword] =
-    useState('');
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState('');
-
-  const [success, setSuccess] =
-    useState('');
-
-  const isRegister =
-    mode === 'register';
-
-  const handleSubmit = async (
-    event: React.FormEvent
-  ) => {
-    event.preventDefault();
-
-    if (loading) return;
-
-    setError('');
-    setSuccess('');
-
-    if (isRegister && !name.trim()) {
-      setError(
-        'Ad soyad alanı zorunludur.'
-      );
-      return;
+setError("");
+setSuccess("");
+setLoading(true);
+try {
+  if (isRegister) {
+    if (!name.trim()) {
+      throw new Error("Ad soyad alanı zorunludur.");
     }
-
-    if (isRegister && !phone.trim()) {
-      setError(
-        'Telefon numarası zorunludur.'
-      );
-      return;
-    }
-
     if (!email.trim()) {
-      setError(
-        'E-posta adresi zorunludur.'
-      );
-      return;
+      throw new Error("E-posta adresi zorunludur.");
     }
-
-    if (!password) {
-      setError(
-        'Şifre zorunludur.'
-      );
-      return;
-    }
-
     if (password.length < 6) {
-      setError(
-        'Şifre en az 6 karakter olmalıdır.'
+      throw new Error(
+        "Şifre en az 6 karakter olmalıdır."
       );
-      return;
     }
-
-    setLoading(true);
-
-    try {
-      if (isRegister) {
-        const result =
-          await registerUser({
-            name,
-            email,
-            password,
-            phone,
-            role: 'customer',
-          });
-
-        if (!result.success) {
-          setError(
-            result.error ||
-              'Kayıt oluşturulamadı.'
-          );
-          return;
-        }
-
-        setSuccess(
-          'Hesabınız başarıyla oluşturuldu.'
-        );
-
-        onAuthenticated?.();
-      } else {
-        const result =
-          await loginUser(
-            email,
-            password
-          );
-
-        if (!result.success) {
-          setError(
-            result.error ||
-              'Giriş yapılamadı.'
-          );
-          return;
-        }
-
-        onAuthenticated?.();
+    await registerUser(
+      email.trim(),
+      password,
+      name.trim(),
+      phone.trim()
+    );
+    setSuccess(
+      "Hesabınız başarıyla oluşturuldu."
+    );
+    setPassword("");
+    onAuthenticated?.();
+  } else {
+    if (!email.trim()) {
+      throw new Error("E-posta adresi zorunludur.");
+    }
+    if (!password) {
+      throw new Error("Şifre zorunludur.");
+    }
+    await loginUser(
+      email.trim(),
+      password
+    );
+    onAuthenticated?.();
+  }
+} catch (err: any) {
+  console.error(
+    "Trustline authentication error:",
+    err
+  );
+  let message =
+    "İşlem sırasında bir hata oluştu.";
+  switch (err?.code) {
+    case "auth/email-already-in-use":
+      message =
+        "Bu e-posta adresi zaten kayıtlı.";
+      break;
+    case "auth/invalid-email":
+      message =
+        "Geçerli bir e-posta adresi girin.";
+      break;
+    case "auth/weak-password":
+      message =
+        "Şifre en az 6 karakter olmalıdır.";
+      break;
+    case "auth/invalid-credential":
+    case "auth/wrong-password":
+    case "auth/user-not-found":
+      message =
+        "E-posta veya şifre hatalı.";
+      break;
+    case "auth/operation-not-allowed":
+      message =
+        "E-posta/şifre ile giriş Firebase'de etkin değil.";
+      break;
+    case "auth/network-request-failed":
+      message =
+        "İnternet bağlantısı kurulamadı. Lütfen tekrar deneyin.";
+      break;
+    case "auth/too-many-requests":
+      message =
+        "Çok fazla başarısız deneme yapıldı. Lütfen biraz sonra tekrar deneyin.";
+      break;
+    default:
+      if (err?.message) {
+        message = err.message;
+      } else if (typeof err === "string") {
+        message = err;
       }
-    } catch (err) {
-      console.error(
-        'Auth işlemi başarısız:',
-        err
-      );
+  }
+  setError(message);
+} finally {
+  setLoading(false);
+}
 
-      setError(
-        'Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+};
 
-  const switchMode = (
-    nextMode: AuthMode
-  ) => {
-    setMode(nextMode);
-    setError('');
-    setSuccess('');
-  };
+const switchMode = () => {
+setIsRegister((current) => !current);
+setError(””);
+setSuccess(””);
+};
 
-  return (
-    <div className="min-h-screen bg-[#0B0B0D] text-white flex items-center justify-center px-4 py-8">
-
-      <div className="w-full max-w-md">
-
-        {/* BRAND */}
-        <div className="text-center mb-8">
-
-          <div className="w-20 h-20 rounded-[26px] bg-[#D6A84F] flex items-center justify-center mx-auto shadow-[0_0_45px_rgba(214,168,79,0.18)]">
-            <span className="text-[#0B0B0D] text-4xl font-black">
-              T
-            </span>
-          </div>
-
-          <h1 className="text-2xl font-black mt-5 tracking-tight">
-            TRUSTLINE
-          </h1>
-
-          <p className="text-[#D6A84F] text-[11px] font-bold tracking-[0.3em] mt-1">
-            EXPRESS
-          </p>
-
-          <p className="text-[#777777] text-sm mt-4">
-            Profesyonel şehir içi kurye hizmeti
-          </p>
-
+return (
+T
+      <h1 className="text-3xl font-black tracking-tight">
+        Trustline Express
+      </h1>
+      <p className="text-slate-400 mt-2">
+        Güvenli ve hızlı kurye yönetimi
+      </p>
+    </div>
+    <div className="bg-white text-slate-900 rounded-3xl shadow-2xl p-6 sm:p-8">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold">
+          {isRegister
+            ? "Hesap Oluştur"
+            : "Giriş Yap"}
+        </h2>
+        <p className="text-sm text-slate-500 mt-1">
+          {isRegister
+            ? "Trustline Express hesabınızı oluşturun."
+            : "Hesabınıza devam etmek için giriş yapın."}
+        </p>
+      </div>
+      {error && (
+        <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
         </div>
-
-        {/* CARD */}
-        <div className="bg-[#19191E] border border-[#303036] rounded-[28px] p-5 sm:p-7 shadow-2xl">
-
-          {/* TABS */}
-          <div className="grid grid-cols-2 gap-1 bg-[#0F0F12] rounded-2xl p-1 mb-6">
-
-            <button
-              type="button"
-              onClick={() =>
-                switchMode('login')
-              }
-              className={`rounded-xl py-3 text-sm font-bold transition ${
-                mode === 'login'
-                  ? 'bg-[#D6A84F] text-[#0B0B0D]'
-                  : 'text-[#888888] hover:text-white'
-              }`}
+      )}
+      {success && (
+        <div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          {success}
+        </div>
+      )}
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4"
+      >
+        {isRegister && (
+          <div>
+            <label
+              htmlFor="name"
+              className="block text-sm font-semibold text-slate-700 mb-1.5"
             >
-              Giriş Yap
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                switchMode('register')
+              Ad Soyad
+            </label>
+            <input
+              id="name"
+              type="text"
+              value={name}
+              onChange={(e) =>
+                setName(e.target.value)
               }
-              className={`rounded-xl py-3 text-sm font-bold transition ${
-                mode === 'register'
-                  ? 'bg-[#D6A84F] text-[#0B0B0D]'
-                  : 'text-[#888888] hover:text-white'
-              }`}
-            >
-              Kayıt Ol
-            </button>
-
-          </div>
-
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-4"
-          >
-
-            {/* NAME */}
-            {isRegister && (
-              <div>
-                <label className="block text-xs text-[#999999] mb-2">
-                  Ad Soyad
-                </label>
-
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(event) =>
-                    setName(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Adınız Soyadınız"
-                  autoComplete="name"
-                  className="w-full h-12 rounded-xl bg-[#222229] border border-[#303036] px-4 text-sm text-white placeholder:text-[#555555] outline-none focus:border-[#D6A84F] transition"
-                />
-              </div>
-            )}
-
-            {/* PHONE */}
-            {isRegister && (
-              <div>
-                <label className="block text-xs text-[#999999] mb-2">
-                  Telefon
-                </label>
-
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(event) =>
-                    setPhone(
-                      event.target.value
-                    )
-                  }
-                  placeholder="05XX XXX XX XX"
-                  autoComplete="tel"
-                  className="w-full h-12 rounded-xl bg-[#222229] border border-[#303036] px-4 text-sm text-white placeholder:text-[#555555] outline-none focus:border-[#D6A84F] transition"
-                />
-              </div>
-            )}
-
-            {/* EMAIL */}
-            <div>
-              <label className="block text-xs text-[#999999] mb-2">
-                E-posta
-              </label>
-
-              <input
-                type="email"
-                value={email}
-                onChange={(event) =>
-                  setEmail(
-                    event.target.value
-                  )
-                }
-                placeholder="ornek@mail.com"
-                autoComplete="email"
-                className="w-full h-12 rounded-xl bg-[#222229] border border-[#303036] px-4 text-sm text-white placeholder:text-[#555555] outline-none focus:border-[#D6A84F] transition"
-              />
-            </div>
-
-            {/* PASSWORD */}
-            <div>
-              <label className="block text-xs text-[#999999] mb-2">
-                Şifre
-              </label>
-
-              <input
-                type="password"
-                value={password}
-                onChange={(event) =>
-                  setPassword(
-                    event.target.value
-                  )
-                }
-                placeholder="En az 6 karakter"
-                autoComplete={
-                  isRegister
-                    ? 'new-password'
-                    : 'current-password'
-                }
-                className="w-full h-12 rounded-xl bg-[#222229] border border-[#303036] px-4 text-sm text-white placeholder:text-[#555555] outline-none focus:border-[#D6A84F] transition"
-              />
-            </div>
-
-            {/* ERROR */}
-            {error && (
-              <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3">
-                <p className="text-red-300 text-xs leading-relaxed">
-                  {error}
-                </p>
-              </div>
-            )}
-
-            {/* SUCCESS */}
-            {success && (
-              <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3">
-                <p className="text-emerald-300 text-xs leading-relaxed">
-                  {success}
-                </p>
-              </div>
-            )}
-
-            {/* SUBMIT */}
-            <button
-              type="submit"
+              placeholder="Adınız Soyadınız"
+              autoComplete="name"
               disabled={loading}
-              className="w-full h-13 rounded-xl bg-[#D6A84F] text-[#0B0B0D] font-black text-sm hover:brightness-105 transition disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-            >
-              {loading
-                ? 'Lütfen bekleyin...'
-                : isRegister
-                ? 'Hesap Oluştur'
-                : 'Giriş Yap'}
-            </button>
-
-          </form>
-
-          {/* FOOTER */}
-          <div className="mt-6 text-center">
-
-            <p className="text-[#555555] text-[10px] leading-relaxed">
-              Trustline Express V1
-            </p>
-
-            <p className="text-[#444444] text-[10px] mt-1">
-              Güvenli Firebase Authentication
-            </p>
-
-          </div>
-
-        </div>
-
-        {/* TRUST */}
-        <div className="mt-5 flex items-center justify-center gap-2 text-[#555555]">
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-          >
-            <path
-              d="M12 3l7 4v5c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9V7l7-4z"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-100"
             />
-          </svg>
-
-          <span className="text-[10px]">
-            Güvenli hesap sistemi
-          </span>
+          </div>
+        )}
+        {isRegister && (
+          <div>
+            <label
+              htmlFor="phone"
+              className="block text-sm font-semibold text-slate-700 mb-1.5"
+            >
+              Telefon
+            </label>
+            <input
+              id="phone"
+              type="tel"
+              value={phone}
+              onChange={(e) =>
+                setPhone(e.target.value)
+              }
+              placeholder="05XX XXX XX XX"
+              autoComplete="tel"
+              disabled={loading}
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-100"
+            />
+          </div>
+        )}
+        <div>
+          <label
+            htmlFor="email"
+            className="block text-sm font-semibold text-slate-700 mb-1.5"
+          >
+            E-posta
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) =>
+              setEmail(e.target.value)
+            }
+            placeholder="ornek@email.com"
+            autoComplete="email"
+            disabled={loading}
+            className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-100"
+          />
         </div>
-
+        <div>
+          <label
+            htmlFor="password"
+            className="block text-sm font-semibold text-slate-700 mb-1.5"
+          >
+            Şifre
+          </label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) =>
+              setPassword(e.target.value)
+            }
+            placeholder="En az 6 karakter"
+            autoComplete={
+              isRegister
+                ? "new-password"
+                : "current-password"
+            }
+            disabled={loading}
+            className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-100"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-xl bg-slate-950 text-white font-bold py-3.5 transition hover:bg-slate-800 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {loading
+            ? "Lütfen bekleyin..."
+            : isRegister
+            ? "Hesap Oluştur"
+            : "Giriş Yap"}
+        </button>
+      </form>
+      <div className="mt-6 text-center">
+        <button
+          type="button"
+          onClick={switchMode}
+          disabled={loading}
+          className="text-sm font-semibold text-slate-700 hover:text-slate-950 disabled:opacity-50"
+        >
+          {isRegister
+            ? "Zaten hesabınız var mı? Giriş yapın"
+            : "Hesabınız yok mu? Kayıt olun"}
+        </button>
       </div>
     </div>
-  );
-}
+    <p className="text-center text-xs text-slate-500 mt-6">
+      Trustline Express V1
+    </p>
+  </div>
+</div>
+
+);
+};
 
 export default AuthScreen;
