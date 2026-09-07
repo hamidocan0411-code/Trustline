@@ -1,173 +1,271 @@
-import React from 'react';
-import {
-  Award,
-  CheckCircle2,
-  LogOut,
-  Mail,
-  MapPin,
-  Phone,
-  Shield,
-  Star,
-  Truck,
-  User,
-  Zap,
-} from 'lucide-react';
-import { UserProfile } from '../types';
-import { SEED_ADMIN, SEED_COURIERS, SEED_CUSTOMERS } from '../data/seedData';
+import React, { useState } from 'react';
+import type { UserProfile } from '../types';
+import { logoutUser } from '../services/auth';
 
-interface Props {
+interface ProfileViewProps {
   currentUser: UserProfile;
-  onSwitchUser: (user: UserProfile) => void;
+  onSwitchUser?: () => void;
 }
 
-export const ProfileView: React.FC<Props> = ({ currentUser, onSwitchUser }) => {
+export function ProfileView({
+  currentUser,
+}: ProfileViewProps) {
+  const [loggingOut, setLoggingOut] =
+    useState(false);
+
+  const [error, setError] =
+    useState('');
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+
+    setError('');
+    setLoggingOut(true);
+
+    try {
+      await logoutUser();
+    } catch (err) {
+      console.error(
+        'Çıkış yapılamadı:',
+        err
+      );
+
+      setError(
+        'Çıkış yapılırken bir hata oluştu. Lütfen tekrar deneyin.'
+      );
+
+      setLoggingOut(false);
+    }
+  };
+
+  const roleLabel =
+    currentUser.role === 'admin'
+      ? 'Yönetici'
+      : currentUser.role === 'courier'
+      ? 'Kurye'
+      : 'Müşteri';
+
+  const initial =
+    currentUser.name
+      ?.trim()
+      ?.charAt(0)
+      ?.toUpperCase() || 'T';
+
   return (
-    <div className="space-y-5 pb-20 max-w-2xl mx-auto animate-fadeIn">
-      {/* Profile Card */}
-      <div className="bg-[#19191E] border border-[#303036] rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
-          <div className="w-20 h-20 rounded-3xl bg-[#222229] border-2 border-[#D6A84F] p-1 flex items-center justify-center shrink-0 overflow-hidden shadow-lg shadow-[#D6A84F]/10">
+    <div className="w-full max-w-3xl mx-auto pb-24">
+
+      {/* HEADER */}
+      <div className="mb-6">
+        <p className="text-[#D6A84F] text-xs font-bold tracking-[0.2em] uppercase">
+          Hesabım
+        </p>
+
+        <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">
+          Profil
+        </h1>
+
+        <p className="text-[#777777] text-sm mt-2">
+          Trustline Express hesabınızı yönetin.
+        </p>
+      </div>
+
+      {/* PROFILE CARD */}
+      <div className="bg-[#19191E] border border-[#303036] rounded-3xl p-5 sm:p-6">
+
+        <div className="flex items-center gap-4">
+
+          {/* AVATAR */}
+          <div className="w-16 h-16 rounded-2xl overflow-hidden bg-[#222229] border border-[#3A3A42] flex items-center justify-center shrink-0">
+
             {currentUser.avatar ? (
               <img
                 src={currentUser.avatar}
                 alt={currentUser.name}
-                className="w-full h-full object-cover rounded-2xl"
+                className="w-full h-full object-cover"
               />
             ) : (
-              <User className="w-10 h-10 text-[#D6A84F]" />
+              <span className="text-[#D6A84F] font-black text-2xl">
+                {initial}
+              </span>
             )}
+
           </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <h2 className="text-xl font-black text-white font-['Space_Grotesk']">
-                {currentUser.name}
-              </h2>
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#D6A84F]/15 border border-[#D6A84F]/40 text-[#D6A84F] uppercase">
-                {currentUser.role === 'customer'
-                  ? 'Müşteri Hesabı'
-                  : currentUser.role === 'courier'
-                  ? 'Kurye Hesabı'
-                  : 'Sistem Yöneticisi'}
-              </span>
-            </div>
+          {/* NAME */}
+          <div className="min-w-0">
+            <h2 className="text-white font-black text-lg truncate">
+              {currentUser.name}
+            </h2>
 
-            <p className="text-xs text-[#999999] mt-1">
-              Trustline Express Onaylı Kullanıcı Profili
+            <p className="text-[#888888] text-sm truncate">
+              {currentUser.email}
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 text-xs text-slate-300">
-              <div className="flex items-center justify-center sm:justify-start gap-2 bg-[#222229] p-2.5 rounded-xl border border-[#303036]/60">
-                <Phone className="w-3.5 h-3.5 text-[#D6A84F]" />
-                <span className="font-mono">{currentUser.phone}</span>
-              </div>
-              <div className="flex items-center justify-center sm:justify-start gap-2 bg-[#222229] p-2.5 rounded-xl border border-[#303036]/60">
-                <Mail className="w-3.5 h-3.5 text-sky-400" />
-                <span className="truncate">{currentUser.email}</span>
-              </div>
+            <div className="inline-flex mt-2 px-2.5 py-1 rounded-full bg-[#D6A84F]/10 border border-[#D6A84F]/20">
+              <span className="text-[#D6A84F] text-[10px] font-bold">
+                {roleLabel}
+              </span>
+            </div>
+          </div>
+
+        </div>
+
+        {/* USER INFORMATION */}
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+          <div className="rounded-2xl bg-[#222229] border border-[#303036] p-4">
+            <p className="text-[#666666] text-[10px] uppercase tracking-wider">
+              Ad Soyad
+            </p>
+
+            <p className="text-white text-sm font-semibold mt-1">
+              {currentUser.name || '-'}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-[#222229] border border-[#303036] p-4">
+            <p className="text-[#666666] text-[10px] uppercase tracking-wider">
+              Telefon
+            </p>
+
+            <p className="text-white text-sm font-semibold mt-1">
+              {currentUser.phone || '-'}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-[#222229] border border-[#303036] p-4">
+            <p className="text-[#666666] text-[10px] uppercase tracking-wider">
+              E-posta
+            </p>
+
+            <p className="text-white text-sm font-semibold mt-1 break-all">
+              {currentUser.email || '-'}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-[#222229] border border-[#303036] p-4">
+            <p className="text-[#666666] text-[10px] uppercase tracking-wider">
+              Hesap Türü
+            </p>
+
+            <p className="text-white text-sm font-semibold mt-1">
+              {roleLabel}
+            </p>
+          </div>
+
+        </div>
+
+        {/* COURIER INFORMATION */}
+        {currentUser.role === 'courier' && (
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+            <div className="rounded-2xl bg-[#222229] border border-[#303036] p-4">
+              <p className="text-[#666666] text-[10px] uppercase tracking-wider">
+                Araç
+              </p>
+
+              <p className="text-white text-sm font-semibold mt-1">
+                {currentUser.vehicle || '-'}
+              </p>
             </div>
 
-            {currentUser.role === 'courier' && (
-              <div className="mt-3 bg-[#0B0B0D] p-3 rounded-xl border border-[#303036] flex items-center justify-between text-xs">
-                <div>
-                  <span className="text-[10px] text-[#999999] block">Araç ve Plaka</span>
-                  <span className="text-white font-bold">{currentUser.vehicle || 'Motosiklet'}</span>
-                </div>
-                <span className="text-[#D6A84F] font-mono font-bold">{currentUser.plate}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+            <div className="rounded-2xl bg-[#222229] border border-[#303036] p-4">
+              <p className="text-[#666666] text-[10px] uppercase tracking-wider">
+                Plaka
+              </p>
 
-      {/* Account Switching (For immediate demo and QA testing) */}
-      <div className="bg-[#19191E] border border-[#303036] rounded-3xl p-5 shadow-xl space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-white">Örnek Demo Hesaplar Arası Geçiş</h3>
-          <p className="text-xs text-[#999999] mt-0.5">
-            Müşteri, Kurye veya Admin rollerini doğrudan deneyimlemek için aşağıdaki hesaplardan birini seçebilirsiniz.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-[11px] font-bold text-[#D6A84F] uppercase tracking-wider">
-            Yönetici (Admin)
-          </p>
-          <button
-            onClick={() => onSwitchUser(SEED_ADMIN)}
-            className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition-colors ${
-              currentUser.id === SEED_ADMIN.id
-                ? 'bg-[#D6A84F]/15 border-[#D6A84F] text-white'
-                : 'bg-[#222229] border-[#303036] text-[#999999] hover:text-white'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Shield className="w-5 h-5 text-[#D6A84F]" />
-              <div>
-                <span className="text-xs font-bold text-white block">{SEED_ADMIN.name}</span>
-                <span className="text-[11px] text-[#999999]">{SEED_ADMIN.email}</span>
-              </div>
+              <p className="text-white text-sm font-semibold mt-1">
+                {currentUser.plate || '-'}
+              </p>
             </div>
-            {currentUser.id === SEED_ADMIN.id && (
-              <span className="text-xs text-[#D6A84F] font-bold">Aktif ✓</span>
-            )}
-          </button>
+
+          </div>
+        )}
+
+        {/* COURIER STATS */}
+        {currentUser.role === 'courier' && (
+          <div className="mt-3 grid grid-cols-2 gap-3">
+
+            <div className="rounded-2xl bg-[#222229] border border-[#303036] p-4 text-center">
+              <p className="text-[#D6A84F] text-xl font-black">
+                {currentUser.totalDeliveries ?? 0}
+              </p>
+
+              <p className="text-[#666666] text-[10px] mt-1">
+                Teslimat
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-[#222229] border border-[#303036] p-4 text-center">
+              <p className="text-[#D6A84F] text-xl font-black">
+                {currentUser.rating
+                  ? currentUser.rating.toFixed(1)
+                  : '0.0'}
+              </p>
+
+              <p className="text-[#666666] text-[10px] mt-1">
+                Puan
+              </p>
+            </div>
+
+          </div>
+        )}
+
+        {/* ACCOUNT ID */}
+        <div className="mt-3 rounded-2xl bg-[#222229] border border-[#303036] p-4">
+          <p className="text-[#666666] text-[10px] uppercase tracking-wider">
+            Hesap ID
+          </p>
+
+          <p className="text-[#999999] text-xs font-mono mt-1 break-all">
+            {currentUser.id}
+          </p>
         </div>
 
-        <div className="space-y-2">
-          <p className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
-            Kuryeler
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {SEED_COURIERS.map((courier) => (
-              <button
-                key={courier.id}
-                onClick={() => onSwitchUser(courier)}
-                className={`p-3 rounded-2xl border text-left flex items-center justify-between transition-colors ${
-                  currentUser.id === courier.id
-                    ? 'bg-emerald-500/15 border-emerald-500 text-white'
-                    : 'bg-[#222229] border-[#303036] text-[#999999] hover:text-white'
-                }`}
-              >
-                <div className="truncate">
-                  <span className="text-xs font-bold text-white block truncate">{courier.name}</span>
-                  <span className="text-[10px] text-emerald-400 font-mono">{courier.plate}</span>
-                </div>
-                {currentUser.id === courier.id && (
-                  <span className="text-xs text-emerald-400 font-bold shrink-0">Aktif</span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-[11px] font-bold text-sky-400 uppercase tracking-wider">
-            Müşteriler
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {SEED_CUSTOMERS.map((cust) => (
-              <button
-                key={cust.id}
-                onClick={() => onSwitchUser(cust)}
-                className={`p-3 rounded-2xl border text-left flex items-center justify-between transition-colors ${
-                  currentUser.id === cust.id
-                    ? 'bg-sky-500/15 border-sky-500 text-white'
-                    : 'bg-[#222229] border-[#303036] text-[#999999] hover:text-white'
-                }`}
-              >
-                <div className="truncate">
-                  <span className="text-xs font-bold text-white block truncate">{cust.name}</span>
-                  <span className="text-[10px] text-[#999999] font-mono">{cust.phone}</span>
-                </div>
-                {currentUser.id === cust.id && (
-                  <span className="text-xs text-sky-400 font-bold shrink-0">Aktif</span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
+
+      {/* ERROR */}
+      {error && (
+        <div className="mt-4 rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3">
+          <p className="text-red-300 text-sm">
+            {error}
+          </p>
+        </div>
+      )}
+
+      {/* ACCOUNT ACTIONS */}
+      <div className="mt-5 bg-[#19191E] border border-[#303036] rounded-3xl p-5">
+
+        <h3 className="text-white font-bold text-sm">
+          Hesap İşlemleri
+        </h3>
+
+        <p className="text-[#777777] text-xs mt-1">
+          Bu cihazdaki Trustline Express oturumunuzu yönetin.
+        </p>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="w-full mt-5 rounded-2xl bg-red-500/10 border border-red-500/20 hover:bg-red-500/15 text-red-300 font-bold text-sm py-4 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loggingOut
+            ? 'Çıkış yapılıyor...'
+            : 'Çıkış Yap'}
+        </button>
+
+      </div>
+
+      {/* V1 INFO */}
+      <div className="mt-4 text-center">
+        <p className="text-[#555555] text-[10px]">
+          Trustline Express V1
+        </p>
+      </div>
+
     </div>
   );
-};
+}
+
+export default ProfileView;
