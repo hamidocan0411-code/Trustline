@@ -1,9 +1,9 @@
 {
-  "apiKey": "BURAYA_API_KEY_GELECEK",
+  "apiKey": "BURAYA_GERÇEK_API_KEY_DEĞERINI_YAPIŞTIR",
   "authDomain": "trustline-8729d.firebaseapp.com",
   "projectId": "trustline-8729d",
-  "storageBucket": "trustline-8729d.firebasestorage.app",
+  "storageBucket": "trustline-8729dfirebasestorage.app",
   "messagingSenderId": "95555518174",
-  "appId": "BURAYA_APP_ID_GELECEK",
+  "appId": "BURAYA_GERÇEK_APP_ID_DEĞERINI_YAPIŞTIR",
   "measurementId": "G-RRLL4QMFXP"
 }
