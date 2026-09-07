@@ -9,7 +9,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import { DEFAULT_PRICING } from "../utils/pricing";
 import type {
   Courier,
   Customer,
@@ -797,10 +797,7 @@ class StorageService {
     this.notify();
   }
 getPricing() {
-  return {
-    basePrice: 0,
-    pricePerKm: 0,
-  };
+  return DEFAULT_PRICING;
 }
 
 getNotifications(userId: string) {
