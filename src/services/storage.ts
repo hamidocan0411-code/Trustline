@@ -12,7 +12,7 @@ import {
 
 import {
   createUserWithEmailAndPassword,
-  deleteUser,
+  deleteUser as deleteAuthUser,
   getAuth,
   signOut,
   type User,
@@ -65,15 +65,15 @@ class StorageService {
   // LISTENERS
   // =====================================================
 
-  subscribe(listener: () => void) {
+  subscribe = (listener: () => void) => {
     this.listeners.add(listener);
 
     return () => {
       this.listeners.delete(listener);
     };
-  }
+  };
 
-  private notify() {
+  private notify = () => {
     this.listeners.forEach((listener) => {
       try {
         listener();
@@ -81,13 +81,13 @@ class StorageService {
         console.error("Listener hatası:", error);
       }
     });
-  }
+  };
 
   // =====================================================
   // CACHE
   // =====================================================
 
-  private saveCache() {
+  private saveCache = () => {
     try {
       localStorage.setItem(
         this.cacheKey,
@@ -99,9 +99,9 @@ class StorageService {
     } catch (error) {
       console.error("Cache kaydedilemedi:", error);
     }
-  }
+  };
 
-  private loadCache() {
+  private loadCache = () => {
     try {
       const raw = localStorage.getItem(this.cacheKey);
 
@@ -119,13 +119,15 @@ class StorageService {
     } catch (error) {
       console.error("Cache okunamadı:", error);
     }
-  }
+  };
 
   // =====================================================
   // INITIALIZE
   // =====================================================
 
-  async initializeForUser(profile: UserProfile) {
+  initializeForUser = async (
+    profile: UserProfile,
+  ) => {
     this.currentUser = profile;
 
     this.loadCache();
@@ -142,9 +144,9 @@ class StorageService {
     }
 
     this.notify();
-  }
+  };
 
-  private cleanupListeners() {
+  private cleanupListeners = () => {
     if (this.userUnsubscribe) {
       this.userUnsubscribe();
       this.userUnsubscribe = null;
@@ -159,14 +161,23 @@ class StorageService {
       this.adminUsersUnsubscribe();
       this.adminUsersUnsubscribe = null;
     }
-  }
+  };
 
-  private async ensureUserProfile(profile: UserProfile) {
+  private ensureUserProfile = async (
+    profile: UserProfile,
+  ) => {
     if (!profile?.id) return;
 
     try {
-      const userRef = doc(db, "users", profile.id);
-      const snapshot = await getDoc(userRef);
+      const userRef = doc(
+        db,
+        "users",
+        profile.id,
+      );
+
+      const snapshot = await getDoc(
+        userRef,
+      );
 
       if (!snapshot.exists()) {
         await setDoc(
@@ -174,7 +185,8 @@ class StorageService {
           {
             ...profile,
             id: profile.id,
-            updatedAt: new Date().toISOString(),
+            updatedAt:
+              new Date().toISOString(),
           },
           {
             merge: true,
@@ -187,174 +199,227 @@ class StorageService {
         error,
       );
     }
-  }
+  };
 
   // =====================================================
   // USER LISTENER
   // =====================================================
 
-  private setupUserListener(profile: UserProfile) {
+  private setupUserListener = (
+    profile: UserProfile,
+  ) => {
     if (!profile?.id) return;
 
-    const userRef = doc(db, "users", profile.id);
-
-    this.userUnsubscribe = onSnapshot(
-      userRef,
-      (snapshot) => {
-        if (!snapshot.exists()) return;
-
-        const user = {
-          ...snapshot.data(),
-          id: profile.id,
-        } as UserProfile;
-
-        this.currentUser = {
-          ...this.currentUser,
-          ...user,
-        } as UserProfile;
-
-        const index = this.users.findIndex(
-          (item) => item.id === profile.id,
-        );
-
-        if (index >= 0) {
-          this.users[index] = this.currentUser;
-        } else {
-          this.users.push(this.currentUser);
-        }
-
-        this.saveCache();
-        this.notify();
-      },
-      (error) => {
-        console.error(
-          "Kullanıcı listener hatası:",
-          error,
-        );
-      },
+    const userRef = doc(
+      db,
+      "users",
+      profile.id,
     );
-  }
+
+    this.userUnsubscribe =
+      onSnapshot(
+        userRef,
+        (snapshot) => {
+          if (!snapshot.exists()) return;
+
+          const user = {
+            ...snapshot.data(),
+            id: profile.id,
+          } as UserProfile;
+
+          this.currentUser = {
+            ...this.currentUser,
+            ...user,
+          } as UserProfile;
+
+          const index =
+            this.users.findIndex(
+              (item) =>
+                item.id === profile.id,
+            );
+
+          if (index >= 0) {
+            this.users[index] =
+              this.currentUser;
+          } else {
+            this.users.push(
+              this.currentUser,
+            );
+          }
+
+          this.saveCache();
+          this.notify();
+        },
+        (error) => {
+          console.error(
+            "Kullanıcı listener hatası:",
+            error,
+          );
+        },
+      );
+  };
 
   // =====================================================
   // ADMIN USERS LISTENER
   // =====================================================
 
-  private setupAdminUsersListener() {
-    const usersRef = collection(db, "users");
-
-    this.adminUsersUnsubscribe = onSnapshot(
-      usersRef,
-      (snapshot) => {
-        const users = snapshot.docs.map(
-          (item) =>
-            ({
-              ...item.data(),
-              id: item.id,
-            }) as UserProfile,
+  private setupAdminUsersListener =
+    () => {
+      const usersRef =
+        collection(
+          db,
+          "users",
         );
 
-        this.users = users;
+      this.adminUsersUnsubscribe =
+        onSnapshot(
+          usersRef,
+          (snapshot) => {
+            const users =
+              snapshot.docs.map(
+                (item) =>
+                  ({
+                    ...item.data(),
+                    id: item.id,
+                  }) as UserProfile,
+              );
 
-        this.saveCache();
-        this.notify();
-      },
-      (error) => {
-        console.error(
-          "Admin kullanıcı listesi hatası:",
-          error,
+            this.users = users;
+
+            this.saveCache();
+            this.notify();
+          },
+          (error) => {
+            console.error(
+              "Admin kullanıcı listesi hatası:",
+              error,
+            );
+          },
         );
-      },
-    );
-  }
+    };
 
   // =====================================================
   // ORDER LISTENER
   // =====================================================
 
-  private setupOrderListener(profile: UserProfile) {
-    const ordersRef = collection(db, "orders");
-
-    let ordersQuery;
-
-    if (profile.role === "customer") {
-      ordersQuery = query(
-        ordersRef,
-        where("customerId", "==", profile.id),
-      );
-    } else if (profile.role === "courier") {
-      ordersQuery = query(
-        ordersRef,
-        where("courierId", "==", profile.id),
-      );
-    } else {
-      ordersQuery = ordersRef;
-    }
-
-    this.orderUnsubscribe = onSnapshot(
-      ordersQuery,
-      (snapshot) => {
-        const orders = snapshot.docs.map(
-          (item) =>
-            ({
-              ...item.data(),
-              id: item.id,
-            }) as Order,
+  private setupOrderListener =
+    (
+      profile: UserProfile,
+    ) => {
+      const ordersRef =
+        collection(
+          db,
+          "orders",
         );
 
-        this.orders = orders;
+      let ordersQuery;
 
-        this.saveCache();
-        this.notify();
-      },
-      (error) => {
-        console.error(
-          "Sipariş listener hatası:",
-          error,
+      if (
+        profile.role ===
+        "customer"
+      ) {
+        ordersQuery = query(
+          ordersRef,
+          where(
+            "customerId",
+            "==",
+            profile.id,
+          ),
         );
-      },
-    );
-  }
+      } else if (
+        profile.role ===
+        "courier"
+      ) {
+        ordersQuery = query(
+          ordersRef,
+          where(
+            "courierId",
+            "==",
+            profile.id,
+          ),
+        );
+      } else {
+        ordersQuery = ordersRef;
+      }
+
+      this.orderUnsubscribe =
+        onSnapshot(
+          ordersQuery,
+          (snapshot) => {
+            const orders =
+              snapshot.docs.map(
+                (item) =>
+                  ({
+                    ...item.data(),
+                    id: item.id,
+                  }) as Order,
+              );
+
+            this.orders =
+              orders;
+
+            this.saveCache();
+            this.notify();
+          },
+          (error) => {
+            console.error(
+              "Sipariş listener hatası:",
+              error,
+            );
+          },
+        );
+    };
 
   // =====================================================
   // GETTERS
   // =====================================================
 
-  getCurrentUser() {
+  getCurrentUser = () => {
     return this.currentUser;
-  }
+  };
 
-  getOrders() {
+  getOrders = () => {
     return [...this.orders];
-  }
+  };
 
-  getCustomers(): Customer[] {
+  getCustomers = (): Customer[] => {
     return this.users.filter(
-      (user) => user.role === "customer",
+      (user) =>
+        user.role ===
+        "customer",
     ) as Customer[];
-  }
+  };
 
-  getCouriers(): Courier[] {
+  getCouriers = (): Courier[] => {
     return this.users.filter(
-      (user) => user.role === "courier",
+      (user) =>
+        user.role ===
+        "courier",
     ) as Courier[];
-  }
+  };
 
-  getUsers() {
+  getUsers = () => {
     return [...this.users];
-  }
+  };
 
-  getOrderById(id: string) {
+  getOrderById = (
+    id: string,
+  ) => {
     return this.orders.find(
-      (order) => order.id === id,
+      (order) =>
+        order.id === id,
     );
-  }
+  };
 
   // =====================================================
   // CREATE ORDER
   // =====================================================
 
-  async createOrder(data: Partial<Order>) {
-    const firebaseUser = auth.currentUser;
+  createOrder = async (
+    data: Partial<Order>,
+  ) => {
+    const firebaseUser =
+      auth.currentUser;
 
     if (!firebaseUser) {
       throw new Error(
@@ -363,7 +428,8 @@ class StorageService {
     }
 
     const customerId =
-      this.currentUser?.role === "customer"
+      this.currentUser?.role ===
+      "customer"
         ? firebaseUser.uid
         : data.customerId ||
           this.currentUser?.id ||
@@ -375,39 +441,56 @@ class StorageService {
         .toString(36)
         .substring(2, 9)}`;
 
-    const now = new Date().toISOString();
+    const now =
+      new Date().toISOString();
 
-    const cleanData = Object.fromEntries(
-      Object.entries(data).filter(
-        ([, value]) => value !== undefined,
-      ),
-    );
+    const cleanData =
+      Object.fromEntries(
+        Object.entries(data).filter(
+          ([, value]) =>
+            value !== undefined,
+        ),
+      );
 
     const order = {
       ...cleanData,
       id: orderId,
       customerId,
-      courierId: data.courierId ?? null,
+      courierId:
+        data.courierId ?? null,
       status:
-        data.status || "Kurye Bekleniyor",
-      createdAt: data.createdAt || now,
+        data.status ||
+        "Kurye Bekleniyor",
+      createdAt:
+        data.createdAt ||
+        now,
       updatedAt: now,
     } as Order;
 
-    if (this.currentUser?.role === "customer") {
-      order.customerId = firebaseUser.uid;
+    if (
+      this.currentUser?.role ===
+      "customer"
+    ) {
+      order.customerId =
+        firebaseUser.uid;
     }
 
     try {
       await setDoc(
-        doc(db, "orders", orderId),
+        doc(
+          db,
+          "orders",
+          orderId,
+        ),
         order,
       );
 
       this.orders = [
         order,
         ...this.orders.filter(
-          (item) => item.id !== orderId,
+          (item) =>
+            item.id !==
+            orderId,
         ),
       ];
 
@@ -421,7 +504,10 @@ class StorageService {
         error,
       );
 
-      if (error?.code === "permission-denied") {
+      if (
+        error?.code ===
+        "permission-denied"
+      ) {
         throw new Error(
           "Firestore sipariş oluşturma yetkisini reddetti.",
         );
@@ -432,17 +518,18 @@ class StorageService {
           "Sipariş Firestore'a kaydedilemedi.",
       );
     }
-  }
+  };
 
   // =====================================================
   // UPDATE ORDER
   // =====================================================
 
-  async updateOrder(
+  updateOrder = async (
     orderId: string,
     updates: Partial<Order>,
-  ) {
-    const firebaseUser = auth.currentUser;
+  ) => {
+    const firebaseUser =
+      auth.currentUser;
 
     if (!firebaseUser) {
       throw new Error(
@@ -463,7 +550,10 @@ class StorageService {
         orderId,
       );
 
-      const snapshot = await getDoc(orderRef);
+      const snapshot =
+        await getDoc(
+          orderRef,
+        );
 
       if (!snapshot.exists()) {
         throw new Error(
@@ -474,7 +564,10 @@ class StorageService {
       const currentOrder =
         snapshot.data() as Order;
 
-      if (this.currentUser?.role === "courier") {
+      if (
+        this.currentUser?.role ===
+        "courier"
+      ) {
         if (
           currentOrder.courierId !==
           firebaseUser.uid
@@ -485,7 +578,8 @@ class StorageService {
         }
 
         if (
-          updates.courierId !== undefined &&
+          updates.courierId !==
+            undefined &&
           updates.courierId !==
             currentOrder.courierId
         ) {
@@ -497,7 +591,8 @@ class StorageService {
 
       const updatedData = {
         ...updates,
-        updatedAt: new Date().toISOString(),
+        updatedAt:
+          new Date().toISOString(),
       };
 
       await updateDoc(
@@ -511,14 +606,20 @@ class StorageService {
         id: orderId,
       } as Order;
 
-      const index = this.orders.findIndex(
-        (order) => order.id === orderId,
-      );
+      const index =
+        this.orders.findIndex(
+          (order) =>
+            order.id ===
+            orderId,
+        );
 
       if (index >= 0) {
-        this.orders[index] = updatedOrder;
+        this.orders[index] =
+          updatedOrder;
       } else {
-        this.orders.push(updatedOrder);
+        this.orders.push(
+          updatedOrder,
+        );
       }
 
       this.saveCache();
@@ -531,7 +632,10 @@ class StorageService {
         error,
       );
 
-      if (error?.code === "permission-denied") {
+      if (
+        error?.code ===
+        "permission-denied"
+      ) {
         throw new Error(
           "Firestore yetkisi reddedildi. Firestore Rules kontrol edilmeli.",
         );
@@ -542,723 +646,250 @@ class StorageService {
           "Sipariş güncellenemedi.",
       );
     }
-  }
+  };
 
   // =====================================================
   // COMPATIBILITY
   // =====================================================
 
-  async updateOrderStatus(
-    orderId: string,
-    status: OrderStatus,
-  ) {
-    return this.updateOrder(
-      orderId,
-      { status },
-    );
-  }
+  updateOrderStatus =
+    async (
+      orderId: string,
+      status: OrderStatus,
+    ) => {
+      return this.updateOrder(
+        orderId,
+        { status },
+      );
+    };
 
-  async updateOrderPrice(
-    orderId: string,
-    price: number,
-  ) {
-    return this.updateOrder(
-      orderId,
-      { price },
-    );
-  }
+  updateOrderPrice =
+    async (
+      orderId: string,
+      price: number,
+    ) => {
+      return this.updateOrder(
+        orderId,
+        { price },
+      );
+    };
 
   // =====================================================
   // ASSIGN COURIER
   // =====================================================
 
-  async assignCourier(
-    orderId: string,
-    courierId: string,
-  ) {
-    if (!courierId) {
-      throw new Error(
-        "Kurye seçilmedi.",
+  assignCourier =
+    async (
+      orderId: string,
+      courierId: string,
+    ) => {
+      if (!courierId) {
+        throw new Error(
+          "Kurye seçilmedi.",
+        );
+      }
+
+      const courier =
+        await this.getUserById(
+          courierId,
+        );
+
+      if (
+        !courier ||
+        courier.role !==
+          "courier"
+      ) {
+        throw new Error(
+          "Seçilen kurye profili bulunamadı.",
+        );
+      }
+
+      return this.updateOrder(
+        orderId,
+        {
+          courierId,
+          courierName:
+            courier.name,
+          courierPhone:
+            courier.phone,
+          status:
+            "Kurye Atandı",
+        },
       );
-    }
-
-    const courier =
-      await this.getUserById(courierId);
-
-    if (
-      !courier ||
-      courier.role !== "courier"
-    ) {
-      throw new Error(
-        "Seçilen kurye profili bulunamadı.",
-      );
-    }
-
-    return this.updateOrder(
-      orderId,
-      {
-        courierId,
-        courierName: courier.name,
-        courierPhone: courier.phone,
-        status: "Kurye Atandı",
-      },
-    );
-  }
+    };
 
   // =====================================================
   // COURIER WORKFLOW
   // =====================================================
 
-  async acceptOrder(orderId: string) {
-    const firebaseUser = auth.currentUser;
+  acceptOrder =
+    async (
+      orderId: string,
+    ) => {
+      const firebaseUser =
+        auth.currentUser;
 
-    if (!firebaseUser) {
-      throw new Error(
-        "Firebase oturumu bulunamadı.",
-      );
-    }
+      if (!firebaseUser) {
+        throw new Error(
+          "Firebase oturumu bulunamadı.",
+        );
+      }
 
-    if (this.currentUser?.role !== "courier") {
-      throw new Error(
-        "Bu işlem sadece kurye hesabından yapılabilir.",
-      );
-    }
+      if (
+        this.currentUser?.role !==
+        "courier"
+      ) {
+        throw new Error(
+          "Bu işlem sadece kurye hesabından yapılabilir.",
+        );
+      }
 
-    const order =
-      await this.getOrderByIdFromFirestore(
+      const order =
+        await this.getOrderByIdFromFirestore(
+          orderId,
+        );
+
+      if (!order) {
+        throw new Error(
+          "Sipariş bulunamadı.",
+        );
+      }
+
+      if (
+        order.courierId !==
+        firebaseUser.uid
+      ) {
+        throw new Error(
+          "Bu sipariş size atanmamış.",
+        );
+      }
+
+      if (
+        order.status !==
+        "Kurye Atandı"
+      ) {
+        throw new Error(
+          "Bu sipariş şu anda kabul edilebilir durumda değil.",
+        );
+      }
+
+      return this.updateOrder(
         orderId,
-      );
-
-    if (!order) {
-      throw new Error(
-        "Sipariş bulunamadı.",
-      );
-    }
-
-    if (
-      order.courierId !==
-      firebaseUser.uid
-    ) {
-      throw new Error(
-        "Bu sipariş size atanmamış.",
-      );
-    }
-
-    if (order.status !== "Kurye Atandı") {
-      throw new Error(
-        "Bu sipariş şu anda kabul edilebilir durumda değil.",
-      );
-    }
-
-    return this.updateOrder(
-      orderId,
-      {
-        status: "Kurye Kabul Etti",
-      },
-    );
-  }
-
-  async pickupOrder(orderId: string) {
-    return this.updateOrder(
-      orderId,
-      {
-        status: "Paket Alındı",
-      },
-    );
-  }
-
-  async startDelivery(orderId: string) {
-    return this.updateOrder(
-      orderId,
-      {
-        status: "Teslimatta",
-      },
-    );
-  }
-
-  async completeOrder(
-    orderId: string,
-    deliveryData?: {
-      receiverName?: string;
-      deliveryNote?: string;
-      signature?: string;
-      deliveryPhoto?: string;
-    },
-  ) {
-    const updates: Partial<Order> = {
-      status: "Teslim Edildi",
-    };
-
-    if (deliveryData) {
-      if (
-        deliveryData.receiverName !==
-        undefined
-      ) {
-        updates.receiverName =
-          deliveryData.receiverName;
-      }
-
-      if (
-        deliveryData.deliveryNote !==
-        undefined
-      ) {
-        updates.deliveryNote =
-          deliveryData.deliveryNote;
-      }
-
-      if (
-        deliveryData.signature !==
-        undefined
-      ) {
-        updates.signature =
-          deliveryData.signature;
-      }
-
-      if (
-        deliveryData.deliveryPhoto !==
-        undefined
-      ) {
-        updates.deliveryPhoto =
-          deliveryData.deliveryPhoto;
-      }
-
-      updates.deliveredAt =
-        new Date().toISOString();
-    }
-
-    return this.updateOrder(
-      orderId,
-      updates,
-    );
-  }
-
-  async cancelOrder(orderId: string) {
-    return this.updateOrder(
-      orderId,
-      {
-        status: "İptal Edildi",
-      },
-    );
-  }
-
-  private async getOrderByIdFromFirestore(
-    orderId: string,
-  ): Promise<Order | null> {
-    const snapshot = await getDoc(
-      doc(db, "orders", orderId),
-    );
-
-    if (!snapshot.exists()) {
-      return null;
-    }
-
-    return {
-      ...snapshot.data(),
-      id: snapshot.id,
-    } as Order;
-  }
-
-  // =====================================================
-  // DELETE ORDER
-  // =====================================================
-
-  async deleteOrder(orderId: string) {
-    try {
-      await deleteDoc(
-        doc(db, "orders", orderId),
-      );
-
-      this.orders = this.orders.filter(
-        (order) => order.id !== orderId,
-      );
-
-      this.saveCache();
-      this.notify();
-    } catch (error) {
-      console.error(
-        "Sipariş silinemedi:",
-        error,
-      );
-
-      throw error;
-    }
-  }
-
-  // =====================================================
-  // OLD ADD COURIER
-  // =====================================================
-
-  async addCourier(
-    courier: Partial<Courier>,
-  ) {
-    if (!courier.id) {
-      throw new Error(
-        "Kurye ID bulunamadı.",
-      );
-    }
-
-    const courierData = {
-      ...courier,
-      id: courier.id,
-      role: "courier" as const,
-      createdAt:
-        courier.createdAt ||
-        new Date().toISOString(),
-      updatedAt:
-        new Date().toISOString(),
-      isActive:
-        courier.isActive ?? true,
-    };
-
-    await setDoc(
-      doc(
-        db,
-        "users",
-        courier.id,
-      ),
-      courierData,
-      {
-        merge: true,
-      },
-    );
-
-    const user =
-      courierData as UserProfile;
-
-    const index =
-      this.users.findIndex(
-        (item) =>
-          item.id === user.id,
-      );
-
-    if (index >= 0) {
-      this.users[index] = user;
-    } else {
-      this.users.push(user);
-    }
-
-    this.saveCache();
-    this.notify();
-
-    return user;
-  }
-
-  // =====================================================
-  // CREATE REAL COURIER ACCOUNT
-  // =====================================================
-
-  async createCourier(
-    data: CreateCourierData,
-  ): Promise<UserProfile> {
-    // ÖNEMLİ:
-    // Bu metodun içindeki bütün this kullanımları
-    // doğrudan StorageService instance'ı üzerinden çalışır.
-
-    const adminUser = auth.currentUser;
-
-    if (!adminUser) {
-      throw new Error(
-        "Admin Firebase oturumu bulunamadı.",
-      );
-    }
-
-    const adminEmail =
-      adminUser.email?.trim().toLowerCase();
-
-    if (adminEmail !== ADMIN_EMAIL) {
-      throw new Error(
-        "Bu işlem sadece admin hesabından yapılabilir.",
-      );
-    }
-
-    const name = data.name.trim();
-
-    const email =
-      data.email
-        .trim()
-        .toLowerCase();
-
-    const phone = data.phone.trim();
-
-    const password = data.password;
-
-    if (!name) {
-      throw new Error(
-        "Kurye adı zorunludur.",
-      );
-    }
-
-    if (!email) {
-      throw new Error(
-        "Kurye e-postası zorunludur.",
-      );
-    }
-
-    if (!phone) {
-      throw new Error(
-        "Kurye telefonu zorunludur.",
-      );
-    }
-
-    if (
-      !password ||
-      password.length < 6
-    ) {
-      throw new Error(
-        "Şifre en az 6 karakter olmalıdır.",
-      );
-    }
-
-    let secondaryApp =
-      getApps().find(
-        (app) =>
-          app.name ===
-          "TrustlineCourierCreator",
-      );
-
-    if (!secondaryApp) {
-      secondaryApp =
-        initializeApp(
-          auth.app.options,
-          "TrustlineCourierCreator",
-        );
-    }
-
-    const secondaryAuth =
-      getAuth(
-        secondaryApp,
-      );
-
-    let createdUser: User | null = null;
-
-    try {
-      // Secondary Auth'daki eski oturumu kapat.
-      try {
-        await signOut(
-          secondaryAuth,
-        );
-      } catch {
-        // Oturum yoksa sorun değil.
-      }
-
-      // GERÇEK FIREBASE AUTH HESABI
-      const credential =
-        await createUserWithEmailAndPassword(
-          secondaryAuth,
-          email,
-          password,
-        );
-
-      createdUser =
-        credential.user;
-
-      const uid =
-        createdUser.uid;
-
-      const now =
-        new Date().toISOString();
-
-      const profile: UserProfile = {
-        id: uid,
-        name,
-        email,
-        phone,
-        role: "courier",
-        vehicle:
-          data.vehicle?.trim() || "",
-        plate:
-          data.plate?.trim() || "",
-        courierStatus: "Müsait",
-        totalDeliveries: 0,
-        rating: 5,
-        createdAt: now,
-      };
-
-      // ADMIN PRIMARY AUTH ile Firestore'a yazılır.
-      await setDoc(
-        doc(
-          db,
-          "users",
-          uid,
-        ),
-        profile,
-      );
-
-      // Local kullanıcı listesine ekle.
-      const existingIndex =
-        this.users.findIndex(
-          (user) =>
-            user.id === uid,
-        );
-
-      if (
-        existingIndex >= 0
-      ) {
-        this.users[
-          existingIndex
-        ] = profile;
-      } else {
-        this.users.push(
-          profile,
-        );
-      }
-
-      this.saveCache();
-      this.notify();
-
-      console.log(
-        "Kurye hesabı oluşturuldu:",
         {
-          uid,
-          email,
-          name,
+          status:
+            "Kurye Kabul Etti",
         },
       );
+    };
 
-      return profile;
-    } catch (error: any) {
-      console.error(
-        "Kurye hesabı oluşturulamadı:",
-        error,
+  pickupOrder =
+    async (
+      orderId: string,
+    ) => {
+      return this.updateOrder(
+        orderId,
+        {
+          status:
+            "Paket Alındı",
+        },
       );
+    };
 
-      // Firestore başarısızsa yeni Auth hesabını temizle.
-      if (createdUser) {
-        try {
-          await deleteUser(
-            createdUser,
-          );
-        } catch (deleteError) {
-          console.error(
-            "Oluşturulan Auth hesabı silinemedi:",
-            deleteError,
-          );
+  startDelivery =
+    async (
+      orderId: string,
+    ) => {
+      return this.updateOrder(
+        orderId,
+        {
+          status:
+            "Teslimatta",
+        },
+      );
+    };
+
+  completeOrder =
+    async (
+      orderId: string,
+      deliveryData?: {
+        receiverName?: string;
+        deliveryNote?: string;
+        signature?: string;
+        deliveryPhoto?: string;
+      },
+    ) => {
+      const updates: Partial<Order> =
+        {
+          status:
+            "Teslim Edildi",
+        };
+
+      if (deliveryData) {
+        if (
+          deliveryData.receiverName !==
+          undefined
+        ) {
+          updates.receiverName =
+            deliveryData.receiverName;
         }
+
+        if (
+          deliveryData.deliveryNote !==
+          undefined
+        ) {
+          updates.deliveryNote =
+            deliveryData.deliveryNote;
+        }
+
+        if (
+          deliveryData.signature !==
+          undefined
+        ) {
+          updates.signature =
+            deliveryData.signature;
+        }
+
+        if (
+          deliveryData.deliveryPhoto !==
+          undefined
+        ) {
+          updates.deliveryPhoto =
+            deliveryData.deliveryPhoto;
+        }
+
+        updates.deliveredAt =
+          new Date().toISOString();
       }
 
-      if (
-        error?.code ===
-        "auth/email-already-in-use"
-      ) {
-        throw new Error(
-          "Bu e-posta Firebase Authentication'da zaten kayıtlı.",
-        );
-      }
-
-      if (
-        error?.code ===
-        "auth/invalid-email"
-      ) {
-        throw new Error(
-          "Geçersiz e-posta adresi.",
-        );
-      }
-
-      if (
-        error?.code ===
-        "auth/weak-password"
-      ) {
-        throw new Error(
-          "Şifre çok zayıf. En az 6 karakter kullanın.",
-        );
-      }
-
-      if (
-        error?.code ===
-        "auth/operation-not-allowed"
-      ) {
-        throw new Error(
-          "Firebase Authentication'da Email/Password giriş yöntemi kapalı. Firebase Console > Authentication > Sign-in method bölümünden Email/Password'u açın.",
-        );
-      }
-
-      if (
-        error?.code ===
-        "permission-denied"
-      ) {
-        throw new Error(
-          "Firestore kurye profili oluşturma yetkisini reddetti. Firestore Rules kontrol edilmeli.",
-        );
-      }
-
-      throw new Error(
-        error?.message ||
-          "Kurye hesabı oluşturulamadı.",
+      return this.updateOrder(
+        orderId,
+        updates,
       );
-    } finally {
-      try {
-        await signOut(
-          secondaryAuth,
-        );
-      } catch {
-        // Bilerek boş.
-      }
-    }
-  }
+    };
 
-  // =====================================================
-  // COURIER STATUS
-  // =====================================================
-
-  async updateCourierStatus(
-    courierId: string,
-    status: CourierAvailability,
-  ) {
-    if (!courierId) {
-      throw new Error(
-        "Kurye ID bulunamadı.",
-      );
-    }
-
-    return this.updateUser(
-      courierId,
-      {
-        courierStatus:
-          status,
-      },
-    );
-  }
-
-  // =====================================================
-  // UPDATE USER
-  // =====================================================
-
-  async updateUser(
-    userId: string,
-    updates: Partial<UserProfile>,
-  ) {
-    if (!userId) {
-      throw new Error(
-        "Kullanıcı ID bulunamadı.",
-      );
-    }
-
-    try {
-      await updateDoc(
-        doc(
-          db,
-          "users",
-          userId,
-        ),
+  cancelOrder =
+    async (
+      orderId: string,
+    ) => {
+      return this.updateOrder(
+        orderId,
         {
-          ...updates,
-          updatedAt:
-            new Date().toISOString(),
+          status:
+            "İptal Edildi",
         },
       );
+    };
 
-      const index =
-        this.users.findIndex(
-          (user) =>
-            user.id === userId,
-        );
-
-      if (index >= 0) {
-        this.users[index] = {
-          ...this.users[index],
-          ...updates,
-        };
-      }
-
-      if (
-        this.currentUser?.id ===
-        userId
-      ) {
-        this.currentUser = {
-          ...this.currentUser,
-          ...updates,
-        };
-      }
-
-      this.saveCache();
-      this.notify();
-
-      return index >= 0
-        ? this.users[index]
-        : undefined;
-    } catch (error: any) {
-      console.error(
-        "Kullanıcı güncellenemedi:",
-        error,
-      );
-
-      if (
-        error?.code ===
-        "permission-denied"
-      ) {
-        throw new Error(
-          "Kullanıcı güncelleme yetkisi reddedildi.",
-        );
-      }
-
-      throw error;
-    }
-  }
-
-  // =====================================================
-  // DELETE USER
-  // =====================================================
-
-  async deleteUser(
-    userId: string,
-  ) {
-    if (!userId) {
-      throw new Error(
-        "Kullanıcı ID bulunamadı.",
-      );
-    }
-
-    try {
-      await deleteDoc(
-        doc(
-          db,
-          "users",
-          userId,
-        ),
-      );
-
-      this.users =
-        this.users.filter(
-          (user) =>
-            user.id !== userId,
-        );
-
-      this.saveCache();
-      this.notify();
-    } catch (error) {
-      console.error(
-        "Kullanıcı silinemedi:",
-        error,
-      );
-
-      throw error;
-    }
-  }
-
-  // =====================================================
-  // GET USER
-  // =====================================================
-
-  async getUserById(
-    userId: string,
-  ) {
-    const localUser =
-      this.users.find(
-        (user) =>
-          user.id === userId,
-      );
-
-    if (localUser) {
-      return localUser;
-    }
-
-    try {
+  private getOrderByIdFromFirestore =
+    async (
+      orderId: string,
+    ): Promise<Order | null> => {
       const snapshot =
         await getDoc(
           doc(
             db,
-            "users",
-            userId,
+            "orders",
+            orderId,
           ),
         );
 
@@ -1269,231 +900,830 @@ class StorageService {
       return {
         ...snapshot.data(),
         id: snapshot.id,
-      } as UserProfile;
-    } catch (error) {
-      console.error(
-        "Kullanıcı alınamadı:",
-        error,
-      );
-
-      return null;
-    }
-  }
+      } as Order;
+    };
 
   // =====================================================
-  // CUSTOMERS
+  // DELETE ORDER
   // =====================================================
 
-  async getCustomersFromFirestore() {
-    try {
-      const usersRef =
-        collection(
-          db,
-          "users",
-        );
-
-      const customersQuery =
-        query(
-          usersRef,
-          where(
-            "role",
-            "==",
-            "customer",
+  deleteOrder =
+    async (
+      orderId: string,
+    ) => {
+      try {
+        await deleteDoc(
+          doc(
+            db,
+            "orders",
+            orderId,
           ),
         );
 
-      return new Promise<Customer[]>(
-        (
-          resolve,
-          reject,
-        ) => {
-          const unsubscribe =
-            onSnapshot(
-              customersQuery,
-              (snapshot) => {
-                unsubscribe();
+        this.orders =
+          this.orders.filter(
+            (order) =>
+              order.id !==
+              orderId,
+          );
 
-                const customers =
-                  snapshot.docs.map(
-                    (item) =>
-                      ({
-                        ...item.data(),
-                        id: item.id,
-                      }) as Customer,
-                  );
-
-                resolve(
-                  customers,
-                );
-              },
-              reject,
-            );
-        },
-      );
-    } catch (error) {
-      console.error(
-        "Müşteriler alınamadı:",
-        error,
-      );
-
-      return [];
-    }
-  }
-
-  // =====================================================
-  // COURIERS
-  // =====================================================
-
-  async getCouriersFromFirestore() {
-    try {
-      const usersRef =
-        collection(
-          db,
-          "users",
+        this.saveCache();
+        this.notify();
+      } catch (error) {
+        console.error(
+          "Sipariş silinemedi:",
+          error,
         );
 
-      const couriersQuery =
-        query(
-          usersRef,
-          where(
-            "role",
-            "==",
-            "courier",
-          ),
+        throw error;
+      }
+    };
+
+  // =====================================================
+  // OLD ADD COURIER
+  // =====================================================
+
+  addCourier =
+    async (
+      courier: Partial<Courier>,
+    ) => {
+      if (!courier.id) {
+        throw new Error(
+          "Kurye ID bulunamadı.",
         );
+      }
 
-      return new Promise<Courier[]>(
-        (
-          resolve,
-          reject,
-        ) => {
-          const unsubscribe =
-            onSnapshot(
-              couriersQuery,
-              (snapshot) => {
-                unsubscribe();
-
-                const couriers =
-                  snapshot.docs.map(
-                    (item) =>
-                      ({
-                        ...item.data(),
-                        id: item.id,
-                      }) as Courier,
-                  );
-
-                resolve(
-                  couriers,
-                );
-              },
-              reject,
-            );
-        },
-      );
-    } catch (error) {
-      console.error(
-        "Kuryeler alınamadı:",
-        error,
-      );
-
-      return [];
-    }
-  }
-
-  // =====================================================
-  // PRICING
-  // =====================================================
-
-  getPricing(): PricingConfig {
-    return DEFAULT_PRICING;
-  }
-
-  async updatePricing(
-    pricing: PricingConfig,
-  ) {
-    const firebaseUser =
-      auth.currentUser;
-
-    if (!firebaseUser) {
-      throw new Error(
-        "Firebase oturumu bulunamadı.",
-      );
-    }
-
-    if (
-      firebaseUser.email
-        ?.trim()
-        .toLowerCase() !==
-      ADMIN_EMAIL
-    ) {
-      throw new Error(
-        "Bu işlem sadece admin hesabından yapılabilir.",
-      );
-    }
-
-    const updatedPricing: PricingConfig =
-      {
-        ...pricing,
+      const courierData = {
+        ...courier,
+        id: courier.id,
+        role: "courier" as const,
+        createdAt:
+          courier.createdAt ||
+          new Date().toISOString(),
         updatedAt:
           new Date().toISOString(),
+        isActive:
+          courier.isActive ??
+          true,
       };
 
-    try {
       await setDoc(
         doc(
           db,
-          "pricing",
-          "default",
+          "users",
+          courier.id,
         ),
-        updatedPricing,
+        courierData,
         {
           merge: true,
         },
       );
 
-      return updatedPricing;
-    } catch (error: any) {
-      console.error(
-        "Fiyatlandırma güncellenemedi:",
-        error,
-      );
+      const user =
+        courierData as UserProfile;
 
-      if (
-        error?.code ===
-        "permission-denied"
-      ) {
-        throw new Error(
-          "Fiyatlandırma güncelleme yetkisi reddedildi.",
+      const index =
+        this.users.findIndex(
+          (item) =>
+            item.id ===
+            user.id,
+        );
+
+      if (index >= 0) {
+        this.users[index] =
+          user;
+      } else {
+        this.users.push(
+          user,
         );
       }
 
-      throw error;
-    }
-  }
+      this.saveCache();
+      this.notify();
 
-  async setPricing(
-    pricing: PricingConfig,
-  ) {
-    return this.updatePricing(
-      pricing,
-    );
-  }
+      return user;
+    };
+
+  // =====================================================
+  // CREATE REAL COURIER ACCOUNT
+  // =====================================================
+
+  /*
+   * ÇOK ÖNEMLİ:
+   *
+   * Normal class metodu yerine ARROW FUNCTION.
+   *
+   * Böylece:
+   *
+   * const fn = storage.createCourier;
+   * await fn(...);
+   *
+   * şeklinde çağırılsa bile
+   * "this" kaybolmaz.
+   */
+  createCourier =
+    async (
+      data: CreateCourierData,
+    ): Promise<UserProfile> => {
+      const adminUser =
+        auth.currentUser;
+
+      if (!adminUser) {
+        throw new Error(
+          "Admin Firebase oturumu bulunamadı.",
+        );
+      }
+
+      const adminEmail =
+        adminUser.email
+          ?.trim()
+          .toLowerCase();
+
+      if (
+        adminEmail !==
+        ADMIN_EMAIL
+      ) {
+        throw new Error(
+          "Bu işlem sadece admin hesabından yapılabilir.",
+        );
+      }
+
+      const name =
+        data.name.trim();
+
+      const email =
+        data.email
+          .trim()
+          .toLowerCase();
+
+      const phone =
+        data.phone.trim();
+
+      const password =
+        data.password;
+
+      if (!name) {
+        throw new Error(
+          "Kurye adı zorunludur.",
+        );
+      }
+
+      if (!email) {
+        throw new Error(
+          "Kurye e-postası zorunludur.",
+        );
+      }
+
+      if (!phone) {
+        throw new Error(
+          "Kurye telefonu zorunludur.",
+        );
+      }
+
+      if (
+        !password ||
+        password.length < 6
+      ) {
+        throw new Error(
+          "Şifre en az 6 karakter olmalıdır.",
+        );
+      }
+
+      let secondaryApp =
+        getApps().find(
+          (app) =>
+            app.name ===
+            "TrustlineCourierCreator",
+        );
+
+      if (!secondaryApp) {
+        secondaryApp =
+          initializeApp(
+            auth.app.options,
+            "TrustlineCourierCreator",
+          );
+      }
+
+      const secondaryAuth =
+        getAuth(
+          secondaryApp,
+        );
+
+      let createdUser:
+        | User
+        | null = null;
+
+      try {
+        try {
+          await signOut(
+            secondaryAuth,
+          );
+        } catch {
+          // Secondary Auth'ta oturum yoksa sorun değil.
+        }
+
+        // =================================================
+        // GERÇEK FIREBASE AUTH HESABI
+        // =================================================
+
+        const credential =
+          await createUserWithEmailAndPassword(
+            secondaryAuth,
+            email,
+            password,
+          );
+
+        createdUser =
+          credential.user;
+
+        const uid =
+          createdUser.uid;
+
+        const now =
+          new Date().toISOString();
+
+        const profile:
+          UserProfile = {
+          id: uid,
+          name,
+          email,
+          phone,
+          role: "courier",
+          vehicle:
+            data.vehicle?.trim() ||
+            "",
+          plate:
+            data.plate?.trim() ||
+            "",
+          courierStatus:
+            "Müsait",
+          totalDeliveries: 0,
+          rating: 5,
+          createdAt: now,
+        };
+
+        // =================================================
+        // FIRESTORE PROFILE
+        // =================================================
+
+        await setDoc(
+          doc(
+            db,
+            "users",
+            uid,
+          ),
+          profile,
+        );
+
+        // =================================================
+        // LOCAL CACHE
+        // =================================================
+
+        const existingIndex =
+          this.users.findIndex(
+            (user) =>
+              user.id ===
+              uid,
+          );
+
+        if (
+          existingIndex >=
+          0
+        ) {
+          this.users[
+            existingIndex
+          ] = profile;
+        } else {
+          this.users.push(
+            profile,
+          );
+        }
+
+        this.saveCache();
+        this.notify();
+
+        console.log(
+          "Kurye hesabı başarıyla oluşturuldu:",
+          {
+            uid,
+            email,
+            name,
+          },
+        );
+
+        return profile;
+      } catch (error: any) {
+        console.error(
+          "Kurye hesabı oluşturulamadı:",
+          error,
+        );
+
+        // =================================================
+        // FIRESTORE BAŞARISIZSA AUTH HESABINI TEMİZLE
+        // =================================================
+
+        if (createdUser) {
+          try {
+            await deleteAuthUser(
+              createdUser,
+            );
+          } catch (deleteError) {
+            console.error(
+              "Oluşturulan Auth hesabı silinemedi:",
+              deleteError,
+            );
+          }
+        }
+
+        // =================================================
+        // FIREBASE AUTH HATALARI
+        // =================================================
+
+        if (
+          error?.code ===
+          "auth/email-already-in-use"
+        ) {
+          throw new Error(
+            "Bu e-posta Firebase Authentication'da zaten kayıtlı.",
+          );
+        }
+
+        if (
+          error?.code ===
+          "auth/invalid-email"
+        ) {
+          throw new Error(
+            "Geçersiz e-posta adresi.",
+          );
+        }
+
+        if (
+          error?.code ===
+          "auth/weak-password"
+        ) {
+          throw new Error(
+            "Şifre çok zayıf. En az 6 karakter kullanın.",
+          );
+        }
+
+        if (
+          error?.code ===
+          "auth/operation-not-allowed"
+        ) {
+          throw new Error(
+            "Firebase Authentication'da Email/Password giriş yöntemi kapalı. Firebase Console > Authentication > Sign-in method bölümünden Email/Password'u açın.",
+          );
+        }
+
+        // =================================================
+        // FIRESTORE HATASI
+        // =================================================
+
+        if (
+          error?.code ===
+          "permission-denied"
+        ) {
+          throw new Error(
+            "Firestore kurye profili oluşturma yetkisini reddetti. Firestore Rules kontrol edilmeli.",
+          );
+        }
+
+        throw new Error(
+          error?.message ||
+            "Kurye hesabı oluşturulamadı.",
+        );
+      } finally {
+        try {
+          await signOut(
+            secondaryAuth,
+          );
+        } catch {
+          // Bilerek boş.
+        }
+      }
+    };
+
+  // =====================================================
+  // COURIER STATUS
+  // =====================================================
+
+  updateCourierStatus =
+    async (
+      courierId: string,
+      status: CourierAvailability,
+    ) => {
+      if (!courierId) {
+        throw new Error(
+          "Kurye ID bulunamadı.",
+        );
+      }
+
+      return this.updateUser(
+        courierId,
+        {
+          courierStatus:
+            status,
+        },
+      );
+    };
+
+  // =====================================================
+  // UPDATE USER
+  // =====================================================
+
+  updateUser =
+    async (
+      userId: string,
+      updates: Partial<UserProfile>,
+    ) => {
+      if (!userId) {
+        throw new Error(
+          "Kullanıcı ID bulunamadı.",
+        );
+      }
+
+      try {
+        await updateDoc(
+          doc(
+            db,
+            "users",
+            userId,
+          ),
+          {
+            ...updates,
+            updatedAt:
+              new Date().toISOString(),
+          },
+        );
+
+        const index =
+          this.users.findIndex(
+            (user) =>
+              user.id ===
+              userId,
+          );
+
+        if (index >= 0) {
+          this.users[index] = {
+            ...this.users[index],
+            ...updates,
+          };
+        }
+
+        if (
+          this.currentUser?.id ===
+          userId
+        ) {
+          this.currentUser = {
+            ...this.currentUser,
+            ...updates,
+          };
+        }
+
+        this.saveCache();
+        this.notify();
+
+        return index >= 0
+          ? this.users[index]
+          : undefined;
+      } catch (error: any) {
+        console.error(
+          "Kullanıcı güncellenemedi:",
+          error,
+        );
+
+        if (
+          error?.code ===
+          "permission-denied"
+        ) {
+          throw new Error(
+            "Kullanıcı güncelleme yetkisi reddedildi.",
+          );
+        }
+
+        throw error;
+      }
+    };
+
+  // =====================================================
+  // DELETE USER
+  // =====================================================
+
+  deleteUser =
+    async (
+      userId: string,
+    ) => {
+      if (!userId) {
+        throw new Error(
+          "Kullanıcı ID bulunamadı.",
+        );
+      }
+
+      try {
+        await deleteDoc(
+          doc(
+            db,
+            "users",
+            userId,
+          ),
+        );
+
+        this.users =
+          this.users.filter(
+            (user) =>
+              user.id !==
+              userId,
+          );
+
+        this.saveCache();
+        this.notify();
+      } catch (error) {
+        console.error(
+          "Kullanıcı silinemedi:",
+          error,
+        );
+
+        throw error;
+      }
+    };
+
+  // =====================================================
+  // GET USER
+  // =====================================================
+
+  getUserById =
+    async (
+      userId: string,
+    ) => {
+      const localUser =
+        this.users.find(
+          (user) =>
+            user.id ===
+            userId,
+        );
+
+      if (localUser) {
+        return localUser;
+      }
+
+      try {
+        const snapshot =
+          await getDoc(
+            doc(
+              db,
+              "users",
+              userId,
+            ),
+          );
+
+        if (!snapshot.exists()) {
+          return null;
+        }
+
+        return {
+          ...snapshot.data(),
+          id: snapshot.id,
+        } as UserProfile;
+      } catch (error) {
+        console.error(
+          "Kullanıcı alınamadı:",
+          error,
+        );
+
+        return null;
+      }
+    };
+
+  // =====================================================
+  // CUSTOMERS
+  // =====================================================
+
+  getCustomersFromFirestore =
+    async () => {
+      try {
+        const usersRef =
+          collection(
+            db,
+            "users",
+          );
+
+        const customersQuery =
+          query(
+            usersRef,
+            where(
+              "role",
+              "==",
+              "customer",
+            ),
+          );
+
+        return new Promise<Customer[]>(
+          (
+            resolve,
+            reject,
+          ) => {
+            let unsubscribe:
+              | (() => void)
+              | null = null;
+
+            unsubscribe =
+              onSnapshot(
+                customersQuery,
+                (snapshot) => {
+                  unsubscribe?.();
+
+                  const customers =
+                    snapshot.docs.map(
+                      (item) =>
+                        ({
+                          ...item.data(),
+                          id: item.id,
+                        }) as Customer,
+                    );
+
+                  resolve(
+                    customers,
+                  );
+                },
+                reject,
+              );
+          },
+        );
+      } catch (error) {
+        console.error(
+          "Müşteriler alınamadı:",
+          error,
+        );
+
+        return [];
+      }
+    };
+
+  // =====================================================
+  // COURIERS
+  // =====================================================
+
+  getCouriersFromFirestore =
+    async () => {
+      try {
+        const usersRef =
+          collection(
+            db,
+            "users",
+          );
+
+        const couriersQuery =
+          query(
+            usersRef,
+            where(
+              "role",
+              "==",
+              "courier",
+            ),
+          );
+
+        return new Promise<Courier[]>(
+          (
+            resolve,
+            reject,
+          ) => {
+            let unsubscribe:
+              | (() => void)
+              | null = null;
+
+            unsubscribe =
+              onSnapshot(
+                couriersQuery,
+                (snapshot) => {
+                  unsubscribe?.();
+
+                  const couriers =
+                    snapshot.docs.map(
+                      (item) =>
+                        ({
+                          ...item.data(),
+                          id: item.id,
+                        }) as Courier,
+                    );
+
+                  resolve(
+                    couriers,
+                  );
+                },
+                reject,
+              );
+          },
+        );
+      } catch (error) {
+        console.error(
+          "Kuryeler alınamadı:",
+          error,
+        );
+
+        return [];
+      }
+    };
+
+  // =====================================================
+  // PRICING
+  // =====================================================
+
+  getPricing =
+    (): PricingConfig => {
+      return {
+        ...DEFAULT_PRICING,
+      };
+    };
+
+  updatePricing =
+    async (
+      pricing: PricingConfig,
+    ) => {
+      const firebaseUser =
+        auth.currentUser;
+
+      if (!firebaseUser) {
+        throw new Error(
+          "Firebase oturumu bulunamadı.",
+        );
+      }
+
+      if (
+        firebaseUser.email
+          ?.trim()
+          .toLowerCase() !==
+        ADMIN_EMAIL
+      ) {
+        throw new Error(
+          "Bu işlem sadece admin hesabından yapılabilir.",
+        );
+      }
+
+      const updatedPricing:
+        PricingConfig = {
+        ...pricing,
+        updatedAt:
+          new Date().toISOString(),
+      };
+
+      try {
+        await setDoc(
+          doc(
+            db,
+            "pricing",
+            "default",
+          ),
+          updatedPricing,
+          {
+            merge: true,
+          },
+        );
+
+        return updatedPricing;
+      } catch (error: any) {
+        console.error(
+          "Fiyatlandırma güncellenemedi:",
+          error,
+        );
+
+        if (
+          error?.code ===
+          "permission-denied"
+        ) {
+          throw new Error(
+            "Fiyatlandırma güncelleme yetkisi reddedildi.",
+          );
+        }
+
+        throw error;
+      }
+    };
+
+  setPricing =
+    async (
+      pricing: PricingConfig,
+    ) => {
+      return this.updatePricing(
+        pricing,
+      );
+    };
 
   // =====================================================
   // NOTIFICATIONS
   // =====================================================
 
-  getNotifications(
-    _userId: string,
-  ) {
-    return [];
-  }
+  getNotifications =
+    (
+      _userId: string,
+    ) => {
+      return [];
+    };
 
   // =====================================================
   // STATS
   // =====================================================
 
-  getStats() {
+  getStats = () => {
     const totalOrders =
       this.orders.length;
 
@@ -1530,13 +1760,13 @@ class StorageService {
         this.getCouriers()
           .length,
     };
-  }
+  };
 
   // =====================================================
   // CLEAR
   // =====================================================
 
-  clear() {
+  clear = () => {
     this.cleanupListeners();
 
     this.currentUser = null;
@@ -1555,44 +1785,48 @@ class StorageService {
     }
 
     this.notify();
-  }
+  };
 
   // =====================================================
   // SET CURRENT USER
   // =====================================================
 
-  setCurrentUser(
-    user: UserProfile | null,
-  ) {
-    this.currentUser = user;
+  setCurrentUser =
+    (
+      user: UserProfile | null,
+    ) => {
+      this.currentUser =
+        user;
 
-    if (user) {
-      const index =
-        this.users.findIndex(
-          (item) =>
-            item.id === user.id,
-        );
+      if (user) {
+        const index =
+          this.users.findIndex(
+            (item) =>
+              item.id ===
+              user.id,
+          );
 
-      if (index >= 0) {
-        this.users[index] =
-          user;
-      } else {
-        this.users.push(
-          user,
-        );
+        if (index >= 0) {
+          this.users[index] =
+            user;
+        } else {
+          this.users.push(
+            user,
+          );
+        }
       }
-    }
 
-    this.saveCache();
-    this.notify();
-  }
+      this.saveCache();
+      this.notify();
+    };
 }
 
 // =====================================================
 // SINGLETON
 // =====================================================
 
-const storage = new StorageService();
+const storage =
+  new StorageService();
 
 export {
   storage,
