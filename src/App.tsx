@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import { storage } from './services/storage';
 import {
   subscribeToAuth,
-  getUserProfile,
 } from './services/auth';
 
 import type {
@@ -73,7 +72,9 @@ export function App() {
 
     const unsubscribe = subscribeToAuth(
       async (firebaseUser, profile) => {
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         if (!firebaseUser) {
           setCurrentUser(null);
@@ -82,38 +83,49 @@ export function App() {
           return;
         }
 
-        let resolvedProfile = profile;
+        try {
+          /*
+           * auth.ts artık kullanıcı profilini
+           * Firebase Auth kullanıcısından otomatik
+           * olarak oluşturup callback'e gönderiyor.
+           *
+           * Bu nedenle burada tekrar
+           * getUserProfile(firebaseUser) çağırmıyoruz.
+           */
 
-        if (!resolvedProfile) {
-          resolvedProfile =
-            await getUserProfile(firebaseUser);
-        }
+          if (!profile) {
+            console.error(
+              'Firebase kullanıcı profili bulunamadı.'
+            );
 
-        if (!mounted) return;
+            setCurrentUser(null);
+            setNotifications([]);
+            setAuthLoading(false);
+            return;
+          }
 
-        if (resolvedProfile) {
-          setCurrentUser(resolvedProfile);
+          if (!mounted) {
+            return;
+          }
 
-          storage.setCurrentUser(
-            resolvedProfile
-          );
+          setCurrentUser(profile);
+
+          storage.setCurrentUser(profile);
 
           setNotifications(
             storage.getNotifications(
-              resolvedProfile.id
+              profile.id
             )
           );
 
           if (
-            resolvedProfile.role ===
-            'customer'
+            profile.role === 'customer'
           ) {
             setActiveTab('home');
           }
 
           if (
-            resolvedProfile.role ===
-            'courier'
+            profile.role === 'courier'
           ) {
             setActiveTab(
               'courier_panel'
@@ -121,16 +133,28 @@ export function App() {
           }
 
           if (
-            resolvedProfile.role ===
-            'admin'
+            profile.role === 'admin'
           ) {
             setActiveTab(
               'admin_panel'
             );
           }
-        }
 
-        setAuthLoading(false);
+          setAuthLoading(false);
+        } catch (error) {
+          console.error(
+            'Firebase kullanıcı başlatma hatası:',
+            error
+          );
+
+          if (!mounted) {
+            return;
+          }
+
+          setCurrentUser(null);
+          setNotifications([]);
+          setAuthLoading(false);
+        }
       }
     );
 
@@ -287,7 +311,6 @@ export function App() {
           : ''
       }`}
     >
-
       <div
         className={`w-full flex flex-col ${
           isIPhoneMode
@@ -330,6 +353,7 @@ export function App() {
         >
 
           {/* CUSTOMER */}
+
           {currentUser.role ===
             'customer' && (
             <>
@@ -391,6 +415,7 @@ export function App() {
           )}
 
           {/* COURIER */}
+
           {currentUser.role ===
             'courier' && (
             <>
@@ -416,6 +441,7 @@ export function App() {
           )}
 
           {/* ADMIN */}
+
           {currentUser.role ===
             'admin' && (
             <>
@@ -458,6 +484,7 @@ export function App() {
       </div>
 
       {/* NEW ORDER */}
+
       <NewOrderModal
         isOpen={isNewOrderOpen}
         onClose={() => {
@@ -480,6 +507,7 @@ export function App() {
       />
 
       {/* NOTIFICATIONS */}
+
       <NotificationDrawer
         isOpen={
           isNotificationsOpen
