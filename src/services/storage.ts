@@ -839,4 +839,3 @@ const storage = new StorageService();
 
 export { storage };
 export default storage;
-export { storage };
