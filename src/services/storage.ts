@@ -349,7 +349,7 @@ class StorageService {
   reset(): void {
     this.users = [...seedUsers];
     this.orders = [...seedOrders];
-    this.notifications = [...seedNotifications];
+    this.notifications = [];
     this.locations = [];
     this.currentUser = null;
 
