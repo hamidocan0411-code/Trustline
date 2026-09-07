@@ -1,10 +1,4 @@
 import {
-  getDownloadURL,
-  ref,
-  uploadBytes,
-} from "firebase/storage";
-
-import {
   doc,
   updateDoc,
 } from "firebase/firestore";
@@ -12,82 +6,18 @@ import {
 import {
   auth,
   db,
-  storage as firebaseStorage,
 } from "./firebase";
 
 import type {
   DeliveryProof,
 } from "../types";
 
-function createStoragePath(
-  orderId: string,
-  file: File
-): string {
-  const extension =
-    file.name.split(".").pop() ||
-    "jpg";
-
-  const safeExtension =
-    extension
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, "")
-      .slice(0, 8) || "jpg";
-
-  return `delivery-proofs/${orderId}/delivery-${Date.now()}.${safeExtension}`;
-}
-
 export async function uploadDeliveryPhoto(
-  orderId: string,
-  file: File
+  _orderId: string,
+  _file: File
 ): Promise<string> {
-  if (!auth.currentUser) {
-    throw new Error(
-      "Firebase oturumu bulunamadı."
-    );
-  }
-
-  if (
-    !file.type.startsWith("image/")
-  ) {
-    throw new Error(
-      "Yalnızca görsel dosyaları yüklenebilir."
-    );
-  }
-
-  if (
-    file.size >
-    10 * 1024 * 1024
-  ) {
-    throw new Error(
-      "Fotoğraf boyutu 10 MB'dan büyük olamaz."
-    );
-  }
-
-  const path =
-    createStoragePath(
-      orderId,
-      file
-    );
-
-  const storageRef =
-    ref(
-      firebaseStorage,
-      path
-    );
-
-  await uploadBytes(
-    storageRef,
-    file,
-    {
-      contentType:
-        file.type,
-      cacheControl:
-        "public,max-age=31536000",
-    }
-  );
-
-  return getDownloadURL(
-    storageRef
+  throw new Error(
+    "Teslim fotoğrafı V1 sürümünde devre dışıdır. Teslim kanıtı imza, teslim alan kişi ve not ile kaydedilir."
   );
 }
 
@@ -121,27 +51,18 @@ export async function saveDeliveryProof(
     );
   }
 
-  let deliveryPhoto:
-    | string
-    | undefined;
-
-  if (params.photoFile) {
-    deliveryPhoto =
-      await uploadDeliveryPhoto(
-        params.orderId,
-        params.photoFile
-      );
-  }
-
   const deliveredAt =
     new Date().toISOString();
 
+  /*
+   * V1'de Firebase Storage kullanılmadığı için
+   * fotoğraf Firestore'a yüklenmez.
+   *
+   * İmza + teslim alan kişi + teslim notu
+   * Firestore üzerinde saklanır.
+   */
+
   const proof: DeliveryProof = {
-    ...(deliveryPhoto
-      ? {
-          deliveryPhoto,
-        }
-      : {}),
     receiverName,
     ...(params.deliveryNote?.trim()
       ? {
@@ -162,17 +83,23 @@ export async function saveDeliveryProof(
     ),
     {
       deliveryProof: proof,
-      deliveryPhoto:
-        deliveryPhoto || null,
+
+      deliveryPhoto: null,
+
       receiverName,
+
       deliveryNote:
         params.deliveryNote?.trim() ||
         "",
+
       signature:
         params.signature,
+
       deliveredAt,
+
       status:
         "Teslim Edildi",
+
       updatedAt:
         deliveredAt,
     }
