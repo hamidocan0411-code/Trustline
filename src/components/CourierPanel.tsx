@@ -1,4 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+
 import {
   AlertCircle,
   CheckCircle2,
@@ -10,7 +15,7 @@ import {
   User,
 } from 'lucide-react';
 
-import {
+import type {
   CourierAvailability,
   CourierLocation,
   Order,
@@ -19,6 +24,7 @@ import {
 } from '../types';
 
 import { storage } from '../services/storage';
+
 import { DeliveryProofModal } from './DeliveryProofModal';
 import { DeliveryProofCard } from './DeliveryProofCard';
 
@@ -32,361 +38,476 @@ export const CourierPanel: React.FC<Props> = ({
   orders,
 }) => {
   const [activeTab, setActiveTab] =
-    useState<'active' | 'history' | 'profile'>('active');
-
-  /*
-   * =====================================================
-   * KURYE DURUMU
-   * =====================================================
-   *
-   * Durum sadece currentCourier.id üzerinden okunur.
-   * Böylece Kurye A'nın durumu Kurye B'yi etkilemez.
-   */
-
-  const [courierStatus, setCourierStatus] =
-    useState<CourierAvailability>(
-      currentCourier.courierStatus || 'Müsait'
+    useState<'active' | 'history'>(
+      'active'
     );
+
+  const [
+    courierStatus,
+    setCourierStatus,
+  ] = useState<CourierAvailability>(
+    currentCourier.courierStatus ||
+      'Müsait'
+  );
 
   const [proofOrder, setProofOrder] =
     useState<Order | null>(null);
 
-  const [expandedHistoryId, setExpandedHistoryId] =
-    useState<string | null>(null);
+  const [
+    expandedHistoryId,
+    setExpandedHistoryId,
+  ] = useState<string | null>(null);
 
-  /*
-   * =====================================================
-   * KURYE DURUMUNU SENKRON TUT
-   * =====================================================
-   */
-
-  useEffect(() => {
-    const syncCourierStatus = () => {
-      const freshCourier =
-        storage.getUserById(currentCourier.id);
-
-      if (!freshCourier) return;
-
-      const status =
-        freshCourier.courierStatus || 'Müsait';
-
-      setCourierStatus(status);
-    };
-
-    syncCourierStatus();
-
-    const unsubscribe = storage.subscribe(() => {
-      syncCourierStatus();
-    });
-
-    return () => unsubscribe();
-  }, [currentCourier.id]);
-
-  /*
-   * =====================================================
-   * KONUM
-   * =====================================================
-   */
-
-  const [isSharingLocation, setIsSharingLocation] =
-    useState<boolean>(() => {
-      const loc =
-        storage.getCourierLocation(currentCourier.id);
-
-      return loc ? loc.isSharing : false;
-    });
+  const [
+    isSharingLocation,
+    setIsSharingLocation,
+  ] = useState(false);
 
   const [courierLoc, setCourierLoc] =
-    useState<CourierLocation | undefined>(() => {
-      return storage.getCourierLocation(
-        currentCourier.id
-      );
-    });
+    useState<
+      CourierLocation | undefined
+    >();
 
   const [geoError, setGeoError] =
     useState<string | null>(null);
 
-  const [isRequestingGeo, setIsRequestingGeo] =
-    useState(false);
+  const [
+    isRequestingGeo,
+    setIsRequestingGeo,
+  ] = useState(false);
 
   const watchIdRef =
     useRef<number | null>(null);
 
-  /*
-   * Konum sadece BU kuryenin ID'si üzerinden takip edilir.
-   */
+  /* =====================================================
+     KURYE DURUMUNU SENKRON TUT
+  ===================================================== */
+
+  useEffect(() => {
+    const syncCourier = () => {
+      const fresh =
+        storage.getUserById(
+          currentCourier.id
+        );
+
+      if (!fresh) return;
+
+      setCourierStatus(
+        fresh.courierStatus ||
+          'Müsait'
+      );
+    };
+
+    syncCourier();
+
+    const unsubscribe =
+      storage.subscribe(
+        syncCourier
+      );
+
+    return () =>
+      unsubscribe();
+  }, [
+    currentCourier.id,
+  ]);
+
+  /* =====================================================
+     KONUMU SENKRON TUT
+  ===================================================== */
 
   useEffect(() => {
     const syncLocation = () => {
-      const loc =
+      const location =
         storage.getCourierLocation(
           currentCourier.id
         );
 
-      setCourierLoc(loc);
+      setCourierLoc(
+        location
+      );
 
-      if (loc) {
-        setIsSharingLocation(
-          Boolean(loc.isSharing)
-        );
-      }
+      setIsSharingLocation(
+        Boolean(
+          location?.isSharing
+        )
+      );
     };
 
     syncLocation();
 
     const unsubscribe =
-      storage.subscribe(() => {
-        syncLocation();
-      });
+      storage.subscribe(
+        syncLocation
+      );
 
-    return () => unsubscribe();
-  }, [currentCourier.id]);
+    return () =>
+      unsubscribe();
+  }, [
+    currentCourier.id,
+  ]);
 
-  /*
-   * GPS temizleme
-   */
+  /* =====================================================
+     GPS TEMİZLİK
+  ===================================================== */
 
   useEffect(() => {
     return () => {
       if (
-        watchIdRef.current !== null &&
+        watchIdRef.current !==
+          null &&
         'geolocation' in navigator
       ) {
         navigator.geolocation.clearWatch(
           watchIdRef.current
         );
+
+        watchIdRef.current =
+          null;
       }
     };
   }, []);
 
-  /*
-   * =====================================================
-   * SİPARİŞLER
-   * =====================================================
-   */
+  /* =====================================================
+     SİPARİŞLER
+  ===================================================== */
 
-  const myOrders = orders.filter(
-    (order) =>
-      order.courierId === currentCourier.id
-  );
+  const myOrders =
+    orders.filter(
+      (order) =>
+        order.courierId ===
+        currentCourier.id
+    );
 
-  const activeOrders = myOrders.filter(
-    (order) =>
-      ![
-        'Teslim Edildi',
-        'İptal Edildi',
-      ].includes(order.status)
-  );
+  const activeOrders =
+    myOrders.filter(
+      (order) =>
+        order.status !==
+          'Teslim Edildi' &&
+        order.status !==
+          'İptal Edildi'
+    );
 
-  const completedOrders = myOrders.filter(
-    (order) =>
-      order.status === 'Teslim Edildi'
-  );
+  const completedOrders =
+    myOrders.filter(
+      (order) =>
+        order.status ===
+        'Teslim Edildi'
+    );
 
   const totalEarnings =
     completedOrders.reduce(
       (sum, order) =>
-        sum + Math.round(order.price * 0.7),
+        sum +
+        Math.round(
+          order.price * 0.7
+        ),
       0
     );
 
-  /*
-   * =====================================================
-   * DURUM DEĞİŞTİR
-   * =====================================================
-   */
+  /* =====================================================
+     KURYE DURUMU
+  ===================================================== */
 
   const handleStatusChange = (
     status: CourierAvailability
   ) => {
-    const updatedCourier =
+    const updated =
       storage.updateCourierStatus(
         currentCourier.id,
         status
       );
 
-    if (updatedCourier) {
+    if (updated) {
       setCourierStatus(
-        updatedCourier.courierStatus ||
+        updated.courierStatus ||
           status
       );
     }
   };
 
-  /*
-   * =====================================================
-   * SİPARİŞ DURUMU
-   * =====================================================
-   */
+  /* =====================================================
+     SİPARİŞ DURUMU
+  ===================================================== */
 
-  const handleUpdateOrderStatus = (
-    orderId: string,
-    nextStatus: OrderStatus
-  ) => {
-    if (
-      nextStatus === 'Teslim Edildi'
-    ) {
-      const target =
-        orders.find(
-          (order) =>
-            order.id === orderId
-        );
+  const handleUpdateOrderStatus =
+    (
+      orderId: string,
+      nextStatus: OrderStatus
+    ) => {
+      if (
+        nextStatus ===
+        'Teslim Edildi'
+      ) {
+        const target =
+          orders.find(
+            (order) =>
+              order.id ===
+              orderId
+          );
 
-      if (target) {
-        setProofOrder(target);
+        if (target) {
+          setProofOrder(
+            target
+          );
+        }
+
         return;
       }
-    }
 
-    storage.updateOrderStatus(
-      orderId,
-      nextStatus
-    );
-  };
+      const order =
+        storage.getOrderById(
+          orderId
+        );
 
-  /*
-   * =====================================================
-   * GPS
-   * =====================================================
-   */
+      if (!order) {
+        return;
+      }
 
-  const handleToggleLocationSharing = () => {
-    if (isSharingLocation) {
+      /*
+       * Kurye yalnızca kendi atanmış
+       * siparişinin durumunu değiştirebilir.
+       */
       if (
-        watchIdRef.current !== null &&
+        order.courierId !==
+        currentCourier.id
+      ) {
+        return;
+      }
+
+      storage.updateOrderStatus(
+        orderId,
+        nextStatus
+      );
+    };
+
+  /* =====================================================
+     GPS KONUM PAYLAŞIMI
+  ===================================================== */
+
+  const stopLocationSharing =
+    () => {
+      if (
+        watchIdRef.current !==
+          null &&
         'geolocation' in navigator
       ) {
         navigator.geolocation.clearWatch(
           watchIdRef.current
         );
 
-        watchIdRef.current = null;
+        watchIdRef.current =
+          null;
       }
 
-      storage.stopCourierLocationSharing(
-        currentCourier.id
+      const existing =
+        storage.getCourierLocation(
+          currentCourier.id
+        );
+
+      if (existing) {
+        storage.updateCourierLocation(
+          {
+            ...existing,
+            isSharing: false,
+            updatedAt:
+              new Date().toISOString(),
+          }
+        );
+      } else {
+        storage.updateCourierLocation(
+          {
+            courierId:
+              currentCourier.id,
+            latitude: 0,
+            longitude: 0,
+            updatedAt:
+              new Date().toISOString(),
+            isSharing: false,
+          }
+        );
+      }
+
+      setIsSharingLocation(
+        false
       );
 
-      setIsSharingLocation(false);
+      setCourierLoc(
+        (previous) =>
+          previous
+            ? {
+                ...previous,
+                isSharing: false,
+              }
+            : undefined
+      );
 
-      setCourierLoc((previous) =>
-        previous
-          ? {
-              ...previous,
-              isSharing: false,
-            }
-          : undefined
+      setGeoError(null);
+    };
+
+  const handleToggleLocationSharing =
+    () => {
+      if (
+        isSharingLocation
+      ) {
+        stopLocationSharing();
+        return;
+      }
+
+      if (
+        !(
+          'geolocation' in
+          navigator
+        )
+      ) {
+        setGeoError(
+          'Cihazınız veya tarayıcınız GPS servisini desteklemiyor.'
+        );
+
+        return;
+      }
+
+      setIsRequestingGeo(
+        true
       );
 
       setGeoError(null);
 
-      return;
-    }
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setIsRequestingGeo(
+            false
+          );
 
-    if (!('geolocation' in navigator)) {
-      setGeoError(
-        'Cihazınız veya tarayıcınız GPS servisini desteklemiyor.'
-      );
-
-      return;
-    }
-
-    setIsRequestingGeo(true);
-    setGeoError(null);
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setIsRequestingGeo(false);
-
-        const {
-          latitude,
-          longitude,
-        } = position.coords;
-
-        const updated =
-          storage.updateCourierLocation(
-            currentCourier.id,
+          const {
             latitude,
             longitude,
+          } = position.coords;
+
+          const location:
+            CourierLocation = {
+            courierId:
+              currentCourier.id,
+
+            latitude,
+
+            longitude,
+
+            updatedAt:
+              new Date().toISOString(),
+
+            isSharing:
+              true,
+          };
+
+          storage.updateCourierLocation(
+            location
+          );
+
+          setCourierLoc(
+            location
+          );
+
+          setIsSharingLocation(
             true
           );
 
-        setIsSharingLocation(true);
-        setCourierLoc(updated);
+          const watchId =
+            navigator.geolocation.watchPosition(
+              (watchPosition) => {
+                const updatedLocation:
+                  CourierLocation = {
+                  courierId:
+                    currentCourier.id,
 
-        const watchId =
-          navigator.geolocation.watchPosition(
-            (watchPosition) => {
-              const updatedLocation =
+                  latitude:
+                    watchPosition
+                      .coords
+                      .latitude,
+
+                  longitude:
+                    watchPosition
+                      .coords
+                      .longitude,
+
+                  updatedAt:
+                    new Date().toISOString(),
+
+                  isSharing:
+                    true,
+                };
+
                 storage.updateCourierLocation(
-                  currentCourier.id,
-                  watchPosition.coords.latitude,
-                  watchPosition.coords.longitude,
-                  true
+                  updatedLocation
                 );
 
-              setCourierLoc(
-                updatedLocation
-              );
-            },
-            (error) => {
-              console.warn(
-                'GPS izleme:',
-                error.message
-              );
-            },
-            {
-              enableHighAccuracy: true,
-              maximumAge: 10000,
-              timeout: 25000,
-            }
+                setCourierLoc(
+                  updatedLocation
+                );
+              },
+              (error) => {
+                console.warn(
+                  'GPS izleme hatası:',
+                  error.message
+                );
+              },
+              {
+                enableHighAccuracy:
+                  true,
+                maximumAge:
+                  10000,
+                timeout:
+                  25000,
+              }
+            );
+
+          watchIdRef.current =
+            watchId;
+        },
+        (error) => {
+          setIsRequestingGeo(
+            false
           );
 
-        watchIdRef.current =
-          watchId;
-      },
-      (error) => {
-        setIsRequestingGeo(false);
-        setIsSharingLocation(false);
+          setIsSharingLocation(
+            false
+          );
 
-        if (
-          error.code ===
-          error.PERMISSION_DENIED
-        ) {
-          setGeoError(
-            'Konum erişim izni reddedildi.'
-          );
-        } else if (
-          error.code ===
-          error.TIMEOUT
-        ) {
-          setGeoError(
-            'GPS sinyali zaman aşımına uğradı.'
-          );
-        } else {
-          setGeoError(
-            'Konum alınamadı: ' +
-              error.message
-          );
+          if (
+            error.code ===
+            error.PERMISSION_DENIED
+          ) {
+            setGeoError(
+              'Konum erişim izni reddedildi.'
+            );
+          } else if (
+            error.code ===
+            error.TIMEOUT
+          ) {
+            setGeoError(
+              'GPS sinyali zaman aşımına uğradı.'
+            );
+          } else {
+            setGeoError(
+              `Konum alınamadı: ${error.message}`
+            );
+          }
+        },
+        {
+          enableHighAccuracy:
+            true,
+          timeout: 15000,
         }
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-      }
-    );
-  };
+      );
+    };
 
-  /*
-   * =====================================================
-   * SİPARİŞ AKIŞI
-   * =====================================================
-   */
+  /* =====================================================
+     SİPARİŞ AKIŞI
+  ===================================================== */
 
   const getNextAction = (
-    currentStatus: OrderStatus
+    status: OrderStatus
   ) => {
-    switch (currentStatus) {
+    switch (status) {
       case 'Kurye Atandı':
         return {
           nextStatus:
@@ -428,26 +549,25 @@ export const CourierPanel: React.FC<Props> = ({
     }
   };
 
-  const orderFlowSteps: OrderStatus[] = [
-    'Kurye Bekleniyor',
-    'Kurye Atandı',
-    'Kurye Kabul Etti',
-    'Paket Alındı',
-    'Teslimatta',
-    'Teslim Edildi',
-  ];
+  const orderFlowSteps:
+    OrderStatus[] = [
+      'Kurye Bekleniyor',
+      'Kurye Atandı',
+      'Kurye Kabul Etti',
+      'Paket Alındı',
+      'Teslimatta',
+      'Teslim Edildi',
+    ];
 
-  /*
-   * =====================================================
-   * EKRAN
-   * =====================================================
-   */
+  /* =====================================================
+     RENDER
+  ===================================================== */
 
   return (
     <div className="space-y-5 pb-20">
 
       {/* =================================================
-          KURYE ÜST BİLGİ
+          KURYE BİLGİSİ
       ================================================= */}
 
       <div className="bg-[#19191E] border border-[#303036] rounded-3xl p-5 shadow-2xl">
@@ -456,13 +576,17 @@ export const CourierPanel: React.FC<Props> = ({
 
           <div className="flex items-center gap-3.5">
 
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 overflow-hidden">
 
               {currentCourier.avatar ? (
                 <img
-                  src={currentCourier.avatar}
-                  alt={currentCourier.name}
-                  className="w-full h-full rounded-2xl object-cover"
+                  src={
+                    currentCourier.avatar
+                  }
+                  alt={
+                    currentCourier.name
+                  }
+                  className="w-full h-full object-cover"
                 />
               ) : (
                 <Truck className="w-6 h-6" />
@@ -471,33 +595,45 @@ export const CourierPanel: React.FC<Props> = ({
             </div>
 
             <div>
-
               <div className="flex items-center gap-2">
 
                 <h2 className="text-base sm:text-lg font-bold text-white">
-                  {currentCourier.name}
+                  {
+                    currentCourier.name
+                  }
                 </h2>
 
                 <span className="text-[10px] font-mono bg-[#0B0B0D] px-2 py-0.5 rounded border border-[#303036] text-[#D6A84F]">
-                  {currentCourier.plate ||
-                    '34 TL 001'}
+                  {
+                    currentCourier.plate ||
+                    'Plaka Yok'
+                  }
                 </span>
 
               </div>
 
               <p className="text-xs text-[#999999] mt-0.5">
-                {currentCourier.vehicle ||
-                  'Honda Forza 250'}{' '}
-                • Puan: ⭐{' '}
-                {currentCourier.rating ||
-                  '5.0'}
-              </p>
+                {
+                  currentCourier.vehicle ||
+                  'Araç bilgisi yok'
+                }
 
+                {' • '}
+
+                Puan: ⭐{' '}
+
+                {
+                  currentCourier.rating?.toFixed(
+                    1
+                  ) ||
+                  '0.0'
+                }
+              </p>
             </div>
 
           </div>
 
-          {/* DURUM BUTONLARI */}
+          {/* DURUM */}
 
           <div className="flex items-center gap-1.5 bg-[#0B0B0D] p-1.5 rounded-2xl border border-[#303036]">
 
@@ -507,46 +643,50 @@ export const CourierPanel: React.FC<Props> = ({
                 'Meşgul',
                 'Çevrimdışı',
               ] as CourierAvailability[]
-            ).map((status) => {
+            ).map(
+              (status) => {
+                const selected =
+                  courierStatus ===
+                  status;
 
-              const isSelected =
-                courierStatus === status;
-
-              return (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() =>
-                    handleStatusChange(
-                      status
-                    )
-                  }
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    isSelected
-                      ? status === 'Müsait'
-                        ? 'bg-emerald-500 text-white'
-                        : status === 'Meşgul'
-                        ? 'bg-amber-500 text-[#0B0B0D]'
-                        : 'bg-red-500/20 text-red-400 border border-red-500/40'
-                      : 'text-[#999999] hover:text-white'
-                  }`}
-                >
-
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      status === 'Müsait'
-                        ? 'bg-emerald-300'
-                        : status === 'Meşgul'
-                        ? 'bg-amber-300'
-                        : 'bg-gray-400'
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() =>
+                      handleStatusChange(
+                        status
+                      )
+                    }
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 ${
+                      selected
+                        ? status ===
+                          'Müsait'
+                          ? 'bg-emerald-500 text-white'
+                          : status ===
+                            'Meşgul'
+                          ? 'bg-amber-500 text-[#0B0B0D]'
+                          : 'bg-red-500/20 text-red-400 border border-red-500/40'
+                        : 'text-[#999999] hover:text-white'
                     }`}
-                  />
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        status ===
+                        'Müsait'
+                          ? 'bg-emerald-300'
+                          : status ===
+                            'Meşgul'
+                          ? 'bg-amber-300'
+                          : 'bg-gray-400'
+                      }`}
+                    />
 
-                  {status}
-
-                </button>
-              );
-            })}
+                    {status}
+                  </button>
+                );
+              }
+            )}
 
           </div>
 
@@ -562,7 +702,9 @@ export const CourierPanel: React.FC<Props> = ({
             </span>
 
             <span className="text-lg font-bold text-white">
-              {activeOrders.length}
+              {
+                activeOrders.length
+              }
             </span>
           </div>
 
@@ -572,7 +714,9 @@ export const CourierPanel: React.FC<Props> = ({
             </span>
 
             <span className="text-lg font-bold text-emerald-400">
-              {completedOrders.length}
+              {
+                completedOrders.length
+              }
             </span>
           </div>
 
@@ -582,7 +726,8 @@ export const CourierPanel: React.FC<Props> = ({
             </span>
 
             <span className="text-lg font-bold text-[#D6A84F]">
-              {totalEarnings} TL
+              {totalEarnings}{' '}
+              TL
             </span>
           </div>
 
@@ -611,22 +756,26 @@ export const CourierPanel: React.FC<Props> = ({
             </div>
 
             <div>
-
               <h3 className="text-xs sm:text-sm font-bold text-white">
-                Canlı GPS Konum Altyapısı
+                Canlı GPS Konum
               </h3>
 
               <p className="text-[11px] text-[#999999]">
                 {isSharingLocation
-                  ? 'Konumunuz paylaşılıyor.'
+                  ? 'Konumunuz Firestore üzerinden paylaşılıyor.'
                   : 'Canlı takip için konum paylaşımını başlatın.'}
               </p>
-
             </div>
 
           </div>
 
-          <span className="text-[10px] px-2.5 py-1 rounded-full font-bold">
+          <span
+            className={`text-[10px] px-2.5 py-1 rounded-full font-bold ${
+              isSharingLocation
+                ? 'bg-emerald-500/15 text-emerald-400'
+                : 'bg-[#222229] text-[#777777]'
+            }`}
+          >
             {isSharingLocation
               ? 'YAYINDA'
               : 'KAPALI'}
@@ -639,14 +788,15 @@ export const CourierPanel: React.FC<Props> = ({
           onClick={
             handleToggleLocationSharing
           }
-          disabled={isRequestingGeo}
+          disabled={
+            isRequestingGeo
+          }
           className={`w-full min-h-[52px] py-3.5 px-5 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 ${
             isSharingLocation
               ? 'bg-emerald-500/15 border-2 border-emerald-500 text-emerald-300'
               : 'bg-[#D6A84F] text-[#0B0B0D]'
           }`}
         >
-
           {isSharingLocation ? (
             <>
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
@@ -655,27 +805,25 @@ export const CourierPanel: React.FC<Props> = ({
           ) : (
             <>
               <Navigation className="w-5 h-5" />
+
               {isRequestingGeo
                 ? 'GPS İzni İsteniyor...'
                 : 'Konumumu Paylaş'}
             </>
           )}
-
         </button>
 
         {courierLoc &&
           isSharingLocation && (
             <div className="mt-3 p-3 bg-[#0B0B0D] border border-[#303036] rounded-xl text-[11px] font-mono">
-
               📍{' '}
               {courierLoc.latitude.toFixed(
-                4
+                5
               )}
               ,{' '}
               {courierLoc.longitude.toFixed(
-                4
+                5
               )}
-
             </div>
           )}
 
@@ -697,7 +845,9 @@ export const CourierPanel: React.FC<Props> = ({
         <button
           type="button"
           onClick={() =>
-            setActiveTab('active')
+            setActiveTab(
+              'active'
+            )
           }
           className={`px-4 py-2 text-xs font-bold rounded-xl ${
             activeTab === 'active'
@@ -706,13 +856,16 @@ export const CourierPanel: React.FC<Props> = ({
           }`}
         >
           Aktif Siparişler (
-          {activeOrders.length})
+          {activeOrders.length}
+          )
         </button>
 
         <button
           type="button"
           onClick={() =>
-            setActiveTab('history')
+            setActiveTab(
+              'history'
+            )
           }
           className={`px-4 py-2 text-xs font-bold rounded-xl ${
             activeTab === 'history'
@@ -721,7 +874,10 @@ export const CourierPanel: React.FC<Props> = ({
           }`}
         >
           Geçmiş Siparişler (
-          {completedOrders.length})
+          {
+            completedOrders.length
+          }
+          )
         </button>
 
       </div>
@@ -733,7 +889,8 @@ export const CourierPanel: React.FC<Props> = ({
       {activeTab === 'active' && (
         <div className="space-y-4">
 
-          {activeOrders.length === 0 ? (
+          {activeOrders.length ===
+          0 ? (
             <div className="text-center py-16 bg-[#19191E] border border-[#303036] rounded-3xl p-6">
 
               <Truck className="w-12 h-12 text-[#999999]/30 mx-auto mb-3" />
@@ -743,251 +900,270 @@ export const CourierPanel: React.FC<Props> = ({
               </h3>
 
               <p className="text-xs text-[#999999] mt-1">
-                Yönetici size yeni bir
-                sipariş atadığında burada
+                Yönetici size yeni
+                bir sipariş
+                atadığında burada
                 görünecektir.
               </p>
 
             </div>
           ) : (
+            activeOrders.map(
+              (order) => {
+                const action =
+                  getNextAction(
+                    order.status
+                  );
 
-            activeOrders.map((order) => {
+                const currentStepIdx =
+                  orderFlowSteps.indexOf(
+                    order.status
+                  );
 
-              const action =
-                getNextAction(
-                  order.status
-                );
+                return (
+                  <div
+                    key={order.id}
+                    className="bg-[#19191E] border-2 border-[#D6A84F]/50 rounded-3xl p-5 space-y-4"
+                  >
 
-              const currentStepIdx =
-                orderFlowSteps.indexOf(
-                  order.status
-                );
+                    <div className="flex items-center justify-between gap-3">
 
-              return (
-                <div
-                  key={order.id}
-                  className="bg-[#19191E] border-2 border-[#D6A84F]/50 rounded-3xl p-5 space-y-4"
-                >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-[#D6A84F]">
+                          #{order.id}
+                        </span>
 
-                  <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white">
+                          {
+                            order.courierType
+                          }
+                        </span>
+                      </div>
 
-                    <div className="flex items-center gap-2">
-
-                      <span className="text-xs font-mono font-bold text-[#D6A84F]">
-                        #{order.id}
-                      </span>
-
-                      <span className="text-xs font-bold text-white">
-                        {order.courierType}
+                      <span className="text-base font-extrabold text-[#D6A84F]">
+                        {
+                          order.price
+                        }{' '}
+                        TL
                       </span>
 
                     </div>
 
-                    <span className="text-base font-extrabold text-[#D6A84F]">
-                      {order.price} TL
-                    </span>
+                    {/* PROGRESS */}
 
-                  </div>
+                    <div className="bg-[#0B0B0D] p-3 rounded-2xl border border-[#303036]">
 
-                  {/* PROGRESS */}
+                      <span className="text-[10px] text-[#999999] uppercase font-bold block mb-2">
+                        Sipariş Aşaması
+                      </span>
 
-                  <div className="bg-[#0B0B0D] p-3 rounded-2xl border border-[#303036]">
+                      <div className="grid grid-cols-6 gap-1 text-center">
 
-                    <span className="text-[10px] text-[#999999] uppercase font-bold block mb-2">
-                      Sipariş Aşaması
-                    </span>
+                        {orderFlowSteps.map(
+                          (
+                            step,
+                            index
+                          ) => {
+                            const done =
+                              currentStepIdx >=
+                              index;
 
-                    <div className="grid grid-cols-6 gap-1 text-center">
+                            const current =
+                              currentStepIdx ===
+                              index;
 
-                      {orderFlowSteps.map(
-                        (step, index) => {
-
-                          const isDone =
-                            currentStepIdx >=
-                            index;
-
-                          const isCurrent =
-                            currentStepIdx ===
-                            index;
-
-                          return (
-                            <div
-                              key={step}
-                              className="flex flex-col items-center"
-                            >
-
+                            return (
                               <div
-                                className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                                  isCurrent
-                                    ? 'bg-[#D6A84F] text-[#0B0B0D]'
-                                    : isDone
-                                    ? 'bg-emerald-500 text-white'
-                                    : 'bg-[#19191E] text-[#999999]'
-                                }`}
+                                key={step}
+                                className="flex flex-col items-center min-w-0"
                               >
-                                {isDone
-                                  ? '✓'
-                                  : index + 1}
+                                <div
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                    current
+                                      ? 'bg-[#D6A84F] text-[#0B0B0D]'
+                                      : done
+                                      ? 'bg-emerald-500 text-white'
+                                      : 'bg-[#19191E] text-[#999999]'
+                                  }`}
+                                >
+                                  {done
+                                    ? '✓'
+                                    : index +
+                                      1}
+                                </div>
+
+                                <span className="text-[8px] text-[#999999] truncate w-full mt-1">
+                                  {step
+                                    .replace(
+                                      'Kurye ',
+                                      ''
+                                    )
+                                    .replace(
+                                      'Paket ',
+                                      ''
+                                    )}
+                                </span>
                               </div>
+                            );
+                          }
+                        )}
 
-                              <span className="text-[8px] text-[#999999] truncate w-full">
-                                {step
-                                  .replace(
-                                    'Kurye ',
-                                    ''
-                                  )
-                                  .replace(
-                                    'Paket ',
-                                    ''
-                                  )}
-                              </span>
+                      </div>
+                    </div>
 
-                            </div>
-                          );
-                        }
+                    {/* MÜŞTERİ */}
+
+                    <div className="bg-[#222229] border border-[#303036] rounded-2xl p-3.5 flex items-center justify-between gap-3">
+
+                      <div className="flex items-center gap-2.5 min-w-0">
+
+                        <div className="w-9 h-9 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+                          <User className="w-4 h-4" />
+                        </div>
+
+                        <div className="min-w-0">
+                          <span className="text-[10px] text-[#999999] block">
+                            Müşteri
+                          </span>
+
+                          <h4 className="text-xs font-bold text-white truncate">
+                            {
+                              order.customerName
+                            }
+                          </h4>
+                        </div>
+
+                      </div>
+
+                      {order.customerPhone && (
+                        <a
+                          href={`tel:${order.customerPhone}`}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-400 text-xs font-bold shrink-0"
+                        >
+                          <Phone className="w-4 h-4" />
+                          Ara
+                        </a>
                       )}
 
                     </div>
 
-                  </div>
+                    {/* ADRESLER */}
 
-                  {/* MÜŞTERİ */}
+                    <div className="space-y-3 bg-[#0B0B0D] border border-[#303036] p-4 rounded-2xl">
 
-                  <div className="bg-[#222229] border border-[#303036] rounded-2xl p-3.5 flex items-center justify-between">
+                      <div className="flex items-start gap-2.5">
+                        <MapPin className="w-4 h-4 text-[#D6A84F] shrink-0" />
 
-                    <div className="flex items-center gap-2.5">
+                        <div>
+                          <span className="text-[10px] text-[#999999] font-bold uppercase block">
+                            Alınacak Adres
+                          </span>
 
-                      <div className="w-9 h-9 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center">
-                        <User className="w-4 h-4" />
+                          <p className="text-xs text-white mt-0.5">
+                            {
+                              order.pickupAddress
+                            }
+                          </p>
+                        </div>
                       </div>
 
-                      <div>
+                      <div className="border-l-2 border-dashed border-[#303036] ml-2 h-4" />
 
-                        <span className="text-[10px] text-[#999999] block">
-                          Müşteri
-                        </span>
+                      <div className="flex items-start gap-2.5">
+                        <Navigation className="w-4 h-4 text-emerald-400 shrink-0" />
 
-                        <h4 className="text-xs font-bold text-white">
-                          {order.customerName}
-                        </h4>
+                        <div>
+                          <span className="text-[10px] text-[#999999] font-bold uppercase block">
+                            Teslim Adresi
+                          </span>
 
+                          <p className="text-xs text-white mt-0.5">
+                            {
+                              order.deliveryAddress
+                            }
+                          </p>
+                        </div>
                       </div>
 
                     </div>
 
-                    {order.customerPhone && (
-                      <a
-                        href={`tel:${order.customerPhone}`}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-400 text-xs font-bold"
+                    {/* DETAY */}
+
+                    <div className="grid grid-cols-3 gap-2 text-xs text-[#999999]">
+
+                      <div className="bg-[#222229] rounded-xl p-2.5">
+                        <span className="block text-[9px] text-[#666666]">
+                          Paket
+                        </span>
+
+                        <b className="text-white text-[10px]">
+                          {
+                            order.packageType
+                          }
+                        </b>
+                      </div>
+
+                      <div className="bg-[#222229] rounded-xl p-2.5">
+                        <span className="block text-[9px] text-[#666666]">
+                          Mesafe
+                        </span>
+
+                        <b className="text-white text-[10px]">
+                          {
+                            order.distanceKm
+                          }{' '}
+                          KM
+                        </b>
+                      </div>
+
+                      <div className="bg-[#222229] rounded-xl p-2.5">
+                        <span className="block text-[9px] text-[#666666]">
+                          Fiyat
+                        </span>
+
+                        <b className="text-[#D6A84F] text-[10px]">
+                          {
+                            order.price
+                          }{' '}
+                          TL
+                        </b>
+                      </div>
+
+                    </div>
+
+                    {order.note && (
+                      <div className="text-xs bg-[#222229] p-3 rounded-2xl border border-[#303036] text-amber-200">
+                        <b className="text-white">
+                          Müşteri Notu:
+                        </b>{' '}
+                        {order.note}
+                      </div>
+                    )}
+
+                    {/* AKSİYON */}
+
+                    {action && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleUpdateOrderStatus(
+                            order.id,
+                            action.nextStatus
+                          )
+                        }
+                        className={`w-full min-h-[52px] py-4 px-6 rounded-2xl font-black text-base flex items-center justify-center gap-2.5 ${action.className}`}
                       >
-                        <Phone className="w-4 h-4" />
-                        {order.customerPhone}
-                      </a>
+                        <CheckCircle2 className="w-5 h-5" />
+                        {
+                          action.label
+                        }
+                      </button>
                     )}
 
                   </div>
-
-                  {/* ADRESLER */}
-
-                  <div className="space-y-3 bg-[#0B0B0D] border border-[#303036] p-4 rounded-2xl">
-
-                    <div className="flex items-start gap-2.5">
-
-                      <MapPin className="w-4 h-4 text-[#D6A84F] shrink-0" />
-
-                      <div>
-
-                        <span className="text-[10px] text-[#999999] font-bold uppercase block">
-                          Alınacak Adres
-                        </span>
-
-                        <p className="text-xs text-white mt-0.5">
-                          {order.pickupAddress}
-                        </p>
-
-                      </div>
-
-                    </div>
-
-                    <div className="border-l-2 border-dashed border-[#303036] ml-2 h-4" />
-
-                    <div className="flex items-start gap-2.5">
-
-                      <Navigation className="w-4 h-4 text-emerald-400 shrink-0" />
-
-                      <div>
-
-                        <span className="text-[10px] text-[#999999] font-bold uppercase block">
-                          Teslim Adresi
-                        </span>
-
-                        <p className="text-xs text-white mt-0.5">
-                          {order.deliveryAddress}
-                        </p>
-
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                  {/* DETAY */}
-
-                  <div className="flex items-center justify-between text-xs text-[#999999]">
-
-                    <span>
-                      Paket:{' '}
-                      <b className="text-white">
-                        {order.packageType}
-                      </b>
-                    </span>
-
-                    <span>
-                      Mesafe:{' '}
-                      <b className="text-white">
-                        {order.distanceKm} KM
-                      </b>
-                    </span>
-
-                    <span>
-                      Fiyat:{' '}
-                      <b className="text-[#D6A84F]">
-                        {order.price} TL
-                      </b>
-                    </span>
-
-                  </div>
-
-                  {order.note && (
-                    <div className="text-xs bg-[#222229] p-3 rounded-2xl border border-[#303036] text-amber-200">
-                      <b className="text-white">
-                        Müşteri Notu:
-                      </b>{' '}
-                      {order.note}
-                    </div>
-                  )}
-
-                  {/* AKSİYON */}
-
-                  {action && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleUpdateOrderStatus(
-                          order.id,
-                          action.nextStatus
-                        )
-                      }
-                      className={`w-full min-h-[52px] py-4 px-6 rounded-2xl font-black text-base flex items-center justify-center gap-2.5 ${action.className}`}
-                    >
-                      <CheckCircle2 className="w-5 h-5" />
-                      {action.label}
-                    </button>
-                  )}
-
-                </div>
-              );
-            })
+                );
+              }
+            )
           )}
 
         </div>
@@ -997,19 +1173,21 @@ export const CourierPanel: React.FC<Props> = ({
           GEÇMİŞ
       ================================================= */}
 
-      {activeTab === 'history' && (
+      {activeTab ===
+        'history' && (
         <div className="space-y-3">
 
-          {completedOrders.length === 0 ? (
+          {completedOrders.length ===
+          0 ? (
             <div className="text-center py-16 bg-[#19191E] border border-[#303036] rounded-3xl p-6 text-[#999999]">
-              Henüz tamamlanan teslimatınız bulunmamaktadır.
+              Henüz tamamlanan
+              teslimatınız
+              bulunmamaktadır.
             </div>
           ) : (
-
             completedOrders.map(
               (order) => {
-
-                const isExpanded =
+                const expanded =
                   expandedHistoryId ===
                   order.id;
 
@@ -1021,7 +1199,7 @@ export const CourierPanel: React.FC<Props> = ({
 
                     <div className="flex items-center justify-between gap-3">
 
-                      <div>
+                      <div className="min-w-0">
 
                         <div className="flex items-center gap-2 mb-1">
 
@@ -1040,8 +1218,10 @@ export const CourierPanel: React.FC<Props> = ({
                             order.pickupAddress.split(
                               ','
                             )[0]
-                          }{' '}
-                          →{' '}
+                          }
+
+                          {' → '}
+
                           {
                             order.deliveryAddress.split(
                               ','
@@ -1051,10 +1231,13 @@ export const CourierPanel: React.FC<Props> = ({
 
                       </div>
 
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
 
                         <span className="text-sm font-extrabold text-[#D6A84F] block">
-                          {order.price} TL
+                          {
+                            order.price
+                          }{' '}
+                          TL
                         </span>
 
                         <span className="text-[10px] text-emerald-400 block">
@@ -1070,14 +1253,14 @@ export const CourierPanel: React.FC<Props> = ({
                           type="button"
                           onClick={() =>
                             setExpandedHistoryId(
-                              isExpanded
+                              expanded
                                 ? null
                                 : order.id
                             )
                           }
-                          className="text-[11px] font-bold text-[#D6A84F]"
+                          className="text-[11px] font-bold text-[#D6A84F] mt-1"
                         >
-                          {isExpanded
+                          {expanded
                             ? 'Kanıtı Gizle'
                             : 'Kanıtı İncele'}
                         </button>
@@ -1086,10 +1269,12 @@ export const CourierPanel: React.FC<Props> = ({
 
                     </div>
 
-                    {isExpanded && (
+                    {expanded && (
                       <div className="pt-2 border-t border-[#303036]">
                         <DeliveryProofCard
-                          order={order}
+                          order={
+                            order
+                          }
                         />
                       </div>
                     )}
@@ -1098,7 +1283,6 @@ export const CourierPanel: React.FC<Props> = ({
                 );
               }
             )
-
           )}
 
         </div>
@@ -1124,3 +1308,5 @@ export const CourierPanel: React.FC<Props> = ({
     </div>
   );
 };
+
+export default CourierPanel;
