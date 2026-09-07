@@ -796,7 +796,16 @@ class StorageService {
     this.saveCache();
     this.notify();
   }
+getPricing() {
+  return {
+    basePrice: 0,
+    pricePerKm: 0,
+  };
+}
 
+getNotifications(userId: string) {
+  return [];
+}
   getStats() {
     const totalOrders =
       this.orders.length;
