@@ -10,6 +10,15 @@ import {
   where,
 } from "firebase/firestore";
 
+import {
+  createUserWithEmailAndPassword,
+  deleteUser,
+  getAuth,
+  signOut,
+} from "firebase/auth";
+
+import { getApps, initializeApp } from "firebase/app";
+
 import { DEFAULT_PRICING } from "../utils/pricing";
 
 import type {
@@ -21,6 +30,15 @@ import type {
 } from "../types";
 
 import { auth, db } from "./firebase";
+
+type CreateCourierInput = {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  vehicle?: string;
+  plate?: string;
+};
 
 class StorageService {
   private currentUser: UserProfile | null = null;
@@ -185,18 +203,25 @@ class StorageService {
     );
   }
 
+  /**
+   * ADMIN:
+   * Artık sadece müşterileri değil,
+   * users koleksiyonundaki bütün kullanıcıları dinler.
+   *
+   * Böylece yeni oluşturulan kuryeler de
+   * AdminPanel'e otomatik gelir.
+   */
   private setupAdminUsersListener() {
+    if (this.currentUser?.role !== "admin") {
+      return;
+    }
+
     const usersRef = collection(db, "users");
 
-    const customersQuery = query(
-      usersRef,
-      where("role", "==", "customer"),
-    );
-
     this.adminUsersUnsubscribe = onSnapshot(
-      customersQuery,
+      usersRef,
       (snapshot) => {
-        const customers = snapshot.docs.map(
+        const users = snapshot.docs.map(
           (item) =>
             ({
               ...item.data(),
@@ -204,21 +229,14 @@ class StorageService {
             }) as UserProfile,
         );
 
-        const nonCustomers = this.users.filter(
-          (user) => user.role !== "customer",
-        );
-
-        this.users = [
-          ...nonCustomers,
-          ...customers,
-        ];
+        this.users = users;
 
         this.saveCache();
         this.notify();
       },
       (error) => {
         console.error(
-          "Admin müşteri listesi hatası:",
+          "Admin kullanıcı listesi hatası:",
           error,
         );
       },
@@ -334,7 +352,8 @@ class StorageService {
       id: orderId,
       customerId,
       courierId: data.courierId ?? null,
-      status: data.status || "Kurye Bekleniyor",
+      status:
+        data.status || "Kurye Bekleniyor",
       createdAt: data.createdAt || now,
       updatedAt: now,
     } as Order;
@@ -424,9 +443,6 @@ class StorageService {
       const currentOrder =
         snapshot.data() as Order;
 
-      // KURYE:
-      // Sadece kendisine atanmış siparişi
-      // güncelleyebilir.
       if (
         this.currentUser?.role === "courier"
       ) {
@@ -439,7 +455,6 @@ class StorageService {
           );
         }
 
-        // Kurye başka bir courierId gönderemez.
         if (
           updates.courierId !== undefined &&
           updates.courierId !==
@@ -519,6 +534,36 @@ class StorageService {
     }
   }
 
+  async updateOrderStatus(
+    orderId: string,
+    status: OrderStatus,
+  ) {
+    return this.updateOrder(
+      orderId,
+      {
+        status,
+      },
+    );
+  }
+
+  async updateOrderPrice(
+    orderId: string,
+    price: number,
+  ) {
+    if (!Number.isFinite(price)) {
+      throw new Error(
+        "Geçersiz fiyat.",
+      );
+    }
+
+    return this.updateOrder(
+      orderId,
+      {
+        price: Math.round(price),
+      },
+    );
+  }
+
   async assignCourier(
     orderId: string,
     courierId: string,
@@ -529,10 +574,27 @@ class StorageService {
       );
     }
 
+    const courier =
+      await this.getUserById(courierId);
+
+    if (!courier) {
+      throw new Error(
+        "Seçilen kurye bulunamadı.",
+      );
+    }
+
+    if (courier.role !== "courier") {
+      throw new Error(
+        "Seçilen kullanıcı kurye değil.",
+      );
+    }
+
     return this.updateOrder(
       orderId,
       {
         courierId,
+        courierName: courier.name,
+        courierPhone: courier.phone,
         status:
           "Kurye Atandı" as OrderStatus,
       },
@@ -746,6 +808,11 @@ class StorageService {
     }
   }
 
+  /**
+   * Eski yöntem:
+   * Firebase Auth hesabı zaten oluşturulmuşsa
+   * Firestore'a kurye profili eklemek için kullanılabilir.
+   */
   async addCourier(
     courier: Partial<Courier>,
   ) {
@@ -810,6 +877,257 @@ class StorageService {
     }
   }
 
+  /**
+   * YENİ:
+   *
+   * Admin Panel -> Kurye Ekle
+   *
+   * Firebase Authentication'da gerçek kullanıcı oluşturur.
+   * Ardından users/{UID} Firestore profilini oluşturur.
+   *
+   * Admin'in ana oturumu düşmez.
+   */
+  async createCourierAccount(
+    data: CreateCourierInput,
+  ): Promise<UserProfile> {
+    const adminUser = auth.currentUser;
+
+    if (!adminUser) {
+      throw new Error(
+        "Admin oturumu bulunamadı. Lütfen tekrar giriş yapın.",
+      );
+    }
+
+    if (
+      adminUser.email?.toLowerCase() !==
+      "hamidocan0411@gmail.com"
+    ) {
+      throw new Error(
+        "Bu işlem sadece admin hesabı tarafından yapılabilir.",
+      );
+    }
+
+    const name = data.name.trim();
+    const email = data.email
+      .trim()
+      .toLowerCase();
+    const phone = data.phone.trim();
+    const password = data.password;
+
+    if (!name) {
+      throw new Error(
+        "Kurye adı zorunludur.",
+      );
+    }
+
+    if (!email) {
+      throw new Error(
+        "Kurye e-posta adresi zorunludur.",
+      );
+    }
+
+    if (!phone) {
+      throw new Error(
+        "Kurye telefon numarası zorunludur.",
+      );
+    }
+
+    if (!password) {
+      throw new Error(
+        "Kurye şifresi zorunludur.",
+      );
+    }
+
+    if (password.length < 6) {
+      throw new Error(
+        "Şifre en az 6 karakter olmalıdır.",
+      );
+    }
+
+    /*
+     * Ana Firebase App'ten farklı bir App oluşturuyoruz.
+     *
+     * Böylece:
+     *
+     * Admin oturumu
+     *       ↓
+     * DEĞİŞMEZ
+     *
+     * Kurye hesabı
+     *       ↓
+     * Secondary Auth üzerinden oluşturulur.
+     */
+    const secondaryApp =
+      getApps().find(
+        (app) =>
+          app.name ===
+          "TrustlineCourierCreator",
+      ) ??
+      initializeApp(
+        auth.app.options,
+        "TrustlineCourierCreator",
+      );
+
+    const secondaryAuth =
+      getAuth(secondaryApp);
+
+    let createdUser: any = null;
+
+    try {
+      const credential =
+        await createUserWithEmailAndPassword(
+          secondaryAuth,
+          email,
+          password,
+        );
+
+      createdUser = credential.user;
+
+      const now =
+        new Date().toISOString();
+
+      const courierProfile: UserProfile = {
+        id: createdUser.uid,
+        name,
+        email,
+        phone,
+        role: "courier",
+        vehicle:
+          data.vehicle?.trim() || "",
+        plate:
+          data.plate?.trim() || "",
+        courierStatus: "Müsait",
+        totalDeliveries: 0,
+        rating: 5,
+        createdAt: now,
+      };
+
+      /*
+       * ÖNEMLİ:
+       *
+       * Bu Firestore işlemi ana admin auth
+       * oturumuyla yapılır.
+       */
+      await setDoc(
+        doc(
+          db,
+          "users",
+          createdUser.uid,
+        ),
+        courierProfile,
+      );
+
+      /*
+       * Secondary kullanıcıdan çık.
+       * Ana admin hesabı etkilenmez.
+       */
+      await signOut(secondaryAuth);
+
+      /*
+       * Local cache güncelle.
+       */
+      const existingIndex =
+        this.users.findIndex(
+          (user) =>
+            user.id ===
+            courierProfile.id,
+        );
+
+      if (existingIndex >= 0) {
+        this.users[existingIndex] =
+          courierProfile;
+      } else {
+        this.users.push(
+          courierProfile,
+        );
+      }
+
+      this.saveCache();
+      this.notify();
+
+      console.log(
+        "KURYE HESABI BAŞARIYLA OLUŞTURULDU:",
+        {
+          uid: createdUser.uid,
+          email,
+          name,
+        },
+      );
+
+      return courierProfile;
+    } catch (error: any) {
+      console.error(
+        "KURYE HESABI OLUŞTURULAMADI:",
+        error,
+      );
+
+      /*
+       * Auth hesabı oluşturuldu fakat
+       * Firestore kaydı başarısız olduysa
+       * Auth hesabını geri silmeye çalış.
+       */
+      if (createdUser) {
+        try {
+          await deleteUser(
+            createdUser,
+          );
+        } catch (deleteError) {
+          console.error(
+            "Oluşturulan Auth hesabı geri silinemedi:",
+            deleteError,
+          );
+        }
+      }
+
+      try {
+        await signOut(secondaryAuth);
+      } catch {
+        // Zaten çıkış yapılmış olabilir.
+      }
+
+      if (
+        error?.code ===
+        "auth/email-already-in-use"
+      ) {
+        throw new Error(
+          "Bu e-posta adresi zaten Firebase'de kullanılıyor.",
+        );
+      }
+
+      if (
+        error?.code ===
+        "auth/invalid-email"
+      ) {
+        throw new Error(
+          "Geçersiz e-posta adresi.",
+        );
+      }
+
+      if (
+        error?.code ===
+        "auth/weak-password"
+      ) {
+        throw new Error(
+          "Şifre çok zayıf. En az 6 karakter kullanın.",
+        );
+      }
+
+      if (
+        error?.code ===
+        "permission-denied"
+      ) {
+        throw new Error(
+          "Firestore yetkisi reddedildi. Firestore Rules kontrol edilmeli.",
+        );
+      }
+
+      throw new Error(
+        error?.message ||
+          "Kurye hesabı oluşturulamadı.",
+      );
+    }
+  }
+
   async updateUser(
     userId: string,
     updates: Partial<UserProfile>,
@@ -856,7 +1174,9 @@ class StorageService {
       this.saveCache();
       this.notify();
 
-      return this.users[index];
+      return index >= 0
+        ? this.users[index]
+        : undefined;
     } catch (error) {
       console.error(
         "Kullanıcı güncellenemedi:",
@@ -865,6 +1185,38 @@ class StorageService {
 
       throw error;
     }
+  }
+
+  /**
+   * AdminPanel'deki kurye durumunu güncellemek için.
+   */
+  async updateCourierStatus(
+    courierId: string,
+    status: UserProfile["courierStatus"],
+  ) {
+    const courier =
+      await this.getUserById(
+        courierId,
+      );
+
+    if (!courier) {
+      throw new Error(
+        "Kurye bulunamadı.",
+      );
+    }
+
+    if (courier.role !== "courier") {
+      throw new Error(
+        "Bu kullanıcı kurye değil.",
+      );
+    }
+
+    return this.updateUser(
+      courierId,
+      {
+        courierStatus: status,
+      },
+    );
   }
 
   async deleteUser(userId: string) {
@@ -1078,7 +1430,7 @@ class StorageService {
   }
 
   getNotifications(
-    userId: string,
+    _userId: string,
   ) {
     return [];
   }
