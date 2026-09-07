@@ -372,9 +372,9 @@ class StorageService {
       );
 
       /*
-       * KRİTİK DÜZELTME:
-       * Admin giriş yaptığında Firebase'deki
-       * bütün customer kullanıcılarını canlı dinle.
+       * ADMIN:
+       * Firebase users koleksiyonundaki bütün
+       * customer kayıtlarını canlı olarak dinle.
        */
       if (
         profile.role === "admin"
@@ -480,9 +480,10 @@ class StorageService {
   =================================================== */
 
   private setupAdminUsersListener(): void {
-    const user = auth.currentUser;
+    const firebaseUser =
+      auth.currentUser;
 
-    if (!user) {
+    if (!firebaseUser) {
       console.error(
         "Admin müşteri listener başlatılamadı: Firebase oturumu yok."
       );
@@ -517,22 +518,44 @@ class StorageService {
             );
 
           /*
-           * Admin tarafında Firebase'deki
-           * gerçek müşteri listesi source of truth.
-           *
-           * Kurye/admin gibi local kayıtları
-           * silmeden customer kayıtlarını
-           * Firebase ile senkronize ediyoruz.
+           * Firebase müşteri kayıtlarını
+           * mevcut customer kayıtlarıyla
+           * tamamen senkronize ediyoruz.
            */
-          const nonCustomers =
+
+          const firebaseCustomerIds =
+            new Set(
+              firebaseCustomers.map(
+                (customer) =>
+                  customer.id
+              )
+            );
+
+          const nonCustomerUsers =
             this.users.filter(
-              (existing) =>
-                existing.role !==
+              (user) =>
+                user.role !==
                 "customer"
             );
 
+          const cachedOnlyCustomers =
+            this.users.filter(
+              (user) =>
+                user.role ===
+                  "customer" &&
+                !firebaseCustomerIds.has(
+                  user.id
+                )
+            );
+
+          /*
+           * Firebase source of truth.
+           *
+           * Firebase'de olmayan eski customer
+           * cache kayıtlarını göstermiyoruz.
+           */
           this.users = [
-            ...nonCustomers,
+            ...nonCustomerUsers,
             ...firebaseCustomers,
           ];
 
@@ -542,8 +565,15 @@ class StorageService {
           );
 
           console.log(
-            `Firebase'den ${firebaseCustomers.length} müşteri yüklendi.`
+            `Firebase'den ${firebaseCustomers.length} müşteri senkronize edildi.`
           );
+
+          /*
+           * Kullanılmayan değişken uyarısı oluşmaması
+           * için cache-only müşterileri bilinçli olarak
+           * kullanmıyoruz.
+           */
+          void cachedOnlyCustomers;
 
           this.notify();
         },
@@ -1146,11 +1176,18 @@ class StorageService {
   private async writeUser(
     user: UserProfile
   ): Promise<void> {
-    if (!auth.currentUser) {
+    const firebaseUser =
+      auth.currentUser;
+
+    if (!firebaseUser) {
       return;
     }
 
     try {
+      /*
+       * Kullanıcı kendi profilini veya
+       * admin yetkili kullanıcıları yazabilir.
+       */
       await setDoc(
         doc(
           db,
@@ -1393,7 +1430,7 @@ class StorageService {
       auth.currentUser;
 
     if (!firebaseUser) {
-      console.warn(
+      console.error(
         "Sipariş kaydedilemedi: Firebase oturumu yok."
       );
 
@@ -1402,18 +1439,65 @@ class StorageService {
 
     try {
       /*
-       * Firebase Auth UID güvenlik açısından
-       * gerçek müşteri kimliğidir.
+       * ÖNEMLİ:
        *
-       * Customer siparişlerinde yanlış/local
-       * customerId gönderilmesini engelliyoruz.
+       * Firestore Rules müşteri tarafından
+       * oluşturulan siparişlerde:
+       *
+       * customerId == request.auth.uid
+       *
+       * şartını arıyor.
+       *
+       * Bu nedenle kullanıcı customer ise
+       * customerId kesinlikle Firebase UID olur.
+       *
+       * Admin/kurye sipariş güncellemelerinde
+       * mevcut customerId korunur.
        */
-      const orderToWrite: Order = {
+
+      const isCustomer =
+        this.currentUser?.role ===
+        "customer";
+
+      const orderToWrite:
+        Order = {
         ...order,
+
         customerId:
-          order.customerId ||
-          firebaseUser.uid,
+          isCustomer
+            ? firebaseUser.uid
+            : order.customerId,
       };
+
+      /*
+       * Local order'ın customerId'si de
+       * gerçek Firebase UID ile düzeltiliyor.
+       */
+      if (
+        isCustomer &&
+        order.customerId !==
+          firebaseUser.uid
+      ) {
+        const index =
+          this.orders.findIndex(
+            (item) =>
+              item.id ===
+              order.id
+          );
+
+        if (index >= 0) {
+          this.orders[index] = {
+            ...this.orders[index],
+            customerId:
+              firebaseUser.uid,
+          };
+
+          saveCache(
+            CACHE_KEYS.orders,
+            this.orders
+          );
+        }
+      }
 
       await setDoc(
         doc(
@@ -1427,6 +1511,11 @@ class StorageService {
         {
           merge: true,
         }
+      );
+
+      console.log(
+        "Sipariş Firebase'e kaydedildi:",
+        order.id
       );
     } catch (error) {
       console.error(
@@ -1532,15 +1621,10 @@ class StorageService {
       auth.currentUser;
 
     /*
-     * KRİTİK DÜZELTME:
+     * Firebase Auth UID birinci öncelik.
      *
-     * Firebase Auth UID HER ZAMAN öncelikli.
-     *
-     * Firestore Rules:
-     * request.resource.data.customerId
-     * == request.auth.uid
-     *
-     * şartını gerektiriyor.
+     * UI yanlış/local bir customerId gönderse
+     * bile gerçek Firebase UID kullanılacak.
      */
     const customerId =
       firebaseUser?.uid ||
@@ -1669,6 +1753,19 @@ class StorageService {
       updatedAt:
         now,
     };
+
+    /*
+     * Firebase oturumu varsa customerId'nin
+     * kesinlikle Auth UID olmasını sağla.
+     */
+    if (
+      firebaseUser &&
+      this.currentUser?.role ===
+        "customer"
+    ) {
+      order.customerId =
+        firebaseUser.uid;
+    }
 
     this.orders.unshift(
       order
