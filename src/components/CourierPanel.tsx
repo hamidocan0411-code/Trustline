@@ -2,7 +2,7 @@ import React, {
   useEffect,
   useRef,
   useState,
-} from 'react';
+} from "react";
 
 import {
   AlertCircle,
@@ -13,7 +13,7 @@ import {
   Radio,
   Truck,
   User,
-} from 'lucide-react';
+} from "lucide-react";
 
 import type {
   CourierAvailability,
@@ -21,34 +21,42 @@ import type {
   Order,
   OrderStatus,
   UserProfile,
-} from '../types';
+} from "../types";
 
-import { storage } from '../services/storage';
+import { storage } from "../services/storage";
+import {
+  saveDeliveryProof,
+} from "../services/deliveryProof";
 
-import { DeliveryProofModal } from './DeliveryProofModal';
-import { DeliveryProofCard } from './DeliveryProofCard';
+import { DeliveryProofModal } from "./DeliveryProofModal";
+import { DeliveryProofCard } from "./DeliveryProofCard";
 
 interface Props {
   currentCourier: UserProfile;
   orders: Order[];
 }
 
+const FLOW: OrderStatus[] = [
+  "Kurye Bekleniyor",
+  "Kurye Atandı",
+  "Kurye Kabul Etti",
+  "Paket Alındı",
+  "Teslimatta",
+  "Teslim Edildi",
+];
+
 export const CourierPanel: React.FC<Props> = ({
   currentCourier,
   orders,
 }) => {
   const [activeTab, setActiveTab] =
-    useState<'active' | 'history'>(
-      'active'
-    );
+    useState<"active" | "history">("active");
 
-  const [
-    courierStatus,
-    setCourierStatus,
-  ] = useState<CourierAvailability>(
-    currentCourier.courierStatus ||
-      'Müsait'
-  );
+  const [courierStatus, setCourierStatus] =
+    useState<CourierAvailability>(
+      currentCourier.courierStatus ||
+        "Müsait"
+    );
 
   const [proofOrder, setProofOrder] =
     useState<Order | null>(null);
@@ -63,135 +71,85 @@ export const CourierPanel: React.FC<Props> = ({
     setIsSharingLocation,
   ] = useState(false);
 
-  const [courierLoc, setCourierLoc] =
-    useState<
-      CourierLocation | undefined
-    >();
+  const [
+    courierLoc,
+    setCourierLoc,
+  ] = useState<
+    CourierLocation | undefined
+  >();
 
   const [geoError, setGeoError] =
     useState<string | null>(null);
 
-  const [
-    isRequestingGeo,
-    setIsRequestingGeo,
-  ] = useState(false);
+  const [isRequestingGeo, setIsRequestingGeo] =
+    useState(false);
 
   const watchIdRef =
     useRef<number | null>(null);
 
-  /* =====================================================
-     KURYE DURUMUNU SENKRON TUT
-  ===================================================== */
-
   useEffect(() => {
-    const syncCourier = () => {
-      const fresh =
+    const sync = () => {
+      const user =
         storage.getUserById(
           currentCourier.id
         );
 
-      if (!fresh) return;
+      if (user) {
+        setCourierStatus(
+          user.courierStatus ||
+            "Müsait"
+        );
+      }
 
-      setCourierStatus(
-        fresh.courierStatus ||
-          'Müsait'
-      );
-    };
-
-    syncCourier();
-
-    const unsubscribe =
-      storage.subscribe(
-        syncCourier
-      );
-
-    return () =>
-      unsubscribe();
-  }, [
-    currentCourier.id,
-  ]);
-
-  /* =====================================================
-     KONUMU SENKRON TUT
-  ===================================================== */
-
-  useEffect(() => {
-    const syncLocation = () => {
       const location =
         storage.getCourierLocation(
           currentCourier.id
         );
 
-      setCourierLoc(
-        location
-      );
-
+      setCourierLoc(location);
       setIsSharingLocation(
-        Boolean(
-          location?.isSharing
-        )
+        Boolean(location?.isSharing)
       );
     };
 
-    syncLocation();
+    sync();
 
     const unsubscribe =
-      storage.subscribe(
-        syncLocation
-      );
+      storage.subscribe(sync);
 
-    return () =>
-      unsubscribe();
-  }, [
-    currentCourier.id,
-  ]);
-
-  /* =====================================================
-     GPS TEMİZLİK
-  ===================================================== */
-
-  useEffect(() => {
     return () => {
+      unsubscribe?.();
+
       if (
-        watchIdRef.current !==
-          null &&
-        'geolocation' in navigator
+        watchIdRef.current !== null &&
+        "geolocation" in navigator
       ) {
         navigator.geolocation.clearWatch(
           watchIdRef.current
         );
-
-        watchIdRef.current =
-          null;
       }
     };
-  }, []);
+  }, [currentCourier.id]);
 
-  /* =====================================================
-     SİPARİŞLER
-  ===================================================== */
+  const myOrders = orders.filter(
+    (order) =>
+      order.courierId ===
+      currentCourier.id
+  );
 
-  const myOrders =
-    orders.filter(
-      (order) =>
-        order.courierId ===
-        currentCourier.id
-    );
-
-  const activeOrders =
-    myOrders.filter(
-      (order) =>
-        order.status !==
-          'Teslim Edildi' &&
-        order.status !==
-          'İptal Edildi'
-    );
+  const activeOrders = myOrders.filter(
+    (order) =>
+      order.status !==
+        "Teslim Edildi" &&
+      order.status !==
+        "İptal Edildi"
+  );
 
   const completedOrders =
     myOrders.filter(
       (order) =>
         order.status ===
-        'Teslim Edildi'
+        "Teslim Edildi"
     );
 
   const totalEarnings =
@@ -199,16 +157,13 @@ export const CourierPanel: React.FC<Props> = ({
       (sum, order) =>
         sum +
         Math.round(
-          order.price * 0.7
+          Number(order.price || 0) *
+            0.7
         ),
       0
     );
 
-  /* =====================================================
-     KURYE DURUMU
-  ===================================================== */
-
-  const handleStatusChange = (
+  const handleCourierStatus = (
     status: CourierAvailability
   ) => {
     const updated =
@@ -225,323 +180,211 @@ export const CourierPanel: React.FC<Props> = ({
     }
   };
 
-  /* =====================================================
-     SİPARİŞ DURUMU
-  ===================================================== */
-
-  const handleUpdateOrderStatus =
-    (
-      orderId: string,
-      nextStatus: OrderStatus
-    ) => {
-      if (
-        nextStatus ===
-        'Teslim Edildi'
-      ) {
-        const target =
-          orders.find(
-            (order) =>
-              order.id ===
-              orderId
+  const handleLocationToggle =
+    () => {
+      if (isSharingLocation) {
+        if (
+          watchIdRef.current !== null &&
+          "geolocation" in navigator
+        ) {
+          navigator.geolocation.clearWatch(
+            watchIdRef.current
           );
 
-        if (target) {
-          setProofOrder(
-            target
-          );
+          watchIdRef.current = null;
         }
 
-        return;
-      }
+        const existing =
+          storage.getCourierLocation(
+            currentCourier.id
+          );
 
-      const order =
-        storage.getOrderById(
-          orderId
-        );
+        if (existing) {
+          const stopped =
+            storage.updateCourierLocation({
+              courierId:
+                currentCourier.id,
+              latitude:
+                existing.latitude,
+              longitude:
+                existing.longitude,
+              updatedAt:
+                new Date().toISOString(),
+              isSharing: false,
+            });
 
-      if (!order) {
-        return;
-      }
+          setCourierLoc(stopped);
+        }
 
-      /*
-       * Kurye yalnızca kendi atanmış
-       * siparişinin durumunu değiştirebilir.
-       */
-      if (
-        order.courierId !==
-        currentCourier.id
-      ) {
-        return;
-      }
-
-      storage.updateOrderStatus(
-        orderId,
-        nextStatus
-      );
-    };
-
-  /* =====================================================
-     GPS KONUM PAYLAŞIMI
-  ===================================================== */
-
-  const stopLocationSharing =
-    () => {
-      if (
-        watchIdRef.current !==
-          null &&
-        'geolocation' in navigator
-      ) {
-        navigator.geolocation.clearWatch(
-          watchIdRef.current
-        );
-
-        watchIdRef.current =
-          null;
-      }
-
-      const existing =
-        storage.getCourierLocation(
-          currentCourier.id
-        );
-
-      if (existing) {
-        storage.updateCourierLocation(
-          {
-            ...existing,
-            isSharing: false,
-            updatedAt:
-              new Date().toISOString(),
-          }
-        );
-      } else {
-        storage.updateCourierLocation(
-          {
-            courierId:
-              currentCourier.id,
-            latitude: 0,
-            longitude: 0,
-            updatedAt:
-              new Date().toISOString(),
-            isSharing: false,
-          }
-        );
-      }
-
-      setIsSharingLocation(
-        false
-      );
-
-      setCourierLoc(
-        (previous) =>
-          previous
-            ? {
-                ...previous,
-                isSharing: false,
-              }
-            : undefined
-      );
-
-      setGeoError(null);
-    };
-
-  const handleToggleLocationSharing =
-    () => {
-      if (
-        isSharingLocation
-      ) {
-        stopLocationSharing();
+        setIsSharingLocation(false);
+        setGeoError(null);
         return;
       }
 
       if (
-        !(
-          'geolocation' in
-          navigator
-        )
+        !("geolocation" in navigator)
       ) {
         setGeoError(
-          'Cihazınız veya tarayıcınız GPS servisini desteklemiyor.'
+          "Cihazınız GPS servisini desteklemiyor."
         );
-
         return;
       }
 
-      setIsRequestingGeo(
-        true
-      );
-
+      setIsRequestingGeo(true);
       setGeoError(null);
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setIsRequestingGeo(
-            false
-          );
+          setIsRequestingGeo(false);
 
           const {
             latitude,
             longitude,
           } = position.coords;
 
-          const location:
-            CourierLocation = {
-            courierId:
-              currentCourier.id,
+          const updated =
+            storage.updateCourierLocation({
+              courierId:
+                currentCourier.id,
+              latitude,
+              longitude,
+              updatedAt:
+                new Date().toISOString(),
+              isSharing: true,
+            });
 
-            latitude,
+          setCourierLoc(updated);
+          setIsSharingLocation(true);
 
-            longitude,
-
-            updatedAt:
-              new Date().toISOString(),
-
-            isSharing:
-              true,
-          };
-
-          storage.updateCourierLocation(
-            location
-          );
-
-          setCourierLoc(
-            location
-          );
-
-          setIsSharingLocation(
-            true
-          );
-
-          const watchId =
+          watchIdRef.current =
             navigator.geolocation.watchPosition(
-              (watchPosition) => {
-                const updatedLocation:
-                  CourierLocation = {
-                  courierId:
-                    currentCourier.id,
+              (nextPosition) => {
+                const next =
+                  storage.updateCourierLocation({
+                    courierId:
+                      currentCourier.id,
+                    latitude:
+                      nextPosition.coords
+                        .latitude,
+                    longitude:
+                      nextPosition.coords
+                        .longitude,
+                    updatedAt:
+                      new Date().toISOString(),
+                    isSharing: true,
+                  });
 
-                  latitude:
-                    watchPosition
-                      .coords
-                      .latitude,
-
-                  longitude:
-                    watchPosition
-                      .coords
-                      .longitude,
-
-                  updatedAt:
-                    new Date().toISOString(),
-
-                  isSharing:
-                    true,
-                };
-
-                storage.updateCourierLocation(
-                  updatedLocation
-                );
-
-                setCourierLoc(
-                  updatedLocation
-                );
+                setCourierLoc(next);
               },
               (error) => {
                 console.warn(
-                  'GPS izleme hatası:',
+                  "GPS izleme hatası:",
                   error.message
                 );
               },
               {
-                enableHighAccuracy:
-                  true,
-                maximumAge:
-                  10000,
-                timeout:
-                  25000,
+                enableHighAccuracy: true,
+                maximumAge: 10000,
+                timeout: 25000,
               }
             );
-
-          watchIdRef.current =
-            watchId;
         },
         (error) => {
-          setIsRequestingGeo(
-            false
-          );
-
-          setIsSharingLocation(
-            false
-          );
+          setIsRequestingGeo(false);
 
           if (
             error.code ===
             error.PERMISSION_DENIED
           ) {
             setGeoError(
-              'Konum erişim izni reddedildi.'
+              "Konum erişim izni reddedildi."
             );
           } else if (
             error.code ===
             error.TIMEOUT
           ) {
             setGeoError(
-              'GPS sinyali zaman aşımına uğradı.'
+              "GPS sinyali zaman aşımına uğradı."
             );
           } else {
             setGeoError(
-              `Konum alınamadı: ${error.message}`
+              "Konum alınamadı: " +
+                error.message
             );
           }
         },
         {
-          enableHighAccuracy:
-            true,
+          enableHighAccuracy: true,
           timeout: 15000,
         }
       );
     };
 
-  /* =====================================================
-     SİPARİŞ AKIŞI
-  ===================================================== */
+  const updateOrderStatus = (
+    orderId: string,
+    nextStatus: OrderStatus
+  ) => {
+    if (
+      nextStatus ===
+      "Teslim Edildi"
+    ) {
+      const order =
+        orders.find(
+          (item) =>
+            item.id === orderId
+        );
 
-  const getNextAction = (
+      if (order) {
+        setProofOrder(order);
+      }
+
+      return;
+    }
+
+    storage.updateOrderStatus(
+      orderId,
+      nextStatus
+    );
+  };
+
+  const getAction = (
     status: OrderStatus
   ) => {
     switch (status) {
-      case 'Kurye Atandı':
+      case "Kurye Atandı":
         return {
-          nextStatus:
-            'Kurye Kabul Etti' as OrderStatus,
-          label: 'Kabul Et',
+          status:
+            "Kurye Kabul Etti" as OrderStatus,
+          label: "Kabul Et",
           className:
-            'bg-[#D6A84F] text-[#0B0B0D]',
+            "bg-[#D6A84F] text-[#0B0B0D]",
         };
 
-      case 'Kurye Kabul Etti':
+      case "Kurye Kabul Etti":
         return {
-          nextStatus:
-            'Paket Alındı' as OrderStatus,
-          label: 'Paket Alındı',
+          status:
+            "Paket Alındı" as OrderStatus,
+          label: "Paket Alındı",
           className:
-            'bg-purple-600 text-white',
+            "bg-purple-600 text-white",
         };
 
-      case 'Paket Alındı':
+      case "Paket Alındı":
         return {
-          nextStatus:
-            'Teslimatta' as OrderStatus,
-          label: 'Teslimatta',
+          status:
+            "Teslimatta" as OrderStatus,
+          label: "Teslimatta",
           className:
-            'bg-blue-600 text-white',
+            "bg-blue-600 text-white",
         };
 
-      case 'Teslimatta':
+      case "Teslimatta":
         return {
-          nextStatus:
-            'Teslim Edildi' as OrderStatus,
-          label: 'Teslim Edildi',
+          status:
+            "Teslim Edildi" as OrderStatus,
+          label: "Teslimatı Tamamla",
           className:
-            'bg-emerald-600 text-white',
+            "bg-emerald-600 text-white",
         };
 
       default:
@@ -549,35 +392,40 @@ export const CourierPanel: React.FC<Props> = ({
     }
   };
 
-  const orderFlowSteps:
-    OrderStatus[] = [
-      'Kurye Bekleniyor',
-      'Kurye Atandı',
-      'Kurye Kabul Etti',
-      'Paket Alındı',
-      'Teslimatta',
-      'Teslim Edildi',
-    ];
+  const handleProofSubmit = async (
+    data: {
+      receiverName: string;
+      deliveryNote: string;
+      signature: string;
+      photoFile?: File;
+    }
+  ) => {
+    if (!proofOrder) {
+      return;
+    }
 
-  /* =====================================================
-     RENDER
-  ===================================================== */
+    await saveDeliveryProof({
+      orderId:
+        proofOrder.id,
+      receiverName:
+        data.receiverName,
+      deliveryNote:
+        data.deliveryNote,
+      signature:
+        data.signature,
+      photoFile:
+        data.photoFile,
+    });
+
+    setProofOrder(null);
+  };
 
   return (
     <div className="space-y-5 pb-20">
-
-      {/* =================================================
-          KURYE BİLGİSİ
-      ================================================= */}
-
-      <div className="bg-[#19191E] border border-[#303036] rounded-3xl p-5 shadow-2xl">
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-
+      <div className="rounded-3xl border border-[#303036] bg-[#19191E] p-5 shadow-2xl">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3.5">
-
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 overflow-hidden">
-
+            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-emerald-500/40 bg-emerald-500/20 text-emerald-400">
               {currentCourier.avatar ? (
                 <img
                   src={
@@ -586,350 +434,263 @@ export const CourierPanel: React.FC<Props> = ({
                   alt={
                     currentCourier.name
                   }
-                  className="w-full h-full object-cover"
+                  className="h-full w-full object-cover"
                 />
               ) : (
-                <Truck className="w-6 h-6" />
+                <Truck size={24} />
               )}
-
             </div>
 
             <div>
               <div className="flex items-center gap-2">
-
-                <h2 className="text-base sm:text-lg font-bold text-white">
-                  {
-                    currentCourier.name
-                  }
+                <h2 className="text-lg font-bold text-white">
+                  {currentCourier.name}
                 </h2>
 
-                <span className="text-[10px] font-mono bg-[#0B0B0D] px-2 py-0.5 rounded border border-[#303036] text-[#D6A84F]">
-                  {
-                    currentCourier.plate ||
-                    'Plaka Yok'
-                  }
+                <span className="rounded border border-[#303036] bg-[#0B0B0D] px-2 py-0.5 font-mono text-[10px] text-[#D6A84F]">
+                  {currentCourier.plate ||
+                    "Plaka Yok"}
                 </span>
-
               </div>
 
-              <p className="text-xs text-[#999999] mt-0.5">
-                {
-                  currentCourier.vehicle ||
-                  'Araç bilgisi yok'
-                }
-
-                {' • '}
-
-                Puan: ⭐{' '}
-
-                {
-                  currentCourier.rating?.toFixed(
-                    1
-                  ) ||
-                  '0.0'
-                }
+              <p className="mt-0.5 text-xs text-[#999999]">
+                {currentCourier.vehicle ||
+                  "Kurye"}{" "}
+                • ⭐{" "}
+                {currentCourier.rating ||
+                  "5.0"}
               </p>
             </div>
-
           </div>
 
-          {/* DURUM */}
-
-          <div className="flex items-center gap-1.5 bg-[#0B0B0D] p-1.5 rounded-2xl border border-[#303036]">
-
+          <div className="flex gap-1.5 overflow-x-auto rounded-2xl border border-[#303036] bg-[#0B0B0D] p-1.5">
             {(
               [
-                'Müsait',
-                'Meşgul',
-                'Çevrimdışı',
+                "Müsait",
+                "Meşgul",
+                "Çevrimdışı",
               ] as CourierAvailability[]
-            ).map(
-              (status) => {
-                const selected =
-                  courierStatus ===
-                  status;
+            ).map((status) => {
+              const selected =
+                courierStatus ===
+                status;
 
-                return (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() =>
-                      handleStatusChange(
-                        status
-                      )
-                    }
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 ${
-                      selected
-                        ? status ===
-                          'Müsait'
-                          ? 'bg-emerald-500 text-white'
-                          : status ===
-                            'Meşgul'
-                          ? 'bg-amber-500 text-[#0B0B0D]'
-                          : 'bg-red-500/20 text-red-400 border border-red-500/40'
-                        : 'text-[#999999] hover:text-white'
-                    }`}
-                  >
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        status ===
-                        'Müsait'
-                          ? 'bg-emerald-300'
-                          : status ===
-                            'Meşgul'
-                          ? 'bg-amber-300'
-                          : 'bg-gray-400'
-                      }`}
-                    />
-
-                    {status}
-                  </button>
-                );
-              }
-            )}
-
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() =>
+                    handleCourierStatus(
+                      status
+                    )
+                  }
+                  className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold ${
+                    selected
+                      ? status ===
+                        "Müsait"
+                        ? "bg-emerald-500 text-white"
+                        : status ===
+                          "Meşgul"
+                        ? "bg-amber-500 text-[#0B0B0D]"
+                        : "bg-red-500/20 text-red-400"
+                      : "text-[#999999]"
+                  }`}
+                >
+                  {status}
+                </button>
+              );
+            })}
           </div>
-
         </div>
 
-        {/* KPI */}
-
-        <div className="grid grid-cols-3 gap-2 mt-5 pt-4 border-t border-[#303036]">
-
-          <div className="bg-[#222229] p-3 rounded-2xl border border-[#303036]/60 text-center">
-            <span className="text-[10px] text-[#999999] block">
+        <div className="mt-5 grid grid-cols-3 gap-2 border-t border-[#303036] pt-4">
+          <div className="rounded-2xl border border-[#303036]/60 bg-[#222229] p-3 text-center">
+            <span className="block text-[10px] text-[#999999]">
               Aktif Görev
             </span>
-
-            <span className="text-lg font-bold text-white">
-              {
-                activeOrders.length
-              }
-            </span>
+            <b className="text-lg text-white">
+              {activeOrders.length}
+            </b>
           </div>
 
-          <div className="bg-[#222229] p-3 rounded-2xl border border-[#303036]/60 text-center">
-            <span className="text-[10px] text-[#999999] block">
+          <div className="rounded-2xl border border-[#303036]/60 bg-[#222229] p-3 text-center">
+            <span className="block text-[10px] text-[#999999]">
               Tamamlanan
             </span>
-
-            <span className="text-lg font-bold text-emerald-400">
-              {
-                completedOrders.length
-              }
-            </span>
+            <b className="text-lg text-emerald-400">
+              {completedOrders.length}
+            </b>
           </div>
 
-          <div className="bg-[#222229] p-3 rounded-2xl border border-[#303036]/60 text-center">
-            <span className="text-[10px] text-[#999999] block">
-              Tahmini Hakediş
+          <div className="rounded-2xl border border-[#303036]/60 bg-[#222229] p-3 text-center">
+            <span className="block text-[10px] text-[#999999]">
+              Hakediş
             </span>
-
-            <span className="text-lg font-bold text-[#D6A84F]">
-              {totalEarnings}{' '}
-              TL
-            </span>
+            <b className="text-lg text-[#D6A84F]">
+              {totalEarnings} TL
+            </b>
           </div>
-
         </div>
-
       </div>
 
-      {/* =================================================
-          GPS
-      ================================================= */}
-
-      <div className="bg-[#19191E] border border-[#303036] rounded-3xl p-4 sm:p-5 shadow-xl">
-
-        <div className="flex items-center justify-between gap-2 mb-3">
-
+      <div className="rounded-3xl border border-[#303036] bg-[#19191E] p-4 shadow-xl">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-
             <div
-              className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+              className={`flex h-8 w-8 items-center justify-center rounded-xl ${
                 isSharingLocation
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'bg-[#222229] text-[#999999]'
+                  ? "bg-emerald-500/20 text-emerald-400"
+                  : "bg-[#222229] text-[#999999]"
               }`}
             >
-              <Radio className="w-4 h-4" />
+              <Radio size={16} />
             </div>
 
             <div>
-              <h3 className="text-xs sm:text-sm font-bold text-white">
-                Canlı GPS Konum
+              <h3 className="text-sm font-bold text-white">
+                Canlı GPS
               </h3>
 
               <p className="text-[11px] text-[#999999]">
                 {isSharingLocation
-                  ? 'Konumunuz Firestore üzerinden paylaşılıyor.'
-                  : 'Canlı takip için konum paylaşımını başlatın.'}
+                  ? "Konumunuz paylaşılıyor."
+                  : "Müşterinin canlı takip edebilmesi için açın."}
               </p>
             </div>
-
           </div>
 
-          <span
-            className={`text-[10px] px-2.5 py-1 rounded-full font-bold ${
-              isSharingLocation
-                ? 'bg-emerald-500/15 text-emerald-400'
-                : 'bg-[#222229] text-[#777777]'
-            }`}
-          >
+          <span className="rounded-full px-2.5 py-1 text-[10px] font-bold text-[#999999]">
             {isSharingLocation
-              ? 'YAYINDA'
-              : 'KAPALI'}
+              ? "YAYINDA"
+              : "KAPALI"}
           </span>
-
         </div>
 
         <button
           type="button"
           onClick={
-            handleToggleLocationSharing
+            handleLocationToggle
           }
-          disabled={
-            isRequestingGeo
-          }
-          className={`w-full min-h-[52px] py-3.5 px-5 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 ${
+          disabled={isRequestingGeo}
+          className={`flex min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl px-5 py-3.5 text-sm font-black ${
             isSharingLocation
-              ? 'bg-emerald-500/15 border-2 border-emerald-500 text-emerald-300'
-              : 'bg-[#D6A84F] text-[#0B0B0D]'
+              ? "border-2 border-emerald-500 bg-emerald-500/15 text-emerald-300"
+              : "bg-[#D6A84F] text-[#0B0B0D]"
           }`}
         >
           {isSharingLocation ? (
             <>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
               Canlı Konum Paylaşılıyor
             </>
           ) : (
             <>
-              <Navigation className="w-5 h-5" />
-
+              <Navigation size={19} />
               {isRequestingGeo
-                ? 'GPS İzni İsteniyor...'
-                : 'Konumumu Paylaş'}
+                ? "GPS İzni İsteniyor..."
+                : "Konumumu Paylaş"}
             </>
           )}
         </button>
 
         {courierLoc &&
           isSharingLocation && (
-            <div className="mt-3 p-3 bg-[#0B0B0D] border border-[#303036] rounded-xl text-[11px] font-mono">
-              📍{' '}
+            <div className="mt-3 rounded-xl border border-[#303036] bg-[#0B0B0D] p-3 font-mono text-[11px]">
+              📍{" "}
               {courierLoc.latitude.toFixed(
-                5
+                4
               )}
-              ,{' '}
+              ,{" "}
               {courierLoc.longitude.toFixed(
-                5
+                4
               )}
             </div>
           )}
 
         {geoError && (
-          <div className="mt-3 p-3 bg-red-500/15 border border-red-500/30 rounded-xl flex gap-2 text-xs text-red-300">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+          <div className="mt-3 flex gap-2 rounded-xl border border-red-500/30 bg-red-500/15 p-3 text-xs text-red-300">
+            <AlertCircle
+              size={16}
+              className="shrink-0"
+            />
             {geoError}
           </div>
         )}
-
       </div>
 
-      {/* =================================================
-          TABS
-      ================================================= */}
-
       <div className="flex gap-2 border-b border-[#303036] pb-2">
-
         <button
           type="button"
           onClick={() =>
-            setActiveTab(
-              'active'
-            )
+            setActiveTab("active")
           }
-          className={`px-4 py-2 text-xs font-bold rounded-xl ${
-            activeTab === 'active'
-              ? 'bg-[#D6A84F] text-[#0B0B0D]'
-              : 'bg-[#19191E] text-[#999999]'
+          className={`rounded-xl px-4 py-2 text-xs font-bold ${
+            activeTab === "active"
+              ? "bg-[#D6A84F] text-[#0B0B0D]"
+              : "bg-[#19191E] text-[#999999]"
           }`}
         >
           Aktif Siparişler (
-          {activeOrders.length}
-          )
+          {activeOrders.length})
         </button>
 
         <button
           type="button"
           onClick={() =>
-            setActiveTab(
-              'history'
-            )
+            setActiveTab("history")
           }
-          className={`px-4 py-2 text-xs font-bold rounded-xl ${
-            activeTab === 'history'
-              ? 'bg-[#D6A84F] text-[#0B0B0D]'
-              : 'bg-[#19191E] text-[#999999]'
+          className={`rounded-xl px-4 py-2 text-xs font-bold ${
+            activeTab === "history"
+              ? "bg-[#D6A84F] text-[#0B0B0D]"
+              : "bg-[#19191E] text-[#999999]"
           }`}
         >
-          Geçmiş Siparişler (
-          {
-            completedOrders.length
-          }
-          )
+          Geçmiş (
+          {completedOrders.length})
         </button>
-
       </div>
 
-      {/* =================================================
-          AKTİF SİPARİŞLER
-      ================================================= */}
-
-      {activeTab === 'active' && (
+      {activeTab === "active" && (
         <div className="space-y-4">
-
           {activeOrders.length ===
           0 ? (
-            <div className="text-center py-16 bg-[#19191E] border border-[#303036] rounded-3xl p-6">
+            <div className="rounded-3xl border border-[#303036] bg-[#19191E] p-12 text-center">
+              <Truck
+                size={45}
+                className="mx-auto text-[#999999]/30"
+              />
 
-              <Truck className="w-12 h-12 text-[#999999]/30 mx-auto mb-3" />
-
-              <h3 className="font-bold text-white text-base">
-                Üzerinizde Aktif Sipariş Yok
+              <h3 className="mt-3 font-bold text-white">
+                Aktif Sipariş Yok
               </h3>
 
-              <p className="text-xs text-[#999999] mt-1">
-                Yönetici size yeni
-                bir sipariş
-                atadığında burada
+              <p className="mt-1 text-xs text-[#999999]">
+                Yönetici size yeni bir
+                sipariş atadığında burada
                 görünecektir.
               </p>
-
             </div>
           ) : (
             activeOrders.map(
               (order) => {
                 const action =
-                  getNextAction(
+                  getAction(
                     order.status
                   );
 
-                const currentStepIdx =
-                  orderFlowSteps.indexOf(
+                const currentIndex =
+                  FLOW.indexOf(
                     order.status
                   );
 
                 return (
                   <div
                     key={order.id}
-                    className="bg-[#19191E] border-2 border-[#D6A84F]/50 rounded-3xl p-5 space-y-4"
+                    className="space-y-4 rounded-3xl border-2 border-[#D6A84F]/50 bg-[#19191E] p-5"
                   >
-
                     <div className="flex items-center justify-between gap-3">
-
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-[#D6A84F]">
+                        <span className="font-mono text-xs font-bold text-[#D6A84F]">
                           #{order.id}
                         </span>
 
@@ -941,125 +702,110 @@ export const CourierPanel: React.FC<Props> = ({
                       </div>
 
                       <span className="text-base font-extrabold text-[#D6A84F]">
-                        {
-                          order.price
-                        }{' '}
-                        TL
+                        {order.price} TL
                       </span>
-
                     </div>
 
-                    {/* PROGRESS */}
-
-                    <div className="bg-[#0B0B0D] p-3 rounded-2xl border border-[#303036]">
-
-                      <span className="text-[10px] text-[#999999] uppercase font-bold block mb-2">
+                    <div className="rounded-2xl border border-[#303036] bg-[#0B0B0D] p-3">
+                      <span className="mb-2 block text-[10px] font-bold uppercase text-[#999999]">
                         Sipariş Aşaması
                       </span>
 
                       <div className="grid grid-cols-6 gap-1 text-center">
-
-                        {orderFlowSteps.map(
+                        {FLOW.map(
                           (
                             step,
                             index
                           ) => {
                             const done =
-                              currentStepIdx >=
+                              currentIndex >=
                               index;
 
                             const current =
-                              currentStepIdx ===
+                              currentIndex ===
                               index;
 
                             return (
                               <div
                                 key={step}
-                                className="flex flex-col items-center min-w-0"
+                                className="flex min-w-0 flex-col items-center"
                               >
                                 <div
-                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                  className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${
                                     current
-                                      ? 'bg-[#D6A84F] text-[#0B0B0D]'
+                                      ? "bg-[#D6A84F] text-[#0B0B0D]"
                                       : done
-                                      ? 'bg-emerald-500 text-white'
-                                      : 'bg-[#19191E] text-[#999999]'
+                                      ? "bg-emerald-500 text-white"
+                                      : "bg-[#19191E] text-[#999999]"
                                   }`}
                                 >
                                   {done
-                                    ? '✓'
+                                    ? "✓"
                                     : index +
                                       1}
                                 </div>
 
-                                <span className="text-[8px] text-[#999999] truncate w-full mt-1">
+                                <span className="mt-1 w-full truncate text-[8px] text-[#999999]">
                                   {step
                                     .replace(
-                                      'Kurye ',
-                                      ''
+                                      "Kurye ",
+                                      ""
                                     )
                                     .replace(
-                                      'Paket ',
-                                      ''
+                                      "Paket ",
+                                      ""
                                     )}
                                 </span>
                               </div>
                             );
                           }
                         )}
-
                       </div>
                     </div>
 
-                    {/* MÜŞTERİ */}
-
-                    <div className="bg-[#222229] border border-[#303036] rounded-2xl p-3.5 flex items-center justify-between gap-3">
-
-                      <div className="flex items-center gap-2.5 min-w-0">
-
-                        <div className="w-9 h-9 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
-                          <User className="w-4 h-4" />
+                    <div className="flex items-center justify-between rounded-2xl border border-[#303036] bg-[#222229] p-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-500/20 text-sky-400">
+                          <User size={16} />
                         </div>
 
-                        <div className="min-w-0">
-                          <span className="text-[10px] text-[#999999] block">
+                        <div>
+                          <span className="block text-[10px] text-[#999999]">
                             Müşteri
                           </span>
 
-                          <h4 className="text-xs font-bold text-white truncate">
+                          <h4 className="text-xs font-bold text-white">
                             {
                               order.customerName
                             }
                           </h4>
                         </div>
-
                       </div>
 
                       {order.customerPhone && (
                         <a
                           href={`tel:${order.customerPhone}`}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-400 text-xs font-bold shrink-0"
+                          className="flex items-center gap-1.5 rounded-xl bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-400"
                         >
-                          <Phone className="w-4 h-4" />
+                          <Phone size={15} />
                           Ara
                         </a>
                       )}
-
                     </div>
 
-                    {/* ADRESLER */}
-
-                    <div className="space-y-3 bg-[#0B0B0D] border border-[#303036] p-4 rounded-2xl">
-
+                    <div className="space-y-3 rounded-2xl border border-[#303036] bg-[#0B0B0D] p-4">
                       <div className="flex items-start gap-2.5">
-                        <MapPin className="w-4 h-4 text-[#D6A84F] shrink-0" />
+                        <MapPin
+                          size={16}
+                          className="shrink-0 text-[#D6A84F]"
+                        />
 
                         <div>
-                          <span className="text-[10px] text-[#999999] font-bold uppercase block">
+                          <span className="block text-[10px] font-bold uppercase text-[#999999]">
                             Alınacak Adres
                           </span>
 
-                          <p className="text-xs text-white mt-0.5">
+                          <p className="mt-0.5 text-xs text-white">
                             {
                               order.pickupAddress
                             }
@@ -1067,122 +813,100 @@ export const CourierPanel: React.FC<Props> = ({
                         </div>
                       </div>
 
-                      <div className="border-l-2 border-dashed border-[#303036] ml-2 h-4" />
+                      <div className="ml-2 h-4 border-l-2 border-dashed border-[#303036]" />
 
                       <div className="flex items-start gap-2.5">
-                        <Navigation className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <Navigation
+                          size={16}
+                          className="shrink-0 text-emerald-400"
+                        />
 
                         <div>
-                          <span className="text-[10px] text-[#999999] font-bold uppercase block">
+                          <span className="block text-[10px] font-bold uppercase text-[#999999]">
                             Teslim Adresi
                           </span>
 
-                          <p className="text-xs text-white mt-0.5">
+                          <p className="mt-0.5 text-xs text-white">
                             {
                               order.deliveryAddress
                             }
                           </p>
                         </div>
                       </div>
-
                     </div>
 
-                    {/* DETAY */}
-
-                    <div className="grid grid-cols-3 gap-2 text-xs text-[#999999]">
-
-                      <div className="bg-[#222229] rounded-xl p-2.5">
-                        <span className="block text-[9px] text-[#666666]">
-                          Paket
-                        </span>
-
-                        <b className="text-white text-[10px]">
+                    <div className="flex items-center justify-between gap-2 text-xs text-[#999999]">
+                      <span>
+                        Paket:{" "}
+                        <b className="text-white">
                           {
                             order.packageType
                           }
                         </b>
-                      </div>
+                      </span>
 
-                      <div className="bg-[#222229] rounded-xl p-2.5">
-                        <span className="block text-[9px] text-[#666666]">
-                          Mesafe
-                        </span>
-
-                        <b className="text-white text-[10px]">
+                      <span>
+                        Mesafe:{" "}
+                        <b className="text-white">
                           {
                             order.distanceKm
-                          }{' '}
+                          }{" "}
                           KM
                         </b>
-                      </div>
+                      </span>
 
-                      <div className="bg-[#222229] rounded-xl p-2.5">
-                        <span className="block text-[9px] text-[#666666]">
-                          Fiyat
-                        </span>
-
-                        <b className="text-[#D6A84F] text-[10px]">
+                      <span>
+                        Fiyat:{" "}
+                        <b className="text-[#D6A84F]">
                           {
                             order.price
-                          }{' '}
+                          }{" "}
                           TL
                         </b>
-                      </div>
-
+                      </span>
                     </div>
 
                     {order.note && (
-                      <div className="text-xs bg-[#222229] p-3 rounded-2xl border border-[#303036] text-amber-200">
+                      <div className="rounded-2xl border border-[#303036] bg-[#222229] p-3 text-xs text-amber-200">
                         <b className="text-white">
                           Müşteri Notu:
-                        </b>{' '}
+                        </b>{" "}
                         {order.note}
                       </div>
                     )}
-
-                    {/* AKSİYON */}
 
                     {action && (
                       <button
                         type="button"
                         onClick={() =>
-                          handleUpdateOrderStatus(
+                          updateOrderStatus(
                             order.id,
-                            action.nextStatus
+                            action.status
                           )
                         }
-                        className={`w-full min-h-[52px] py-4 px-6 rounded-2xl font-black text-base flex items-center justify-center gap-2.5 ${action.className}`}
+                        className={`flex min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl px-6 py-4 text-base font-black ${action.className}`}
                       >
-                        <CheckCircle2 className="w-5 h-5" />
-                        {
-                          action.label
-                        }
+                        <CheckCircle2
+                          size={20}
+                        />
+                        {action.label}
                       </button>
                     )}
-
                   </div>
                 );
               }
             )
           )}
-
         </div>
       )}
 
-      {/* =================================================
-          GEÇMİŞ
-      ================================================= */}
-
-      {activeTab ===
-        'history' && (
+      {activeTab === "history" && (
         <div className="space-y-3">
-
           {completedOrders.length ===
           0 ? (
-            <div className="text-center py-16 bg-[#19191E] border border-[#303036] rounded-3xl p-6 text-[#999999]">
+            <div className="rounded-3xl border border-[#303036] bg-[#19191E] p-12 text-center text-xs text-[#999999]">
               Henüz tamamlanan
-              teslimatınız
-              bulunmamaktadır.
+              teslimatınız bulunmuyor.
             </div>
           ) : (
             completedOrders.map(
@@ -1194,58 +918,48 @@ export const CourierPanel: React.FC<Props> = ({
                 return (
                   <div
                     key={order.id}
-                    className="bg-[#19191E] border border-[#303036] rounded-2xl p-4 space-y-3 text-xs"
+                    className="space-y-3 rounded-2xl border border-[#303036] bg-[#19191E] p-4"
                   >
-
                     <div className="flex items-center justify-between gap-3">
-
-                      <div className="min-w-0">
-
-                        <div className="flex items-center gap-2 mb-1">
-
-                          <span className="font-mono font-bold text-white">
+                      <div>
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-white">
                             #{order.id}
                           </span>
 
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">
+                          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
                             Teslim Edildi
                           </span>
-
                         </div>
 
-                        <p className="text-slate-300 truncate max-w-xs">
+                        <p className="max-w-xs truncate text-xs text-slate-300">
                           {
                             order.pickupAddress.split(
-                              ','
+                              ","
                             )[0]
-                          }
-
-                          {' → '}
-
+                          }{" "}
+                          →{" "}
                           {
                             order.deliveryAddress.split(
-                              ','
+                              ","
                             )[0]
                           }
                         </p>
-
                       </div>
 
-                      <div className="text-right shrink-0">
-
-                        <span className="text-sm font-extrabold text-[#D6A84F] block">
-                          {
-                            order.price
-                          }{' '}
-                          TL
+                      <div className="text-right">
+                        <span className="block text-sm font-extrabold text-[#D6A84F]">
+                          {order.price} TL
                         </span>
 
-                        <span className="text-[10px] text-emerald-400 block">
+                        <span className="block text-[10px] text-emerald-400">
                           +
                           {Math.round(
-                            order.price *
-                              0.7
-                          )}{' '}
+                            Number(
+                              order.price ||
+                                0
+                            ) * 0.7
+                          )}{" "}
                           TL
                         </span>
 
@@ -1258,55 +972,41 @@ export const CourierPanel: React.FC<Props> = ({
                                 : order.id
                             )
                           }
-                          className="text-[11px] font-bold text-[#D6A84F] mt-1"
+                          className="text-[11px] font-bold text-[#D6A84F]"
                         >
                           {expanded
-                            ? 'Kanıtı Gizle'
-                            : 'Kanıtı İncele'}
+                            ? "Kanıtı Gizle"
+                            : "Kanıtı İncele"}
                         </button>
-
                       </div>
-
                     </div>
 
                     {expanded && (
-                      <div className="pt-2 border-t border-[#303036]">
+                      <div className="border-t border-[#303036] pt-3">
                         <DeliveryProofCard
-                          order={
-                            order
-                          }
+                          order={order}
                         />
                       </div>
                     )}
-
                   </div>
                 );
               }
             )
           )}
-
         </div>
       )}
-
-      {/* =================================================
-          TESLİMAT KANITI
-      ================================================= */}
 
       {proofOrder && (
         <DeliveryProofModal
           order={proofOrder}
-          isOpen={true}
           onClose={() =>
             setProofOrder(null)
           }
-          onSuccess={() =>
-            setProofOrder(null)
+          onSubmit={
+            handleProofSubmit
           }
         />
       )}
-
     </div>
   );
 };
-
-export default CourierPanel;
