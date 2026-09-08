@@ -4,7 +4,6 @@ import React, {
 } from "react";
 
 import {
-  handleGoogleRedirectResult,
   loginUser,
   loginWithGoogle,
   registerUser,
@@ -131,71 +130,37 @@ function AuthScreen({
   const [googleLoading, setGoogleLoading] =
     useState(false);
 
-  const [redirectChecking, setRedirectChecking] =
-    useState(true);
-
   const [error, setError] =
     useState("");
 
   const [success, setSuccess] =
     useState("");
 
-  const isLoading =
-    loading ||
-    googleLoading ||
-    redirectChecking;
-
-  useEffect(() => {
-    let mounted = true;
-
-    const checkGoogleRedirect =
-      async () => {
-        try {
-          const profile =
-            await handleGoogleRedirectResult();
-
-          if (!mounted) {
-            return;
-          }
-
-          if (profile) {
-            setSuccess(
-              "Google hesabınızla giriş başarılı."
-            );
-
-            onLogin?.();
-          }
-        } catch (err) {
-          if (!mounted) {
-            return;
-          }
-
-          console.error(
-            "Google redirect authentication error:",
-            err
-          );
-
-          setError(
-            getAuthErrorMessage(err)
-          );
-        } finally {
-          if (mounted) {
-            setRedirectChecking(false);
-          }
-        }
-      };
-
-    checkGoogleRedirect();
-
-    return () => {
-      mounted = false;
-    };
-  }, [onLogin]);
-
   const clearMessages = () => {
     setError("");
     setSuccess("");
   };
+
+  /*
+   * Google redirect ile geri dönüldüğünde
+   * Firebase Auth oturumu App.tsx içerisindeki
+   * subscribeToAuth listener tarafından yakalanır.
+   *
+   * Burada getRedirectResult() çağırmıyoruz.
+   *
+   * Böylece AuthScreen ve App.tsx aynı oturumu
+   * iki farklı yerden yönetmeye çalışmıyor.
+   */
+  useEffect(() => {
+    /*
+     * Sayfa Google'dan döndüğünde Firebase'in
+     * Auth state'i birkaç an içinde hazır olabilir.
+     *
+     * Kullanıcı zaten App.tsx tarafından yakalanacağı için
+     * burada sadece loading ekranını göstermiyoruz.
+     */
+    setError("");
+  }, []);
 
   const handleSubmit = async (
     event: React.FormEvent<HTMLFormElement>
@@ -315,9 +280,28 @@ function AuthScreen({
       setGoogleLoading(true);
 
       try {
+        /*
+         * Mobilde signInWithRedirect çalıştığında
+         * bu fonksiyon normal şekilde geri dönmez.
+         *
+         * Google'dan dönüş sonrasında App.tsx:
+         *
+         * subscribeToAuth()
+         *      ↓
+         * Firebase user
+         *      ↓
+         * Firestore profile
+         *      ↓
+         * Dashboard
+         *
+         * zincirini yönetir.
+         */
         const profile =
           await loginWithGoogle();
 
+        /*
+         * Desktop popup akışı buraya gelir.
+         */
         if (profile) {
           setSuccess(
             "Google hesabınızla giriş başarılı."
@@ -334,12 +318,16 @@ function AuthScreen({
         const code =
           getErrorCode(err);
 
+        /*
+         * Mobil redirect başladığında
+         * bu hata aslında hata değildir.
+         */
         if (
           code ===
           "auth/google-redirect-started"
         ) {
           setSuccess(
-            "Google giriş sayfasına yönlendiriliyorsunuz..."
+            "Google hesabınız seçildi. Trustline Express'e giriş yapılıyor..."
           );
 
           return;
@@ -349,6 +337,12 @@ function AuthScreen({
           getAuthErrorMessage(err)
         );
       } finally {
+        /*
+         * Redirect başlatılmışsa sayfa zaten
+         * Google'a gidecektir.
+         *
+         * Desktop popup ise loading kapanır.
+         */
         setGoogleLoading(false);
       }
     };
@@ -545,17 +539,17 @@ function AuthScreen({
               <button
                 type="button"
                 onClick={handleGoogle}
-                disabled={isLoading}
+                disabled={
+                  loading ||
+                  googleLoading
+                }
                 className="group flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               >
-                {googleLoading ||
-                redirectChecking ? (
+                {googleLoading ? (
                   <>
                     <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-800" />
 
-                    {redirectChecking
-                      ? "Giriş kontrol ediliyor..."
-                      : "Google ile bağlanılıyor..."}
+                    Google ile bağlanılıyor...
                   </>
                 ) : (
                   <>
@@ -602,7 +596,10 @@ function AuthScreen({
                       }
                       placeholder="Adınız Soyadınız"
                       autoComplete="name"
-                      disabled={isLoading}
+                      disabled={
+                        loading ||
+                        googleLoading
+                      }
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                     />
                   </div>
@@ -631,7 +628,10 @@ function AuthScreen({
                       }
                       placeholder="05XX XXX XX XX"
                       autoComplete="tel"
-                      disabled={isLoading}
+                      disabled={
+                        loading ||
+                        googleLoading
+                      }
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                     />
                   </div>
@@ -656,7 +656,10 @@ function AuthScreen({
                     }
                     placeholder="ornek@email.com"
                     autoComplete="email"
-                    disabled={isLoading}
+                    disabled={
+                      loading ||
+                      googleLoading
+                    }
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                   />
                 </div>
@@ -684,14 +687,20 @@ function AuthScreen({
                         ? "new-password"
                         : "current-password"
                     }
-                    disabled={isLoading}
+                    disabled={
+                      loading ||
+                      googleLoading
+                    }
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={
+                    loading ||
+                    googleLoading
+                  }
                   className="group relative mt-2 w-full overflow-hidden rounded-2xl bg-slate-950 px-4 py-4 text-sm font-black text-white shadow-[0_12px_30px_rgba(2,6,23,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_35px_rgba(2,6,23,0.35)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 >
                   <span className="absolute inset-0 -translate-x-full skew-x-[-20deg] bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-[150%]" />
@@ -738,7 +747,10 @@ function AuthScreen({
                 <button
                   type="button"
                   onClick={toggleMode}
-                  disabled={isLoading}
+                  disabled={
+                    loading ||
+                    googleLoading
+                  }
                   className="ml-1.5 font-black text-amber-600 transition-colors hover:text-amber-700 hover:underline disabled:opacity-50"
                 >
                   {isRegister
