@@ -1,10 +1,12 @@
 import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
+  getRedirectResult,
   onAuthStateChanged,
   sendEmailVerification,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   updateProfile,
   type User,
@@ -19,9 +21,13 @@ import {
 
 import { auth, db } from "./firebase";
 
-export const ADMIN_EMAIL = "hamidocan0411@gmail.com";
+export const ADMIN_EMAIL =
+  "hamidocan0411@gmail.com";
 
-export type UserRole = "customer" | "courier" | "admin";
+export type UserRole =
+  | "customer"
+  | "courier"
+  | "admin";
 
 export interface AuthUserProfile {
   id: string;
@@ -32,7 +38,10 @@ export interface AuthUserProfile {
   avatar?: string;
   vehicle?: string;
   plate?: string;
-  courierStatus?: "Müsait" | "Meşgul" | "Çevrimdışı";
+  courierStatus?:
+    | "Müsait"
+    | "Meşgul"
+    | "Çevrimdışı";
   totalDeliveries?: number;
   rating?: number;
   createdAt: string;
@@ -58,8 +67,11 @@ function createAuthError(
   return error;
 }
 
-function getDefaultRole(email: string): UserRole {
-  return email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase()
+function getDefaultRole(
+  email: string
+): UserRole {
+  return email.trim().toLowerCase() ===
+    ADMIN_EMAIL.toLowerCase()
     ? "admin"
     : "customer";
 }
@@ -135,7 +147,8 @@ function normalizeProfile(
         ? data.courierStatus
         : undefined,
     totalDeliveries:
-      typeof data.totalDeliveries === "number"
+      typeof data.totalDeliveries ===
+      "number"
         ? data.totalDeliveries
         : 0,
     rating:
@@ -147,7 +160,8 @@ function normalizeProfile(
 }
 
 /**
- * Firebase Auth kullanıcısının Firestore profilini getirir.
+ * Firebase Auth kullanıcısının
+ * Firestore profilini getirir.
  *
  * Google ile ilk giriş yapan kullanıcı dahil,
  * eksik profil varsa customer olarak oluşturur.
@@ -172,16 +186,18 @@ export async function ensureUserProfile(
     );
   }
 
-  const role = getDefaultRole(
-    user.email ?? ""
-  );
+  const role =
+    getDefaultRole(
+      user.email ?? ""
+    );
 
   const profileData = {
     id: user.uid,
     name:
       user.displayName?.trim() ||
       "Trustline Kullanıcısı",
-    email: user.email ?? "",
+    email:
+      user.email ?? "",
     phone:
       user.phoneNumber ?? "",
     role,
@@ -209,9 +225,6 @@ export async function ensureUserProfile(
 
 /**
  * Email + şifre ile yeni müşteri kaydı.
- *
- * Kayıttan sonra doğrulama e-postası gönderilir.
- * Kullanıcı doğrulama yapmadan uygulamaya alınmaz.
  */
 export async function registerUser({
   name,
@@ -294,52 +307,28 @@ export async function registerUser({
       profileData
     );
 
-    /*
-     * Gerçek e-posta adresine doğrulama bağlantısı gönder.
-     */
     await sendEmailVerification(
       user
     );
 
-    const profile =
-      normalizeProfile(
-        user.uid,
-        profileData,
-        user
-      );
-
-    /*
-     * Doğrulama yapılmadan aktif oturum bırakmıyoruz.
-     */
     await signOut(auth);
 
-    /*
-     * AuthScreen bu özel kodu yakalayarak
-     * kullanıcıya doğrulama gerektiğini gösterecek.
-     */
     throw createAuthError(
       "auth/email-verification-required",
       "Hesabınız oluşturuldu. E-posta adresinizi doğrulamanız gerekiyor. E-postanıza gönderilen bağlantıya tıklayın."
     );
   } catch (error) {
-    /*
-     * Özel doğrulama hatasını değiştirme.
-     */
     if (
       typeof error === "object" &&
       error !== null &&
       "code" in error &&
-      (error as { code?: unknown }).code ===
+      (error as { code?: unknown })
+        .code ===
         "auth/email-verification-required"
     ) {
       throw error;
     }
 
-    /*
-     * Auth hesabı oluşturuldu ama profil veya
-     * doğrulama e-postası işlemi başarısız olduysa
-     * kullanıcı oturumda kalmasın.
-     */
     await signOut(auth).catch(
       () => undefined
     );
@@ -350,8 +339,6 @@ export async function registerUser({
 
 /**
  * Email + şifre ile giriş.
- *
- * E-posta doğrulanmamışsa uygulamaya girişe izin verilmez.
  */
 export async function loginUser(
   email: string,
@@ -382,10 +369,6 @@ export async function loginUser(
   const user =
     credential.user;
 
-  /*
-   * Email + şifre kullanıcıları için
-   * doğrulama zorunludur.
-   */
   if (!user.emailVerified) {
     await signOut(auth).catch(
       () => undefined
@@ -403,12 +386,9 @@ export async function loginUser(
 }
 
 /**
- * Google ile giriş/kayıt.
- *
- * Google hesabı sağlayıcı tarafından doğrulandığı için
- * ayrıca Firebase e-posta doğrulaması istenmez.
+ * Google provider.
  */
-export async function loginWithGoogle(): Promise<AuthUserProfile> {
+function createGoogleProvider(): GoogleAuthProvider {
   const provider =
     new GoogleAuthProvider();
 
@@ -416,15 +396,118 @@ export async function loginWithGoogle(): Promise<AuthUserProfile> {
     prompt: "select_account",
   });
 
-  const credential =
-    await signInWithPopup(
-      auth,
-      provider
+  provider.addScope(
+    "profile"
+  );
+
+  provider.addScope(
+    "email"
+  );
+
+  return provider;
+}
+
+/**
+ * Google ile giriş.
+ *
+ * Önce popup denenir.
+ * Mobil/tarayıcı popup'ı engellerse
+ * redirect yöntemi kullanılır.
+ */
+export async function loginWithGoogle(): Promise<AuthUserProfile> {
+  const provider =
+    createGoogleProvider();
+
+  try {
+    const credential =
+      await signInWithPopup(
+        auth,
+        provider
+      );
+
+    return await ensureUserProfile(
+      credential.user
+    );
+  } catch (error) {
+    const code =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error
+        ? String(
+            (
+              error as {
+                code?: unknown;
+              }
+            ).code ?? ""
+          )
+        : "";
+
+    /*
+     * Kullanıcı popup'ı kendisi kapattıysa
+     * otomatik redirect başlatmıyoruz.
+     *
+     * Sadece gerçekten popup problemi
+     * olduğunda redirect kullanıyoruz.
+     */
+    const shouldUseRedirect =
+      code ===
+        "auth/popup-blocked" ||
+      code ===
+        "auth/operation-not-supported-in-this-environment";
+
+    if (shouldUseRedirect) {
+      await signInWithRedirect(
+        auth,
+        provider
+      );
+
+      /*
+       * Redirect sonrası sayfa yeniden açılır.
+       * Normal akış AuthScreen tarafından
+       * handleGoogleRedirectResult() ile yakalanır.
+       */
+      throw createAuthError(
+        "auth/google-redirect-started",
+        "Google giriş sayfasına yönlendiriliyorsunuz..."
+      );
+    }
+
+    console.error(
+      "Google giriş hatası:",
+      error
     );
 
-  return ensureUserProfile(
-    credential.user
-  );
+    throw error;
+  }
+}
+
+/**
+ * Google redirect sonucunu işler.
+ *
+ * Google'dan geri dönüldüğünde çağrılır.
+ */
+export async function handleGoogleRedirectResult(): Promise<AuthUserProfile | null> {
+  try {
+    const result =
+      await getRedirectResult(
+        auth
+      );
+
+    if (!result) {
+      return null;
+    }
+
+    return await ensureUserProfile(
+      result.user
+    );
+  } catch (error) {
+    console.error(
+      "Google redirect sonucu alınamadı:",
+      error
+    );
+
+    throw error;
+  }
 }
 
 /**
@@ -435,7 +518,8 @@ export async function logoutUser(): Promise<void> {
 }
 
 /**
- * Mevcut Firebase kullanıcısının Firestore profilini getirir.
+ * Mevcut Firebase kullanıcısının
+ * Firestore profilini getirir.
  */
 export async function getCurrentUserProfile(): Promise<AuthUserProfile | null> {
   const user =
@@ -445,13 +529,6 @@ export async function getCurrentUserProfile(): Promise<AuthUserProfile | null> {
     return null;
   }
 
-  /*
-   * E-posta + şifre hesabı doğrulanmamışsa
-   * profil uygulamaya aktarılmaz.
-   *
-   * Google gibi sağlayıcılarda emailVerified
-   * normalde true olur.
-   */
   if (
     user.providerData.some(
       (provider) =>
@@ -497,8 +574,8 @@ export function subscribeToAuth(
       }
 
       /*
-       * E-posta + şifre hesabı doğrulanmamışsa
-       * uygulamaya giriş yaptırma.
+       * Email + şifre kullanıcıları için
+       * doğrulama zorunludur.
        */
       if (
         user.providerData.some(
@@ -590,7 +667,8 @@ export function isCustomerUser(
 }
 
 /**
- * Firebase Auth kullanıcısını doğrudan döndürür.
+ * Firebase Auth kullanıcısını
+ * doğrudan döndürür.
  */
 export function getFirebaseUser(): User | null {
   return auth.currentUser;
