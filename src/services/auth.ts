@@ -1,251 +1,203 @@
 import {
+  GoogleAuthProvider,
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
   onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
   updateProfile,
   type User,
-} from 'firebase/auth';
+} from "firebase/auth";
 
 import {
   doc,
   getDoc,
   setDoc,
   serverTimestamp,
-} from 'firebase/firestore';
+} from "firebase/firestore";
 
-import { auth, db } from './firebase';
+import { auth, db } from "./firebase";
 
-import type {
-  UserProfile,
-  UserRole,
-} from '../types';
+export const ADMIN_EMAIL = "hamidocan0411@gmail.com";
 
-const ADMIN_EMAIL = 'hamidocan0411@gmail.com';
+export type UserRole = "customer" | "courier" | "admin";
 
-/**
- * E-posta adresine göre varsayılan rol.
- *
- * Normal kayıt olan kullanıcılar customer olur.
- * Admin hesabı ise e-posta üzerinden admin olarak tanınır.
- *
- * Kurye hesaplarının rolü ise StorageService tarafından
- * oluşturulan Firestore profiline göre korunur.
- */
+export interface AuthUserProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: UserRole;
+  avatar?: string;
+  vehicle?: string;
+  plate?: string;
+  courierStatus?: "Müsait" | "Meşgul" | "Çevrimdışı";
+  totalDeliveries?: number;
+  rating?: number;
+  createdAt: string;
+}
+
+interface RegisterData {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+}
+
 function getDefaultRole(email: string): UserRole {
   return email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase()
-    ? 'admin'
-    : 'customer';
+    ? "admin"
+    : "customer";
 }
 
-/**
- * Firebase'den gelen kullanıcı profilini uygulamanın
- * UserProfile tipine güvenli şekilde dönüştürür.
- */
-function normalizeProfile(
-  user: User,
-  data: Record<string, any>
-): UserProfile {
-  let role: UserRole =
-    data.role === 'admin' ||
-    data.role === 'courier' ||
-    data.role === 'customer'
-      ? data.role
-      : getDefaultRole(user.email || '');
-
-  /**
-   * Admin hesabının rolü her durumda admin olsun.
-   */
+function normalizeRole(value: unknown, email: string): UserRole {
   if (
-    user.email?.trim().toLowerCase() ===
-    ADMIN_EMAIL.toLowerCase()
+    value === "admin" ||
+    value === "courier" ||
+    value === "customer"
   ) {
-    role = 'admin';
+    return value;
   }
 
+  return getDefaultRole(email);
+}
+
+function normalizeProfile(
+  uid: string,
+  data: Record<string, unknown>,
+  fallbackUser?: User
+): AuthUserProfile {
+  const email =
+    typeof data.email === "string"
+      ? data.email
+      : fallbackUser?.email ?? "";
+
+  const name =
+    typeof data.name === "string" && data.name.trim()
+      ? data.name
+      : fallbackUser?.displayName ?? "Trustline Kullanıcısı";
+
+  const phone =
+    typeof data.phone === "string"
+      ? data.phone
+      : fallbackUser?.phoneNumber ?? "";
+
+  const createdAt =
+    typeof data.createdAt === "string"
+      ? data.createdAt
+      : new Date().toISOString();
+
   return {
-    id: user.uid,
-
-    name:
-      typeof data.name === 'string' && data.name.trim()
-        ? data.name
-        : user.displayName || 'Kullanıcı',
-
-    email:
-      typeof data.email === 'string' && data.email.trim()
-        ? data.email
-        : user.email || '',
-
-    phone:
-      typeof data.phone === 'string'
-        ? data.phone
-        : '',
-
-    role,
-
+    id: uid,
+    name,
+    email,
+    phone,
+    role: normalizeRole(data.role, email),
     avatar:
-      typeof data.avatar === 'string'
+      typeof data.avatar === "string"
         ? data.avatar
-        : undefined,
-
+        : fallbackUser?.photoURL ?? undefined,
     vehicle:
-      typeof data.vehicle === 'string'
+      typeof data.vehicle === "string"
         ? data.vehicle
         : undefined,
-
     plate:
-      typeof data.plate === 'string'
+      typeof data.plate === "string"
         ? data.plate
         : undefined,
-
     courierStatus:
-      data.courierStatus === 'Müsait' ||
-      data.courierStatus === 'Meşgul' ||
-      data.courierStatus === 'Çevrimdışı'
+      data.courierStatus === "Müsait" ||
+      data.courierStatus === "Meşgul" ||
+      data.courierStatus === "Çevrimdışı"
         ? data.courierStatus
         : undefined,
-
     totalDeliveries:
-      typeof data.totalDeliveries === 'number'
+      typeof data.totalDeliveries === "number"
         ? data.totalDeliveries
         : 0,
-
     rating:
-      typeof data.rating === 'number'
+      typeof data.rating === "number"
         ? data.rating
         : 5,
-
-    createdAt:
-      typeof data.createdAt === 'string'
-        ? data.createdAt
-        : new Date().toISOString(),
-
-    /**
-     * UserProfile tipinde bulunmuyorsa bile Firestore'dan gelen
-     * alanın uygulamada sorun çıkarmaması için güvenli tutuluyor.
-     */
-    ...(typeof data.updatedAt === 'string'
-      ? { updatedAt: data.updatedAt }
-      : {}),
-
-    ...(typeof data.isActive === 'boolean'
-      ? { isActive: data.isActive }
-      : { isActive: true }),
-  } as UserProfile;
+    createdAt,
+  };
 }
 
 /**
- * Firebase Auth kullanıcısı ile Firestore users/{uid}
- * kaydını eşleştirir.
+ * Firebase Auth kullanıcısının Firestore profilini getirir.
  *
  * ÖNEMLİ:
- * Kurye hesabı admin panelinden oluşturulduysa burada bulunan
- * mevcut role kesinlikle korunur.
+ * Var olan kullanıcı için eksik profil varsa customer olarak
+ * otomatik oluşturur.
+ *
+ * Böylece Google ile ilk giriş yapan müşteri de otomatik olarak
+ * users/{uid} altında kayıt edilir.
  */
 export async function ensureUserProfile(
   user: User
-): Promise<UserProfile> {
-  if (!user?.uid) {
-    throw new Error('Geçersiz Firebase kullanıcı hesabı.');
-  }
-
-  const userRef = doc(db, 'users', user.uid);
-
+): Promise<AuthUserProfile> {
+  const userRef = doc(db, "users", user.uid);
   const snapshot = await getDoc(userRef);
 
   if (snapshot.exists()) {
-    const data = snapshot.data() as Record<string, any>;
-
-    const profile = normalizeProfile(user, data);
-
-    console.log(
-      'Firestore kullanıcı profili bulundu:',
-      {
-        uid: user.uid,
-        email: user.email,
-        role: profile.role,
-      }
+    return normalizeProfile(
+      user.uid,
+      snapshot.data(),
+      user
     );
-
-    return profile;
   }
 
-  /**
-   * Buraya düşüyorsa Firebase Auth hesabı var ama
-   * users/{uid} Firestore kaydı yok demektir.
-   *
-   * Normal müşteri kayıtlarında bu kayıt otomatik oluşturulabilir.
-   *
-   * Ancak burada KURYE oluşturmak kesinlikle yapılmaz.
-   * Çünkü kurye hesabının rolü admin panelinden verilmelidir.
-   */
-  const role = getDefaultRole(user.email || '');
+  const role = getDefaultRole(user.email ?? "");
 
-  const profile: UserProfile = {
+  const profileData = {
     id: user.uid,
-    name: user.displayName || 'Kullanıcı',
-    email: user.email || '',
-    phone: '',
+    name:
+      user.displayName?.trim() ||
+      "Trustline Kullanıcısı",
+    email: user.email ?? "",
+    phone: user.phoneNumber ?? "",
     role,
+    avatar: user.photoURL ?? "",
+    totalDeliveries: 0,
+    rating: 5,
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    isActive: true,
-  } as UserProfile;
+    createdAtServer: serverTimestamp(),
+  };
 
-  try {
-    await setDoc(userRef, {
-      id: profile.id,
-      name: profile.name,
-      email: profile.email,
-      phone: profile.phone,
-      role: profile.role,
-      isActive: true,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+  await setDoc(userRef, profileData);
 
-    console.log(
-      'Yeni Firestore kullanıcı profili oluşturuldu:',
-      {
-        uid: user.uid,
-        role: profile.role,
-      }
-    );
-  } catch (error) {
-    console.error(
-      'Firestore kullanıcı profili oluşturulamadı:',
-      error
-    );
-
-    throw error;
-  }
-
-  return profile;
+  return normalizeProfile(
+    user.uid,
+    profileData,
+    user
+  );
 }
 
 /**
- * Yeni müşteri hesabı oluşturur.
+ * Email + şifre ile yeni müşteri kaydı.
  */
-export async function registerUser(
-  email: string,
-  password: string,
-  name: string,
-  phone: string = ''
-): Promise<UserProfile> {
-  const cleanEmail = email.trim();
+export async function registerUser({
+  name,
+  email,
+  password,
+  phone = "",
+}: RegisterData): Promise<AuthUserProfile> {
   const cleanName = name.trim();
+  const cleanEmail = email.trim().toLowerCase();
   const cleanPhone = phone.trim();
 
-  if (!cleanEmail) {
-    throw new Error('E-posta adresi gerekli.');
-  }
-
-  if (!password) {
-    throw new Error('Şifre gerekli.');
-  }
-
   if (!cleanName) {
-    throw new Error('Ad soyad gerekli.');
+    throw new Error("Ad soyad gerekli.");
+  }
+
+  if (!cleanEmail) {
+    throw new Error("E-posta adresi gerekli.");
+  }
+
+  if (password.length < 6) {
+    throw new Error(
+      "Şifre en az 6 karakter olmalıdır."
+    );
   }
 
   const credential =
@@ -262,81 +214,59 @@ export async function registerUser(
       displayName: cleanName,
     });
 
-    const role = getDefaultRole(user.email || cleanEmail);
+    const role = getDefaultRole(cleanEmail);
 
-    const userRef = doc(
-      db,
-      'users',
-      user.uid
-    );
-
-    const profile: UserProfile = {
+    const profileData = {
       id: user.uid,
       name: cleanName,
-      email: user.email || cleanEmail,
+      email: cleanEmail,
       phone: cleanPhone,
       role,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      isActive: true,
-    } as UserProfile;
-
-    await setDoc(userRef, {
-      id: profile.id,
-      name: profile.name,
-      email: profile.email,
-      phone: profile.phone,
-      role: profile.role,
-      isActive: true,
+      avatar: "",
       totalDeliveries: 0,
       rating: 5,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+      createdAt: new Date().toISOString(),
+      createdAtServer: serverTimestamp(),
+    };
 
-    console.log(
-      'Firestore kullanıcı kaydı başarıyla tamamlandı:',
-      user.uid
+    await setDoc(
+      doc(db, "users", user.uid),
+      profileData
     );
 
-    return profile;
+    return normalizeProfile(
+      user.uid,
+      profileData,
+      user
+    );
   } catch (error) {
-    console.error(
-      'Kullanıcı Firestore kaydı oluşturulamadı:',
-      error
-    );
-
-    /**
-     * Burada Auth hesabını silmiyoruz.
-     *
-     * Çünkü bazı durumlarda Firestore geçici olarak hata verebilir.
-     * Kullanıcının hesabının kaybolmasını istemiyoruz.
+    /*
+     * Auth hesabı oluşturuldu ama Firestore profili
+     * oluşturulamadıysa kullanıcı yine de giriş yapmış
+     * durumda kalmasın.
      */
+    await signOut(auth).catch(() => undefined);
+
     throw error;
   }
 }
 
 /**
- * Kullanıcı giriş yapar ve Firestore profilini getirir.
+ * Email + şifre ile giriş.
  */
 export async function loginUser(
   email: string,
   password: string
-): Promise<UserProfile> {
-  const cleanEmail = email.trim();
+): Promise<AuthUserProfile> {
+  const cleanEmail = email.trim().toLowerCase();
 
   if (!cleanEmail) {
-    throw new Error('E-posta adresi gerekli.');
+    throw new Error("E-posta adresi gerekli.");
   }
 
   if (!password) {
-    throw new Error('Şifre gerekli.');
+    throw new Error("Şifre gerekli.");
   }
-
-  console.log(
-    'Firebase giriş yapılıyor:',
-    cleanEmail
-  );
 
   const credential =
     await signInWithEmailAndPassword(
@@ -345,123 +275,48 @@ export async function loginUser(
       password
     );
 
-  console.log(
-    'Firebase Auth girişi başarılı:',
-    credential.user.uid
+  return ensureUserProfile(
+    credential.user
   );
-
-  const profile =
-    await ensureUserProfile(credential.user);
-
-  console.log(
-    'Kullanıcı profili hazır:',
-    {
-      uid: profile.id,
-      role: profile.role,
-      email: profile.email,
-    }
-  );
-
-  return profile;
 }
 
 /**
- * Çıkış yap.
+ * Google ile giriş/kayıt.
+ *
+ * Kullanıcı daha önce kayıt olmadıysa Firebase Auth
+ * hesabını oluşturur ve users/{uid} profiline otomatik
+ * olarak customer kaydı açılır.
+ */
+export async function loginWithGoogle(): Promise<AuthUserProfile> {
+  const provider =
+    new GoogleAuthProvider();
+
+  provider.setCustomParameters({
+    prompt: "select_account",
+  });
+
+  const credential =
+    await signInWithPopup(
+      auth,
+      provider
+    );
+
+  return ensureUserProfile(
+    credential.user
+  );
+}
+
+/**
+ * Çıkış.
  */
 export async function logoutUser(): Promise<void> {
-  try {
-    await signOut(auth);
-
-    console.log(
-      'Firebase hesabından çıkış yapıldı.'
-    );
-  } catch (error) {
-    console.error(
-      'Çıkış yapılırken hata:',
-      error
-    );
-
-    throw error;
-  }
+  await signOut(auth);
 }
 
 /**
- * Firebase Auth değişikliklerini dinler.
- *
- * App.tsx bu fonksiyon üzerinden:
- *
- * user
- * profile
- *
- * bilgilerini alır.
+ * Mevcut Firebase kullanıcısının Firestore profilini getirir.
  */
-export function subscribeToAuth(
-  callback: (
-    user: User | null,
-    profile: UserProfile | null
-  ) => void
-): () => void {
-  return onAuthStateChanged(
-    auth,
-    async (user) => {
-      /**
-       * Kullanıcı çıkış yaptı.
-       */
-      if (!user) {
-        console.log(
-          'Firebase Auth: kullanıcı yok.'
-        );
-
-        callback(null, null);
-        return;
-      }
-
-      console.log(
-        'Firebase Auth kullanıcı bulundu:',
-        {
-          uid: user.uid,
-          email: user.email,
-        }
-      );
-
-      try {
-        const profile =
-          await ensureUserProfile(user);
-
-        /**
-         * Profil başarıyla alındı.
-         */
-        console.log(
-          'Auth profili başarıyla yüklendi:',
-          {
-            uid: profile.id,
-            role: profile.role,
-          }
-        );
-
-        callback(user, profile);
-      } catch (error) {
-        console.error(
-          'Kullanıcı profili alınamadı:',
-          error
-        );
-
-        /**
-         * App.tsx burada profile === null görecek.
-         * Böylece uygulamanın exception ile siyah ekrana
-         * düşmesini engelliyoruz.
-         */
-        callback(user, null);
-      }
-    }
-  );
-}
-
-/**
- * O an Firebase Auth'da oturum açmış kullanıcının
- * Firestore profilini getirir.
- */
-export async function getCurrentUserProfile(): Promise<UserProfile | null> {
+export async function getCurrentUserProfile(): Promise<AuthUserProfile | null> {
   const user = auth.currentUser;
 
   if (!user) {
@@ -470,52 +325,83 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
 
   try {
     return await ensureUserProfile(user);
-  } catch (error) {
-    console.error(
-      'Mevcut kullanıcı profili alınamadı:',
-      error
-    );
-
+  } catch {
     return null;
   }
 }
 
 /**
- * Kullanıcının admin olup olmadığını kontrol eder.
+ * Kullanıcı auth durumunu dinler.
+ */
+export function subscribeToAuth(
+  callback: (
+    user: User | null,
+    profile: AuthUserProfile | null
+  ) => void
+): () => void {
+  return onAuthStateChanged(
+    auth,
+    async (user) => {
+      if (!user) {
+        callback(null, null);
+        return;
+      }
+
+      try {
+        const profile =
+          await ensureUserProfile(user);
+
+        callback(user, profile);
+      } catch (error) {
+        console.error(
+          "Kullanıcı profili alınamadı:",
+          error
+        );
+
+        callback(user, null);
+      }
+    }
+  );
+}
+
+/**
+ * Admin kontrolü.
  */
 export function isAdminUser(
-  user: User | null
+  profile: AuthUserProfile | null
 ): boolean {
+  if (!profile) {
+    return false;
+  }
+
   return (
-    !!user?.email &&
-    user.email.trim().toLowerCase() ===
+    profile.role === "admin" ||
+    profile.email.toLowerCase() ===
       ADMIN_EMAIL.toLowerCase()
   );
 }
 
 /**
- * Kullanıcının kurye olup olmadığını kontrol eder.
- *
- * Bu kontrol Firestore profilindeki role üzerinden yapılır.
+ * Kurye kontrolü.
  */
-export async function isCourierUser(
-  user: User | null
-): Promise<boolean> {
-  if (!user) {
-    return false;
-  }
+export function isCourierUser(
+  profile: AuthUserProfile | null
+): boolean {
+  return profile?.role === "courier";
+}
 
-  try {
-    const profile =
-      await ensureUserProfile(user);
+/**
+ * Müşteri kontrolü.
+ */
+export function isCustomerUser(
+  profile: AuthUserProfile | null
+): boolean {
+  return profile?.role === "customer";
+}
 
-    return profile.role === 'courier';
-  } catch (error) {
-    console.error(
-      'Kurye kontrolü yapılamadı:',
-      error
-    );
-
-    return false;
-  }
+/**
+ * Firebase Auth kullanıcısını doğrudan döndürür.
+ */
+export function getFirebaseUser(): User | null {
+  return auth.currentUser;
 }
