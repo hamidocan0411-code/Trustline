@@ -8,1828 +8,574 @@ import {
   setDoc,
   updateDoc,
   where,
+  getDocs,
 } from "firebase/firestore";
 
-import {
-  createUserWithEmailAndPassword,
-  deleteUser as deleteAuthUser,
-  getAuth,
-  signOut,
-  type User,
-} from "firebase/auth";
-
-import {
-  getApps,
-  initializeApp,
-} from "firebase/app";
-
-import { DEFAULT_PRICING } from "../utils/pricing";
+import { db } from "./firebase";
 
 import type {
-  Courier,
-  Customer,
+  CourierAvailability,
+  CourierLocation,
+  NotificationItem,
   Order,
   OrderStatus,
   PricingConfig,
   UserProfile,
-  CourierAvailability,
 } from "../types";
 
-import { auth, db } from "./firebase";
+import { DEFAULT_PRICING } from "../utils/pricing";
 
-const ADMIN_EMAIL = "hamidocan0411@gmail.com";
-
-type CreateCourierData = {
-  name: string;
-  email: string;
-  phone: string;
-  password: string;
-  vehicle?: string;
-  plate?: string;
-};
+type Subscriber = () => void;
 
 class StorageService {
   private currentUser: UserProfile | null = null;
+
   private users: UserProfile[] = [];
   private orders: Order[] = [];
+  private notifications: NotificationItem[] = [];
+  private pricing: PricingConfig = DEFAULT_PRICING;
+  private courierLocations: CourierLocation[] = [];
 
-  private userUnsubscribe: (() => void) | null = null;
-  private orderUnsubscribe: (() => void) | null = null;
-  private adminUsersUnsubscribe: (() => void) | null = null;
+  private subscribers = new Set<Subscriber>();
 
-  private listeners = new Set<() => void>();
+  private initialized = false;
+  private unsubscribers: (() => void)[] = [];
 
-  private cacheKey = "trustline_cache";
+  // ==========================================
+  // INIT - FIRESTORE LIVE LISTENERS
+  // ==========================================
 
-  // =====================================================
-  // LISTENERS
-  // =====================================================
+  async init() {
+    if (this.initialized) return;
 
-  subscribe = (listener: () => void) => {
-    this.listeners.add(listener);
-
-    return () => {
-      this.listeners.delete(listener);
-    };
-  };
-
-  private notify = () => {
-    this.listeners.forEach((listener) => {
-      try {
-        listener();
-      } catch (error) {
-        console.error("Listener hatası:", error);
-      }
-    });
-  };
-
-  // =====================================================
-  // CACHE
-  // =====================================================
-
-  private saveCache = () => {
-    try {
-      localStorage.setItem(
-        this.cacheKey,
-        JSON.stringify({
-          users: this.users,
-          orders: this.orders,
-        }),
-      );
-    } catch (error) {
-      console.error("Cache kaydedilemedi:", error);
-    }
-  };
-
-  private loadCache = () => {
-    try {
-      const raw = localStorage.getItem(this.cacheKey);
-
-      if (!raw) return;
-
-      const cache = JSON.parse(raw);
-
-      if (Array.isArray(cache.users)) {
-        this.users = cache.users;
-      }
-
-      if (Array.isArray(cache.orders)) {
-        this.orders = cache.orders;
-      }
-    } catch (error) {
-      console.error("Cache okunamadı:", error);
-    }
-  };
-
-  // =====================================================
-  // INITIALIZE
-  // =====================================================
-
-  initializeForUser = async (
-    profile: UserProfile,
-  ) => {
-    this.currentUser = profile;
-
-    this.loadCache();
-
-    this.cleanupListeners();
-
-    await this.ensureUserProfile(profile);
-
-    this.setupUserListener(profile);
-    this.setupOrderListener(profile);
-
-    if (profile.role === "admin") {
-      this.setupAdminUsersListener();
-    }
-
-    this.notify();
-  };
-
-  private cleanupListeners = () => {
-    if (this.userUnsubscribe) {
-      this.userUnsubscribe();
-      this.userUnsubscribe = null;
-    }
-
-    if (this.orderUnsubscribe) {
-      this.orderUnsubscribe();
-      this.orderUnsubscribe = null;
-    }
-
-    if (this.adminUsersUnsubscribe) {
-      this.adminUsersUnsubscribe();
-      this.adminUsersUnsubscribe = null;
-    }
-  };
-
-  private ensureUserProfile = async (
-    profile: UserProfile,
-  ) => {
-    if (!profile?.id) return;
+    this.initialized = true;
 
     try {
-      const userRef = doc(
-        db,
-        "users",
-        profile.id,
-      );
-
-      const snapshot = await getDoc(
-        userRef,
-      );
-
-      if (!snapshot.exists()) {
-        await setDoc(
-          userRef,
-          {
-            ...profile,
-            id: profile.id,
-            updatedAt:
-              new Date().toISOString(),
-          },
-          {
-            merge: true,
-          },
-        );
-      }
-    } catch (error) {
-      console.error(
-        "Kullanıcı profili oluşturulamadı:",
-        error,
-      );
-    }
-  };
-
-  // =====================================================
-  // USER LISTENER
-  // =====================================================
-
-  private setupUserListener = (
-    profile: UserProfile,
-  ) => {
-    if (!profile?.id) return;
-
-    const userRef = doc(
-      db,
-      "users",
-      profile.id,
-    );
-
-    this.userUnsubscribe =
-      onSnapshot(
-        userRef,
+      // USERS
+      const unsubscribeUsers = onSnapshot(
+        collection(db, "users"),
         (snapshot) => {
-          if (!snapshot.exists()) return;
+          this.users = snapshot.docs.map((item) => ({
+            ...(item.data() as UserProfile),
+            id: item.id,
+          }));
 
-          const user = {
-            ...snapshot.data(),
-            id: profile.id,
-          } as UserProfile;
-
-          this.currentUser = {
-            ...this.currentUser,
-            ...user,
-          } as UserProfile;
-
-          const index =
-            this.users.findIndex(
-              (item) =>
-                item.id === profile.id,
-            );
-
-          if (index >= 0) {
-            this.users[index] =
-              this.currentUser;
-          } else {
-            this.users.push(
-              this.currentUser,
-            );
-          }
-
-          this.saveCache();
-          this.notify();
+          this.emit();
         },
         (error) => {
           console.error(
-            "Kullanıcı listener hatası:",
-            error,
+            "Users canlı veri hatası:",
+            error
           );
+        }
+      );
+
+      // ORDERS
+      const unsubscribeOrders = onSnapshot(
+        collection(db, "orders"),
+        (snapshot) => {
+          this.orders = snapshot.docs.map((item) => ({
+            ...(item.data() as Order),
+            id: item.id,
+          }));
+
+          this.emit();
         },
-      );
-  };
-
-  // =====================================================
-  // ADMIN USERS LISTENER
-  // =====================================================
-
-  private setupAdminUsersListener =
-    () => {
-      const usersRef =
-        collection(
-          db,
-          "users",
-        );
-
-      this.adminUsersUnsubscribe =
-        onSnapshot(
-          usersRef,
-          (snapshot) => {
-            const users =
-              snapshot.docs.map(
-                (item) =>
-                  ({
-                    ...item.data(),
-                    id: item.id,
-                  }) as UserProfile,
-              );
-
-            this.users = users;
-
-            this.saveCache();
-            this.notify();
-          },
-          (error) => {
-            console.error(
-              "Admin kullanıcı listesi hatası:",
-              error,
-            );
-          },
-        );
-    };
-
-  // =====================================================
-  // ORDER LISTENER
-  // =====================================================
-
-  private setupOrderListener =
-    (
-      profile: UserProfile,
-    ) => {
-      const ordersRef =
-        collection(
-          db,
-          "orders",
-        );
-
-      let ordersQuery;
-
-      if (
-        profile.role ===
-        "customer"
-      ) {
-        ordersQuery = query(
-          ordersRef,
-          where(
-            "customerId",
-            "==",
-            profile.id,
-          ),
-        );
-      } else if (
-        profile.role ===
-        "courier"
-      ) {
-        ordersQuery = query(
-          ordersRef,
-          where(
-            "courierId",
-            "==",
-            profile.id,
-          ),
-        );
-      } else {
-        ordersQuery = ordersRef;
-      }
-
-      this.orderUnsubscribe =
-        onSnapshot(
-          ordersQuery,
-          (snapshot) => {
-            const orders =
-              snapshot.docs.map(
-                (item) =>
-                  ({
-                    ...item.data(),
-                    id: item.id,
-                  }) as Order,
-              );
-
-            this.orders =
-              orders;
-
-            this.saveCache();
-            this.notify();
-          },
-          (error) => {
-            console.error(
-              "Sipariş listener hatası:",
-              error,
-            );
-          },
-        );
-    };
-
-  // =====================================================
-  // GETTERS
-  // =====================================================
-
-  getCurrentUser = () => {
-    return this.currentUser;
-  };
-
-  getOrders = () => {
-    return [...this.orders];
-  };
-
-  getCustomers = (): Customer[] => {
-    return this.users.filter(
-      (user) =>
-        user.role ===
-        "customer",
-    ) as Customer[];
-  };
-
-  getCouriers = (): Courier[] => {
-    return this.users.filter(
-      (user) =>
-        user.role ===
-        "courier",
-    ) as Courier[];
-  };
-
-  getUsers = () => {
-    return [...this.users];
-  };
-
-  getOrderById = (
-    id: string,
-  ) => {
-    return this.orders.find(
-      (order) =>
-        order.id === id,
-    );
-  };
-
-  // =====================================================
-  // CREATE ORDER
-  // =====================================================
-
-  createOrder = async (
-    data: Partial<Order>,
-  ) => {
-    const firebaseUser =
-      auth.currentUser;
-
-    if (!firebaseUser) {
-      throw new Error(
-        "Firebase oturumu bulunamadı. Lütfen tekrar giriş yapın.",
-      );
-    }
-
-    const customerId =
-      this.currentUser?.role ===
-      "customer"
-        ? firebaseUser.uid
-        : data.customerId ||
-          this.currentUser?.id ||
-          firebaseUser.uid;
-
-    const orderId =
-      data.id ||
-      `order_${Date.now()}_${Math.random()
-        .toString(36)
-        .substring(2, 9)}`;
-
-    const now =
-      new Date().toISOString();
-
-    const cleanData =
-      Object.fromEntries(
-        Object.entries(data).filter(
-          ([, value]) =>
-            value !== undefined,
-        ),
-      );
-
-    const order = {
-      ...cleanData,
-      id: orderId,
-      customerId,
-      courierId:
-        data.courierId ?? null,
-      status:
-        data.status ||
-        "Kurye Bekleniyor",
-      createdAt:
-        data.createdAt ||
-        now,
-      updatedAt: now,
-    } as Order;
-
-    if (
-      this.currentUser?.role ===
-      "customer"
-    ) {
-      order.customerId =
-        firebaseUser.uid;
-    }
-
-    try {
-      await setDoc(
-        doc(
-          db,
-          "orders",
-          orderId,
-        ),
-        order,
-      );
-
-      this.orders = [
-        order,
-        ...this.orders.filter(
-          (item) =>
-            item.id !==
-            orderId,
-        ),
-      ];
-
-      this.saveCache();
-      this.notify();
-
-      return order;
-    } catch (error: any) {
-      console.error(
-        "Sipariş oluşturulamadı:",
-        error,
-      );
-
-      if (
-        error?.code ===
-        "permission-denied"
-      ) {
-        throw new Error(
-          "Firestore sipariş oluşturma yetkisini reddetti.",
-        );
-      }
-
-      throw new Error(
-        error?.message ||
-          "Sipariş Firestore'a kaydedilemedi.",
-      );
-    }
-  };
-
-  // =====================================================
-  // UPDATE ORDER
-  // =====================================================
-
-  updateOrder = async (
-    orderId: string,
-    updates: Partial<Order>,
-  ) => {
-    const firebaseUser =
-      auth.currentUser;
-
-    if (!firebaseUser) {
-      throw new Error(
-        "Firebase oturumu bulunamadı.",
-      );
-    }
-
-    if (!orderId) {
-      throw new Error(
-        "Sipariş ID bulunamadı.",
-      );
-    }
-
-    try {
-      const orderRef = doc(
-        db,
-        "orders",
-        orderId,
-      );
-
-      const snapshot =
-        await getDoc(
-          orderRef,
-        );
-
-      if (!snapshot.exists()) {
-        throw new Error(
-          "Sipariş Firestore'da bulunamadı.",
-        );
-      }
-
-      const currentOrder =
-        snapshot.data() as Order;
-
-      if (
-        this.currentUser?.role ===
-        "courier"
-      ) {
-        if (
-          currentOrder.courierId !==
-          firebaseUser.uid
-        ) {
-          throw new Error(
-            "Bu sipariş size atanmamış.",
+        (error) => {
+          console.error(
+            "Orders canlı veri hatası:",
+            error
           );
         }
+      );
 
-        if (
-          updates.courierId !==
-            undefined &&
-          updates.courierId !==
-            currentOrder.courierId
-        ) {
-          throw new Error(
-            "Kurye siparişini başka bir kuryeye aktaramaz.",
+      // NOTIFICATIONS
+      const unsubscribeNotifications = onSnapshot(
+        collection(db, "notifications"),
+        (snapshot) => {
+          this.notifications = snapshot.docs.map(
+            (item) => ({
+              ...(item.data() as NotificationItem),
+              id: item.id,
+            })
           );
-        }
-      }
 
-      const updatedData = {
-        ...updates,
-        updatedAt:
-          new Date().toISOString(),
-      };
-
-      await updateDoc(
-        orderRef,
-        updatedData,
-      );
-
-      const updatedOrder = {
-        ...currentOrder,
-        ...updatedData,
-        id: orderId,
-      } as Order;
-
-      const index =
-        this.orders.findIndex(
-          (order) =>
-            order.id ===
-            orderId,
-        );
-
-      if (index >= 0) {
-        this.orders[index] =
-          updatedOrder;
-      } else {
-        this.orders.push(
-          updatedOrder,
-        );
-      }
-
-      this.saveCache();
-      this.notify();
-
-      return updatedOrder;
-    } catch (error: any) {
-      console.error(
-        "Sipariş güncellenemedi:",
-        error,
-      );
-
-      if (
-        error?.code ===
-        "permission-denied"
-      ) {
-        throw new Error(
-          "Firestore yetkisi reddedildi. Firestore Rules kontrol edilmeli.",
-        );
-      }
-
-      throw new Error(
-        error?.message ||
-          "Sipariş güncellenemedi.",
-      );
-    }
-  };
-
-  // =====================================================
-  // COMPATIBILITY
-  // =====================================================
-
-  updateOrderStatus =
-    async (
-      orderId: string,
-      status: OrderStatus,
-    ) => {
-      return this.updateOrder(
-        orderId,
-        { status },
-      );
-    };
-
-  updateOrderPrice =
-    async (
-      orderId: string,
-      price: number,
-    ) => {
-      return this.updateOrder(
-        orderId,
-        { price },
-      );
-    };
-
-  // =====================================================
-  // ASSIGN COURIER
-  // =====================================================
-
-  assignCourier =
-    async (
-      orderId: string,
-      courierId: string,
-    ) => {
-      if (!courierId) {
-        throw new Error(
-          "Kurye seçilmedi.",
-        );
-      }
-
-      const courier =
-        await this.getUserById(
-          courierId,
-        );
-
-      if (
-        !courier ||
-        courier.role !==
-          "courier"
-      ) {
-        throw new Error(
-          "Seçilen kurye profili bulunamadı.",
-        );
-      }
-
-      return this.updateOrder(
-        orderId,
-        {
-          courierId,
-          courierName:
-            courier.name,
-          courierPhone:
-            courier.phone,
-          status:
-            "Kurye Atandı",
+          this.emit();
         },
-      );
-    };
-
-  // =====================================================
-  // COURIER WORKFLOW
-  // =====================================================
-
-  acceptOrder =
-    async (
-      orderId: string,
-    ) => {
-      const firebaseUser =
-        auth.currentUser;
-
-      if (!firebaseUser) {
-        throw new Error(
-          "Firebase oturumu bulunamadı.",
-        );
-      }
-
-      if (
-        this.currentUser?.role !==
-        "courier"
-      ) {
-        throw new Error(
-          "Bu işlem sadece kurye hesabından yapılabilir.",
-        );
-      }
-
-      const order =
-        await this.getOrderByIdFromFirestore(
-          orderId,
-        );
-
-      if (!order) {
-        throw new Error(
-          "Sipariş bulunamadı.",
-        );
-      }
-
-      if (
-        order.courierId !==
-        firebaseUser.uid
-      ) {
-        throw new Error(
-          "Bu sipariş size atanmamış.",
-        );
-      }
-
-      if (
-        order.status !==
-        "Kurye Atandı"
-      ) {
-        throw new Error(
-          "Bu sipariş şu anda kabul edilebilir durumda değil.",
-        );
-      }
-
-      return this.updateOrder(
-        orderId,
-        {
-          status:
-            "Kurye Kabul Etti",
-        },
-      );
-    };
-
-  pickupOrder =
-    async (
-      orderId: string,
-    ) => {
-      return this.updateOrder(
-        orderId,
-        {
-          status:
-            "Paket Alındı",
-        },
-      );
-    };
-
-  startDelivery =
-    async (
-      orderId: string,
-    ) => {
-      return this.updateOrder(
-        orderId,
-        {
-          status:
-            "Teslimatta",
-        },
-      );
-    };
-
-  completeOrder =
-    async (
-      orderId: string,
-      deliveryData?: {
-        receiverName?: string;
-        deliveryNote?: string;
-        signature?: string;
-        deliveryPhoto?: string;
-      },
-    ) => {
-      const updates: Partial<Order> =
-        {
-          status:
-            "Teslim Edildi",
-        };
-
-      if (deliveryData) {
-        if (
-          deliveryData.receiverName !==
-          undefined
-        ) {
-          updates.receiverName =
-            deliveryData.receiverName;
-        }
-
-        if (
-          deliveryData.deliveryNote !==
-          undefined
-        ) {
-          updates.deliveryNote =
-            deliveryData.deliveryNote;
-        }
-
-        if (
-          deliveryData.signature !==
-          undefined
-        ) {
-          updates.signature =
-            deliveryData.signature;
-        }
-
-        if (
-          deliveryData.deliveryPhoto !==
-          undefined
-        ) {
-          updates.deliveryPhoto =
-            deliveryData.deliveryPhoto;
-        }
-
-        updates.deliveredAt =
-          new Date().toISOString();
-      }
-
-      return this.updateOrder(
-        orderId,
-        updates,
-      );
-    };
-
-  cancelOrder =
-    async (
-      orderId: string,
-    ) => {
-      return this.updateOrder(
-        orderId,
-        {
-          status:
-            "İptal Edildi",
-        },
-      );
-    };
-
-  private getOrderByIdFromFirestore =
-    async (
-      orderId: string,
-    ): Promise<Order | null> => {
-      const snapshot =
-        await getDoc(
-          doc(
-            db,
-            "orders",
-            orderId,
-          ),
-        );
-
-      if (!snapshot.exists()) {
-        return null;
-      }
-
-      return {
-        ...snapshot.data(),
-        id: snapshot.id,
-      } as Order;
-    };
-
-  // =====================================================
-  // DELETE ORDER
-  // =====================================================
-
-  deleteOrder =
-    async (
-      orderId: string,
-    ) => {
-      try {
-        await deleteDoc(
-          doc(
-            db,
-            "orders",
-            orderId,
-          ),
-        );
-
-        this.orders =
-          this.orders.filter(
-            (order) =>
-              order.id !==
-              orderId,
-          );
-
-        this.saveCache();
-        this.notify();
-      } catch (error) {
-        console.error(
-          "Sipariş silinemedi:",
-          error,
-        );
-
-        throw error;
-      }
-    };
-
-  // =====================================================
-  // OLD ADD COURIER
-  // =====================================================
-
-  addCourier =
-    async (
-      courier: Partial<Courier>,
-    ) => {
-      if (!courier.id) {
-        throw new Error(
-          "Kurye ID bulunamadı.",
-        );
-      }
-
-      const courierData = {
-        ...courier,
-        id: courier.id,
-        role: "courier" as const,
-        createdAt:
-          courier.createdAt ||
-          new Date().toISOString(),
-        updatedAt:
-          new Date().toISOString(),
-        isActive:
-          courier.isActive ??
-          true,
-      };
-
-      await setDoc(
-        doc(
-          db,
-          "users",
-          courier.id,
-        ),
-        courierData,
-        {
-          merge: true,
-        },
-      );
-
-      const user =
-        courierData as UserProfile;
-
-      const index =
-        this.users.findIndex(
-          (item) =>
-            item.id ===
-            user.id,
-        );
-
-      if (index >= 0) {
-        this.users[index] =
-          user;
-      } else {
-        this.users.push(
-          user,
-        );
-      }
-
-      this.saveCache();
-      this.notify();
-
-      return user;
-    };
-
-  // =====================================================
-  // CREATE REAL COURIER ACCOUNT
-  // =====================================================
-
-  /*
-   * ÇOK ÖNEMLİ:
-   *
-   * Normal class metodu yerine ARROW FUNCTION.
-   *
-   * Böylece:
-   *
-   * const fn = storage.createCourier;
-   * await fn(...);
-   *
-   * şeklinde çağırılsa bile
-   * "this" kaybolmaz.
-   */
-  createCourier =
-    async (
-      data: CreateCourierData,
-    ): Promise<UserProfile> => {
-      const adminUser =
-        auth.currentUser;
-
-      if (!adminUser) {
-        throw new Error(
-          "Admin Firebase oturumu bulunamadı.",
-        );
-      }
-
-      const adminEmail =
-        adminUser.email
-          ?.trim()
-          .toLowerCase();
-
-      if (
-        adminEmail !==
-        ADMIN_EMAIL
-      ) {
-        throw new Error(
-          "Bu işlem sadece admin hesabından yapılabilir.",
-        );
-      }
-
-      const name =
-        data.name.trim();
-
-      const email =
-        data.email
-          .trim()
-          .toLowerCase();
-
-      const phone =
-        data.phone.trim();
-
-      const password =
-        data.password;
-
-      if (!name) {
-        throw new Error(
-          "Kurye adı zorunludur.",
-        );
-      }
-
-      if (!email) {
-        throw new Error(
-          "Kurye e-postası zorunludur.",
-        );
-      }
-
-      if (!phone) {
-        throw new Error(
-          "Kurye telefonu zorunludur.",
-        );
-      }
-
-      if (
-        !password ||
-        password.length < 6
-      ) {
-        throw new Error(
-          "Şifre en az 6 karakter olmalıdır.",
-        );
-      }
-
-      let secondaryApp =
-        getApps().find(
-          (app) =>
-            app.name ===
-            "TrustlineCourierCreator",
-        );
-
-      if (!secondaryApp) {
-        secondaryApp =
-          initializeApp(
-            auth.app.options,
-            "TrustlineCourierCreator",
-          );
-      }
-
-      const secondaryAuth =
-        getAuth(
-          secondaryApp,
-        );
-
-      let createdUser:
-        | User
-        | null = null;
-
-      try {
-        try {
-          await signOut(
-            secondaryAuth,
-          );
-        } catch {
-          // Secondary Auth'ta oturum yoksa sorun değil.
-        }
-
-        // =================================================
-        // GERÇEK FIREBASE AUTH HESABI
-        // =================================================
-
-        const credential =
-          await createUserWithEmailAndPassword(
-            secondaryAuth,
-            email,
-            password,
-          );
-
-        createdUser =
-          credential.user;
-
-        const uid =
-          createdUser.uid;
-
-        const now =
-          new Date().toISOString();
-
-        const profile:
-          UserProfile = {
-          id: uid,
-          name,
-          email,
-          phone,
-          role: "courier",
-          vehicle:
-            data.vehicle?.trim() ||
-            "",
-          plate:
-            data.plate?.trim() ||
-            "",
-          courierStatus:
-            "Müsait",
-          totalDeliveries: 0,
-          rating: 5,
-          createdAt: now,
-        };
-
-        // =================================================
-        // FIRESTORE PROFILE
-        // =================================================
-
-        await setDoc(
-          doc(
-            db,
-            "users",
-            uid,
-          ),
-          profile,
-        );
-
-        // =================================================
-        // LOCAL CACHE
-        // =================================================
-
-        const existingIndex =
-          this.users.findIndex(
-            (user) =>
-              user.id ===
-              uid,
-          );
-
-        if (
-          existingIndex >=
-          0
-        ) {
-          this.users[
-            existingIndex
-          ] = profile;
-        } else {
-          this.users.push(
-            profile,
+        (error) => {
+          console.error(
+            "Notifications canlı veri hatası:",
+            error
           );
         }
+      );
 
-        this.saveCache();
-        this.notify();
-
-        console.log(
-          "Kurye hesabı başarıyla oluşturuldu:",
-          {
-            uid,
-            email,
-            name,
-          },
-        );
-
-        return profile;
-      } catch (error: any) {
-        console.error(
-          "Kurye hesabı oluşturulamadı:",
-          error,
-        );
-
-        // =================================================
-        // FIRESTORE BAŞARISIZSA AUTH HESABINI TEMİZLE
-        // =================================================
-
-        if (createdUser) {
-          try {
-            await deleteAuthUser(
-              createdUser,
-            );
-          } catch (deleteError) {
-            console.error(
-              "Oluşturulan Auth hesabı silinemedi:",
-              deleteError,
-            );
+      // PRICING
+      const unsubscribePricing = onSnapshot(
+        doc(db, "settings", "pricing"),
+        (snapshot) => {
+          if (snapshot.exists()) {
+            this.pricing = {
+              ...DEFAULT_PRICING,
+              ...(snapshot.data() as PricingConfig),
+            };
           }
-        }
 
-        // =================================================
-        // FIREBASE AUTH HATALARI
-        // =================================================
-
-        if (
-          error?.code ===
-          "auth/email-already-in-use"
-        ) {
-          throw new Error(
-            "Bu e-posta Firebase Authentication'da zaten kayıtlı.",
-          );
-        }
-
-        if (
-          error?.code ===
-          "auth/invalid-email"
-        ) {
-          throw new Error(
-            "Geçersiz e-posta adresi.",
-          );
-        }
-
-        if (
-          error?.code ===
-          "auth/weak-password"
-        ) {
-          throw new Error(
-            "Şifre çok zayıf. En az 6 karakter kullanın.",
-          );
-        }
-
-        if (
-          error?.code ===
-          "auth/operation-not-allowed"
-        ) {
-          throw new Error(
-            "Firebase Authentication'da Email/Password giriş yöntemi kapalı. Firebase Console > Authentication > Sign-in method bölümünden Email/Password'u açın.",
-          );
-        }
-
-        // =================================================
-        // FIRESTORE HATASI
-        // =================================================
-
-        if (
-          error?.code ===
-          "permission-denied"
-        ) {
-          throw new Error(
-            "Firestore kurye profili oluşturma yetkisini reddetti. Firestore Rules kontrol edilmeli.",
-          );
-        }
-
-        throw new Error(
-          error?.message ||
-            "Kurye hesabı oluşturulamadı.",
-        );
-      } finally {
-        try {
-          await signOut(
-            secondaryAuth,
-          );
-        } catch {
-          // Bilerek boş.
-        }
-      }
-    };
-
-  // =====================================================
-  // COURIER STATUS
-  // =====================================================
-
-  updateCourierStatus =
-    async (
-      courierId: string,
-      status: CourierAvailability,
-    ) => {
-      if (!courierId) {
-        throw new Error(
-          "Kurye ID bulunamadı.",
-        );
-      }
-
-      return this.updateUser(
-        courierId,
-        {
-          courierStatus:
-            status,
+          this.emit();
         },
+        (error) => {
+          console.error(
+            "Pricing canlı veri hatası:",
+            error
+          );
+        }
       );
-    };
 
-  // =====================================================
-  // UPDATE USER
-  // =====================================================
+      // COURIER LOCATIONS
+      const unsubscribeLocations = onSnapshot(
+        collection(db, "courierLocations"),
+        (snapshot) => {
+          this.courierLocations =
+            snapshot.docs.map((item) => ({
+              ...(item.data() as CourierLocation),
+              courierId:
+                item.data().courierId || item.id,
+            }));
 
-  updateUser =
-    async (
-      userId: string,
-      updates: Partial<UserProfile>,
-    ) => {
-      if (!userId) {
-        throw new Error(
-          "Kullanıcı ID bulunamadı.",
-        );
-      }
-
-      try {
-        await updateDoc(
-          doc(
-            db,
-            "users",
-            userId,
-          ),
-          {
-            ...updates,
-            updatedAt:
-              new Date().toISOString(),
-          },
-        );
-
-        const index =
-          this.users.findIndex(
-            (user) =>
-              user.id ===
-              userId,
-          );
-
-        if (index >= 0) {
-          this.users[index] = {
-            ...this.users[index],
-            ...updates,
-          };
-        }
-
-        if (
-          this.currentUser?.id ===
-          userId
-        ) {
-          this.currentUser = {
-            ...this.currentUser,
-            ...updates,
-          };
-        }
-
-        this.saveCache();
-        this.notify();
-
-        return index >= 0
-          ? this.users[index]
-          : undefined;
-      } catch (error: any) {
-        console.error(
-          "Kullanıcı güncellenemedi:",
-          error,
-        );
-
-        if (
-          error?.code ===
-          "permission-denied"
-        ) {
-          throw new Error(
-            "Kullanıcı güncelleme yetkisi reddedildi.",
+          this.emit();
+        },
+        (error) => {
+          console.error(
+            "Courier locations canlı veri hatası:",
+            error
           );
         }
-
-        throw error;
-      }
-    };
-
-  // =====================================================
-  // DELETE USER
-  // =====================================================
-
-  deleteUser =
-    async (
-      userId: string,
-    ) => {
-      if (!userId) {
-        throw new Error(
-          "Kullanıcı ID bulunamadı.",
-        );
-      }
-
-      try {
-        await deleteDoc(
-          doc(
-            db,
-            "users",
-            userId,
-          ),
-        );
-
-        this.users =
-          this.users.filter(
-            (user) =>
-              user.id !==
-              userId,
-          );
-
-        this.saveCache();
-        this.notify();
-      } catch (error) {
-        console.error(
-          "Kullanıcı silinemedi:",
-          error,
-        );
-
-        throw error;
-      }
-    };
-
-  // =====================================================
-  // GET USER
-  // =====================================================
-
-  getUserById =
-    async (
-      userId: string,
-    ) => {
-      const localUser =
-        this.users.find(
-          (user) =>
-            user.id ===
-            userId,
-        );
-
-      if (localUser) {
-        return localUser;
-      }
-
-      try {
-        const snapshot =
-          await getDoc(
-            doc(
-              db,
-              "users",
-              userId,
-            ),
-          );
-
-        if (!snapshot.exists()) {
-          return null;
-        }
-
-        return {
-          ...snapshot.data(),
-          id: snapshot.id,
-        } as UserProfile;
-      } catch (error) {
-        console.error(
-          "Kullanıcı alınamadı:",
-          error,
-        );
-
-        return null;
-      }
-    };
-
-  // =====================================================
-  // CUSTOMERS
-  // =====================================================
-
-  getCustomersFromFirestore =
-    async () => {
-      try {
-        const usersRef =
-          collection(
-            db,
-            "users",
-          );
-
-        const customersQuery =
-          query(
-            usersRef,
-            where(
-              "role",
-              "==",
-              "customer",
-            ),
-          );
-
-        return new Promise<Customer[]>(
-          (
-            resolve,
-            reject,
-          ) => {
-            let unsubscribe:
-              | (() => void)
-              | null = null;
-
-            unsubscribe =
-              onSnapshot(
-                customersQuery,
-                (snapshot) => {
-                  unsubscribe?.();
-
-                  const customers =
-                    snapshot.docs.map(
-                      (item) =>
-                        ({
-                          ...item.data(),
-                          id: item.id,
-                        }) as Customer,
-                    );
-
-                  resolve(
-                    customers,
-                  );
-                },
-                reject,
-              );
-          },
-        );
-      } catch (error) {
-        console.error(
-          "Müşteriler alınamadı:",
-          error,
-        );
-
-        return [];
-      }
-    };
-
-  // =====================================================
-  // COURIERS
-  // =====================================================
-
-  getCouriersFromFirestore =
-    async () => {
-      try {
-        const usersRef =
-          collection(
-            db,
-            "users",
-          );
-
-        const couriersQuery =
-          query(
-            usersRef,
-            where(
-              "role",
-              "==",
-              "courier",
-            ),
-          );
-
-        return new Promise<Courier[]>(
-          (
-            resolve,
-            reject,
-          ) => {
-            let unsubscribe:
-              | (() => void)
-              | null = null;
-
-            unsubscribe =
-              onSnapshot(
-                couriersQuery,
-                (snapshot) => {
-                  unsubscribe?.();
-
-                  const couriers =
-                    snapshot.docs.map(
-                      (item) =>
-                        ({
-                          ...item.data(),
-                          id: item.id,
-                        }) as Courier,
-                    );
-
-                  resolve(
-                    couriers,
-                  );
-                },
-                reject,
-              );
-          },
-        );
-      } catch (error) {
-        console.error(
-          "Kuryeler alınamadı:",
-          error,
-        );
-
-        return [];
-      }
-    };
-
-  // =====================================================
-  // PRICING
-  // =====================================================
-
-  getPricing =
-    (): PricingConfig => {
-      return {
-        ...DEFAULT_PRICING,
-      };
-    };
-
-  updatePricing =
-    async (
-      pricing: PricingConfig,
-    ) => {
-      const firebaseUser =
-        auth.currentUser;
-
-      if (!firebaseUser) {
-        throw new Error(
-          "Firebase oturumu bulunamadı.",
-        );
-      }
-
-      if (
-        firebaseUser.email
-          ?.trim()
-          .toLowerCase() !==
-        ADMIN_EMAIL
-      ) {
-        throw new Error(
-          "Bu işlem sadece admin hesabından yapılabilir.",
-        );
-      }
-
-      const updatedPricing:
-        PricingConfig = {
-        ...pricing,
-        updatedAt:
-          new Date().toISOString(),
-      };
-
-      try {
-        await setDoc(
-          doc(
-            db,
-            "pricing",
-            "default",
-          ),
-          updatedPricing,
-          {
-            merge: true,
-          },
-        );
-
-        return updatedPricing;
-      } catch (error: any) {
-        console.error(
-          "Fiyatlandırma güncellenemedi:",
-          error,
-        );
-
-        if (
-          error?.code ===
-          "permission-denied"
-        ) {
-          throw new Error(
-            "Fiyatlandırma güncelleme yetkisi reddedildi.",
-          );
-        }
-
-        throw error;
-      }
-    };
-
-  setPricing =
-    async (
-      pricing: PricingConfig,
-    ) => {
-      return this.updatePricing(
-        pricing,
       );
-    };
 
-  // =====================================================
-  // NOTIFICATIONS
-  // =====================================================
+      this.unsubscribers.push(
+        unsubscribeUsers,
+        unsubscribeOrders,
+        unsubscribeNotifications,
+        unsubscribePricing,
+        unsubscribeLocations
+      );
 
-  getNotifications =
-    (
-      _userId: string,
-    ) => {
-      return [];
-    };
-
-  // =====================================================
-  // STATS
-  // =====================================================
-
-  getStats = () => {
-    const totalOrders =
-      this.orders.length;
-
-    const pendingOrders =
-      this.orders.filter(
-        (order) =>
-          order.status ===
-          "Kurye Bekleniyor",
-      ).length;
-
-    const assignedOrders =
-      this.orders.filter(
-        (order) =>
-          order.status ===
-          "Kurye Atandı",
-      ).length;
-
-    const completedOrders =
-      this.orders.filter(
-        (order) =>
-          order.status ===
-          "Teslim Edildi",
-      ).length;
-
-    return {
-      totalOrders,
-      pendingOrders,
-      assignedOrders,
-      completedOrders,
-      totalCustomers:
-        this.getCustomers()
-          .length,
-      totalCouriers:
-        this.getCouriers()
-          .length,
-    };
-  };
-
-  // =====================================================
-  // CLEAR
-  // =====================================================
-
-  clear = () => {
-    this.cleanupListeners();
-
-    this.currentUser = null;
-    this.users = [];
-    this.orders = [];
-
-    try {
-      localStorage.removeItem(
-        this.cacheKey,
+      console.log(
+        "🔥 Firebase canlı veri sistemi başlatıldı"
       );
     } catch (error) {
       console.error(
-        "Cache temizlenemedi:",
-        error,
+        "Storage init hatası:",
+        error
       );
     }
+  }
 
-    this.notify();
-  };
+  // ==========================================
+  // SUBSCRIBE
+  // ==========================================
 
-  // =====================================================
-  // SET CURRENT USER
-  // =====================================================
+  subscribe(callback: Subscriber): () => void {
+    this.subscribers.add(callback);
 
-  setCurrentUser =
-    (
-      user: UserProfile | null,
-    ) => {
-      this.currentUser =
-        user;
+    // İlk veriyi hemen gönder
+    callback();
 
-      if (user) {
-        const index =
-          this.users.findIndex(
-            (item) =>
-              item.id ===
-              user.id,
-          );
-
-        if (index >= 0) {
-          this.users[index] =
-            user;
-        } else {
-          this.users.push(
-            user,
-          );
-        }
-      }
-
-      this.saveCache();
-      this.notify();
+    return () => {
+      this.subscribers.delete(callback);
     };
+  }
+
+  private emit() {
+    this.subscribers.forEach((callback) => {
+      try {
+        callback();
+      } catch (error) {
+        console.error(
+          "Storage subscriber hatası:",
+          error
+        );
+      }
+    });
+  }
+
+  // ==========================================
+  // CURRENT USER
+  // ==========================================
+
+  setCurrentUser(user: UserProfile | null) {
+    this.currentUser = user;
+    this.emit();
+  }
+
+  getCurrentUser(): UserProfile | null {
+    return this.currentUser;
+  }
+
+  // ==========================================
+  // USERS
+  // ==========================================
+
+  getUsers(): UserProfile[] {
+    return this.users;
+  }
+
+  getUserById(id: string): UserProfile | undefined {
+    return this.users.find(
+      (user) => user.id === id
+    );
+  }
+
+  getCouriers(): UserProfile[] {
+    return this.users.filter(
+      (user) =>
+        user.role === "courier"
+    );
+  }
+
+  async updateUser(
+    id: string,
+    data: Partial<UserProfile>
+  ) {
+    try {
+      await updateDoc(
+        doc(db, "users", id),
+        {
+          ...data,
+          updatedAt:
+            new Date().toISOString(),
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Kullanıcı güncelleme hatası:",
+        error
+      );
+      throw error;
+    }
+  }
+
+  async updateCourierStatus(
+    courierId: string,
+    status: CourierAvailability
+  ): Promise<UserProfile | undefined> {
+    const user =
+      this.getUserById(courierId);
+
+    try {
+      await updateDoc(
+        doc(db, "users", courierId),
+        {
+          courierStatus: status,
+          updatedAt:
+            new Date().toISOString(),
+        }
+      );
+
+      return {
+        ...(user || {
+          id: courierId,
+        }),
+        courierStatus: status,
+      } as UserProfile;
+    } catch (error) {
+      console.error(
+        "Kurye durum güncelleme hatası:",
+        error
+      );
+      return undefined;
+    }
+  }
+
+  // ==========================================
+  // ORDERS
+  // ==========================================
+
+  getOrders(): Order[] {
+    return this.orders;
+  }
+
+  getOrderById(
+    id: string
+  ): Order | undefined {
+    return this.orders.find(
+      (order) => order.id === id
+    );
+  }
+
+  async createOrder(
+    order: Order
+  ): Promise<Order> {
+    try {
+      await setDoc(
+        doc(db, "orders", order.id),
+        {
+          ...order,
+          createdAt:
+            order.createdAt ||
+            new Date().toISOString(),
+          updatedAt:
+            new Date().toISOString(),
+        }
+      );
+
+      return order;
+    } catch (error) {
+      console.error(
+        "Sipariş oluşturma hatası:",
+        error
+      );
+      throw error;
+    }
+  }
+
+  async updateOrder(
+    id: string,
+    data: Partial<Order>
+  ) {
+    try {
+      await updateDoc(
+        doc(db, "orders", id),
+        {
+          ...data,
+          updatedAt:
+            new Date().toISOString(),
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Sipariş güncelleme hatası:",
+        error
+      );
+      throw error;
+    }
+  }
+
+  async updateOrderStatus(
+    orderId: string,
+    status: OrderStatus
+  ) {
+    try {
+      await updateDoc(
+        doc(db, "orders", orderId),
+        {
+          status,
+          updatedAt:
+            new Date().toISOString(),
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Sipariş durum güncelleme hatası:",
+        error
+      );
+      throw error;
+    }
+  }
+
+  async assignCourier(
+    orderId: string,
+    courierId: string
+  ) {
+    try {
+      await updateDoc(
+        doc(db, "orders", orderId),
+        {
+          courierId,
+          status: "Kurye Atandı",
+          updatedAt:
+            new Date().toISOString(),
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Kurye atama hatası:",
+        error
+      );
+      throw error;
+    }
+  }
+
+  async deleteOrder(
+    orderId: string
+  ) {
+    try {
+      await deleteDoc(
+        doc(db, "orders", orderId)
+      );
+    } catch (error) {
+      console.error(
+        "Sipariş silme hatası:",
+        error
+      );
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // PRICING
+  // ==========================================
+
+  getPricing(): PricingConfig {
+    return this.pricing;
+  }
+
+  async updatePricing(
+    pricing: PricingConfig
+  ) {
+    try {
+      await setDoc(
+        doc(db, "settings", "pricing"),
+        {
+          ...pricing,
+          updatedAt:
+            new Date().toISOString(),
+        },
+        {
+          merge: true,
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Fiyat güncelleme hatası:",
+        error
+      );
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // NOTIFICATIONS
+  // ==========================================
+
+  getNotifications(
+    userId: string
+  ): NotificationItem[] {
+    return this.notifications
+      .filter(
+        (notification) =>
+          notification.userId === userId
+      )
+      .sort((a, b) => {
+        const dateA = new Date(
+          a.createdAt || 0
+        ).getTime();
+
+        const dateB = new Date(
+          b.createdAt || 0
+        ).getTime();
+
+        return dateB - dateA;
+      });
+  }
+
+  async createNotification(
+    notification: NotificationItem
+  ) {
+    try {
+      await setDoc(
+        doc(
+          db,
+          "notifications",
+          notification.id
+        ),
+        {
+          ...notification,
+          createdAt:
+            notification.createdAt ||
+            new Date().toISOString(),
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Bildirim oluşturma hatası:",
+        error
+      );
+      throw error;
+    }
+  }
+
+  async markNotificationAsRead(
+    notificationId: string
+  ) {
+    try {
+      await updateDoc(
+        doc(
+          db,
+          "notifications",
+          notificationId
+        ),
+        {
+          read: true,
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Bildirim güncelleme hatası:",
+        error
+      );
+    }
+  }
+
+  // ==========================================
+  // COURIER LOCATION
+  // ==========================================
+
+  getCourierLocation(
+    courierId: string
+  ): CourierLocation | undefined {
+    return this.courierLocations.find(
+      (location) =>
+        location.courierId === courierId
+    );
+  }
+
+  async updateCourierLocation(
+    location: CourierLocation
+  ): Promise<CourierLocation> {
+    try {
+      await setDoc(
+        doc(
+          db,
+          "courierLocations",
+          location.courierId
+        ),
+        {
+          ...location,
+          updatedAt:
+            location.updatedAt ||
+            new Date().toISOString(),
+        },
+        {
+          merge: true,
+        }
+      );
+
+      return location;
+    } catch (error) {
+      console.error(
+        "Kurye konum güncelleme hatası:",
+        error
+      );
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // CLEANUP
+  // ==========================================
+
+  destroy() {
+    this.unsubscribers.forEach(
+      (unsubscribe) => unsubscribe()
+    );
+
+    this.unsubscribers = [];
+    this.initialized = false;
+  }
 }
 
-// =====================================================
-// SINGLETON
-// =====================================================
+export const storage = new StorageService();
 
-const storage =
-  new StorageService();
-
-export {
-  storage,
-};
-
-export default storage;
+// Uygulama açılır açılmaz Firebase canlı bağlantısını başlat
+storage.init();
