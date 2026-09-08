@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from "react";
 
 import { storage } from "./services/storage";
-import { subscribeToAuth } from "./services/auth";
+
+import {
+  subscribeToAuth,
+  handleGoogleRedirectResult,
+} from "./services/auth";
 
 import type {
   NotificationItem,
@@ -101,6 +105,28 @@ export function App() {
    * ==========================================
    * FIREBASE AUTH
    * ==========================================
+   *
+   * ÖNEMLİ:
+   *
+   * Google redirect sonucunu burada bir kez
+   * karşılıyoruz.
+   *
+   * AuthScreen artık redirect sonucunu
+   * kendisi tüketmiyor.
+   *
+   * Böylece:
+   *
+   * Google
+   *   ↓
+   * Firebase
+   *   ↓
+   * App
+   *   ↓
+   * Profile
+   *   ↓
+   * Dashboard
+   *
+   * şeklinde tek bir akış oluşuyor.
    */
 
   useEffect(() => {
@@ -110,124 +136,275 @@ export function App() {
       | (() => void)
       | undefined;
 
-    try {
-      unsubscribe = subscribeToAuth(
-        async (firebaseUser, profile) => {
-          if (!mounted) {
-            return;
+    const startAuth = async () => {
+      /*
+       * Önce Google redirect dönüşünü kontrol et.
+       *
+       * Eğer normal giriş ise null döner ve
+       * aşağıdaki auth listener çalışmaya devam eder.
+       */
+      try {
+        const redirectProfile =
+          await handleGoogleRedirectResult();
+
+        if (
+          mounted &&
+          redirectProfile
+        ) {
+          console.log(
+            "Google redirect profili alındı:",
+            redirectProfile.id
+          );
+
+          storage.setCurrentUser(
+            redirectProfile
+          );
+
+          setCurrentUser(
+            redirectProfile
+          );
+
+          setProfileLoading(false);
+          setAuthLoading(false);
+
+          /*
+           * Kullanıcı rolüne göre başlangıç sayfası.
+           */
+          if (
+            redirectProfile.role ===
+            "customer"
+          ) {
+            setActiveTab("home");
+          } else if (
+            redirectProfile.role ===
+            "courier"
+          ) {
+            setActiveTab(
+              "courier_panel"
+            );
+          } else if (
+            redirectProfile.role ===
+            "admin"
+          ) {
+            setActiveTab(
+              "admin_panel"
+            );
           }
 
+          /*
+           * Bildirimleri de hemen yükle.
+           */
           try {
-            setAppError(null);
-
-            /*
-             * Kullanıcı çıkış yaptıysa
-             */
-            if (!firebaseUser) {
-              storage.setCurrentUser(null);
-
-              setCurrentUser(null);
-              setNotifications([]);
-              setProfileLoading(false);
-              setAuthLoading(false);
-
-              return;
-            }
-
-            /*
-             * Firebase Auth var ama Firestore
-             * profili henüz gelmediyse bekle.
-             */
-            if (!profile) {
-              setProfileLoading(true);
-              setAuthLoading(false);
-
-              return;
-            }
-
-            /*
-             * Profil geldikten sonra kullanıcıyı
-             * uygulamaya aktar.
-             */
-            storage.setCurrentUser(profile);
-
-            setCurrentUser(profile);
-
-            try {
-              const userNotifications =
-                storage.getNotifications(
-                  profile.id
-                );
-
-              setNotifications(
-                Array.isArray(
-                  userNotifications
-                )
-                  ? userNotifications
-                  : []
-              );
-            } catch (notificationError) {
-              console.error(
-                "Bildirimler yüklenemedi:",
-                notificationError
+            const redirectNotifications =
+              storage.getNotifications(
+                redirectProfile.id
               );
 
-              setNotifications([]);
-            }
-
-            /*
-             * ROLE GÖRE SAYFA
-             */
-            if (profile.role === "customer") {
-              setActiveTab("home");
-            } else if (
-              profile.role === "courier"
-            ) {
-              setActiveTab("courier_panel");
-            } else if (
-              profile.role === "admin"
-            ) {
-              setActiveTab("admin_panel");
-            }
-
-            setProfileLoading(false);
-            setAuthLoading(false);
-          } catch (error) {
+            setNotifications(
+              Array.isArray(
+                redirectNotifications
+              )
+                ? redirectNotifications
+                : []
+            );
+          } catch (notificationError) {
             console.error(
-              "Trustline auth/profile error:",
-              error
+              "Google sonrası bildirimler yüklenemedi:",
+              notificationError
             );
 
-            if (!mounted) {
-              return;
-            }
-
-            setAppError(
-              "Hesap bilgileri yüklenirken bir hata oluştu."
-            );
-
-            setCurrentUser(null);
             setNotifications([]);
-            setProfileLoading(false);
-            setAuthLoading(false);
           }
         }
-      );
-    } catch (error) {
-      console.error(
-        "Auth listener başlatılamadı:",
-        error
-      );
+      } catch (error) {
+        /*
+         * Redirect sonucu hata verse bile
+         * normal Firebase auth listener'ı
+         * çalışmaya devam edecek.
+         *
+         * Burada hemen AuthScreen'e atmayacağız.
+         */
+        console.error(
+          "Google redirect kontrolü:",
+          error
+        );
+      }
 
-      if (mounted) {
-        setAppError(
-          "Firebase bağlantısı kurulamadı."
+      if (!mounted) {
+        return;
+      }
+
+      /*
+       * Firebase Auth state listener.
+       */
+      try {
+        unsubscribe =
+          subscribeToAuth(
+            async (
+              firebaseUser,
+              profile
+            ) => {
+              if (!mounted) {
+                return;
+              }
+
+              try {
+                setAppError(null);
+
+                /*
+                 * ==================================
+                 * ÇIKIŞ
+                 * ==================================
+                 */
+                if (!firebaseUser) {
+                  storage.setCurrentUser(
+                    null
+                  );
+
+                  setCurrentUser(null);
+                  setNotifications([]);
+                  setProfileLoading(false);
+                  setAuthLoading(false);
+
+                  return;
+                }
+
+                /*
+                 * ==================================
+                 * FIREBASE VAR
+                 * PROFİL BEKLENİYOR
+                 * ==================================
+                 */
+                if (!profile) {
+                  setProfileLoading(true);
+
+                  /*
+                   * Burada authLoading'i kapatıyoruz.
+                   * Profil ekranını App'in kendi
+                   * loading ekranı gösterecek.
+                   */
+                  setAuthLoading(false);
+
+                  return;
+                }
+
+                /*
+                 * ==================================
+                 * PROFİL HAZIR
+                 * ==================================
+                 */
+
+                storage.setCurrentUser(
+                  profile
+                );
+
+                setCurrentUser(
+                  profile
+                );
+
+                /*
+                 * Bildirimler
+                 */
+                try {
+                  const userNotifications =
+                    storage.getNotifications(
+                      profile.id
+                    );
+
+                  setNotifications(
+                    Array.isArray(
+                      userNotifications
+                    )
+                      ? userNotifications
+                      : []
+                  );
+                } catch (
+                  notificationError
+                ) {
+                  console.error(
+                    "Bildirimler yüklenemedi:",
+                    notificationError
+                  );
+
+                  setNotifications([]);
+                }
+
+                /*
+                 * ==================================
+                 * ROLE
+                 * ==================================
+                 */
+
+                if (
+                  profile.role ===
+                  "customer"
+                ) {
+                  setActiveTab(
+                    "home"
+                  );
+                } else if (
+                  profile.role ===
+                  "courier"
+                ) {
+                  setActiveTab(
+                    "courier_panel"
+                  );
+                } else if (
+                  profile.role ===
+                  "admin"
+                ) {
+                  setActiveTab(
+                    "admin_panel"
+                  );
+                }
+
+                /*
+                 * ==================================
+                 * LOGIN TAMAMLANDI
+                 * ==================================
+                 */
+
+                setProfileLoading(false);
+                setAuthLoading(false);
+              } catch (error) {
+                console.error(
+                  "Trustline auth/profile error:",
+                  error
+                );
+
+                if (!mounted) {
+                  return;
+                }
+
+                setAppError(
+                  "Hesap bilgileri yüklenirken bir hata oluştu."
+                );
+
+                setCurrentUser(null);
+                setNotifications([]);
+                setProfileLoading(false);
+                setAuthLoading(false);
+              }
+            }
+          );
+      } catch (error) {
+        console.error(
+          "Auth listener başlatılamadı:",
+          error
         );
 
-        setAuthLoading(false);
-        setProfileLoading(false);
+        if (mounted) {
+          setAppError(
+            "Firebase bağlantısı kurulamadı."
+          );
+
+          setAuthLoading(false);
+          setProfileLoading(false);
+        }
       }
-    }
+    };
+
+    startAuth();
 
     return () => {
       mounted = false;
@@ -257,66 +434,67 @@ export function App() {
       | undefined;
 
     try {
-      unsubscribe = storage.subscribe(() => {
-        if (!mounted) {
-          return;
-        }
-
-        try {
-          const nextOrders =
-            storage.getOrders();
-
-          setOrders(
-            Array.isArray(nextOrders)
-              ? nextOrders
-              : []
-          );
-        } catch (error) {
-          console.error(
-            "Orders listener hatası:",
-            error
-          );
-        }
-
-        try {
-          const nextPricing =
-            storage.getPricing();
-
-          if (nextPricing) {
-            setPricing(nextPricing);
+      unsubscribe = storage.subscribe(
+        () => {
+          if (!mounted) {
+            return;
           }
-        } catch (error) {
-          console.error(
-            "Pricing listener hatası:",
-            error
-          );
-        }
 
-        /*
-         * Kullanıcı varsa bildirimleri yenile.
-         */
-        if (currentUser) {
           try {
-            const nextNotifications =
-              storage.getNotifications(
-                currentUser.id
-              );
+            const nextOrders =
+              storage.getOrders();
 
-            setNotifications(
-              Array.isArray(
-                nextNotifications
-              )
-                ? nextNotifications
+            setOrders(
+              Array.isArray(nextOrders)
+                ? nextOrders
                 : []
             );
           } catch (error) {
             console.error(
-              "Notification listener hatası:",
+              "Orders listener hatası:",
               error
             );
           }
+
+          try {
+            const nextPricing =
+              storage.getPricing();
+
+            if (nextPricing) {
+              setPricing(
+                nextPricing
+              );
+            }
+          } catch (error) {
+            console.error(
+              "Pricing listener hatası:",
+              error
+            );
+          }
+
+          if (currentUser) {
+            try {
+              const nextNotifications =
+                storage.getNotifications(
+                  currentUser.id
+                );
+
+              setNotifications(
+                Array.isArray(
+                  nextNotifications
+                )
+                  ? nextNotifications
+                  : []
+              );
+            } catch (error) {
+              console.error(
+                "Notification listener hatası:",
+                error
+              );
+            }
+          }
         }
-      });
+      );
     } catch (error) {
       console.error(
         "Storage listener başlatılamadı:",
@@ -402,7 +580,7 @@ export function App() {
   ) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0B0B0D] text-white">
-        <div className="w-full max-w-sm rounded-3xl border border-[#303036] bg-[#19191E] p-8 text-center shadow-2xl">
+        <div className="w-full max-w-sm rounded-3xl border border-[#303036] bg-[#19191E] p-8 text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#D6A84F]/15">
             <span className="text-2xl font-black text-[#D6A84F]">
               T
@@ -414,7 +592,7 @@ export function App() {
           </h2>
 
           <p className="mt-2 text-xs text-[#999999]">
-            Kurye bilgileriniz yükleniyor...
+            Hesap bilgileriniz yükleniyor...
           </p>
 
           <div className="mx-auto mt-5 h-1.5 w-32 overflow-hidden rounded-full bg-[#303036]">
@@ -431,7 +609,10 @@ export function App() {
    * ==========================================
    */
 
-  if (appError && !currentUser) {
+  if (
+    appError &&
+    !currentUser
+  ) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0B0B0D] px-5 text-white">
         <div className="w-full max-w-md rounded-3xl border border-red-500/30 bg-[#19191E] p-8 text-center">
@@ -477,18 +658,21 @@ export function App() {
    * ==========================================
    */
 
-  const safeOrders = Array.isArray(orders)
-    ? orders
-    : [];
+  const safeOrders =
+    Array.isArray(orders)
+      ? orders
+      : [];
 
   const myOrders =
-    currentUser.role === "customer"
+    currentUser.role ===
+    "customer"
       ? safeOrders.filter(
           (order) =>
             order.customerId ===
             currentUser.id
         )
-      : currentUser.role === "courier"
+      : currentUser.role ===
+        "courier"
       ? safeOrders.filter(
           (order) =>
             order.courierId ===
@@ -546,7 +730,9 @@ export function App() {
           onOpenNotifications={() =>
             setIsNotificationsOpen(true)
           }
-          isIPhoneMode={isIPhoneMode}
+          isIPhoneMode={
+            isIPhoneMode
+          }
           onToggleIPhoneMode={() =>
             setIsIPhoneMode(
               (value) => !value
@@ -569,27 +755,37 @@ export function App() {
           {currentUser.role ===
             "customer" && (
             <>
-              {activeTab === "home" && (
+              {activeTab ===
+                "home" && (
                 <CustomerHome
                   onOpenNewOrder={
                     handleOpenNewOrder
                   }
                   onOpenAI={() =>
-                    setActiveTab("ai")
+                    setActiveTab(
+                      "ai"
+                    )
                   }
                   onGoToOrders={() =>
-                    setActiveTab("orders")
+                    setActiveTab(
+                      "orders"
+                    )
                   }
                   activeOrders={
                     activeOrders
                   }
-                  pricing={pricing}
+                  pricing={
+                    pricing
+                  }
                 />
               )}
 
-              {activeTab === "orders" && (
+              {activeTab ===
+                "orders" && (
                 <CustomerOrders
-                  orders={myOrders}
+                  orders={
+                    myOrders
+                  }
                   onOpenNewOrder={
                     handleOpenNewOrder
                   }
@@ -599,16 +795,20 @@ export function App() {
                 />
               )}
 
-              {activeTab === "ai" && (
+              {activeTab ===
+                "ai" && (
                 <TrustlineAI
                   onTransferToOrder={
                     handleTransferFromAI
                   }
-                  orders={myOrders}
+                  orders={
+                    myOrders
+                  }
                 />
               )}
 
-              {activeTab === "profile" && (
+              {activeTab ===
+                "profile" && (
                 <ProfileView
                   currentUser={
                     currentUser
@@ -631,11 +831,14 @@ export function App() {
                   currentCourier={
                     currentUser
                   }
-                  orders={safeOrders}
+                  orders={
+                    safeOrders
+                  }
                 />
               )}
 
-              {activeTab === "profile" && (
+              {activeTab ===
+                "profile" && (
                 <ProfileView
                   currentUser={
                     currentUser
@@ -655,12 +858,17 @@ export function App() {
               {activeTab ===
                 "admin_panel" && (
                 <AdminPanel
-                  orders={safeOrders}
-                  pricing={pricing}
+                  orders={
+                    safeOrders
+                  }
+                  pricing={
+                    pricing
+                  }
                 />
               )}
 
-              {activeTab === "profile" && (
+              {activeTab ===
+                "profile" && (
                 <ProfileView
                   currentUser={
                     currentUser
@@ -672,11 +880,19 @@ export function App() {
         </main>
 
         <BottomNavigation
-          role={currentUser.role}
-          activeTab={activeTab}
-          onTabChange={(tab) => {
+          role={
+            currentUser.role
+          }
+          activeTab={
+            activeTab
+          }
+          onTabChange={(
+            tab
+          ) => {
             setActiveTab(tab);
-            setSelectedOrderId(null);
+            setSelectedOrderId(
+              null
+            );
           }}
           onOpenNewOrder={() =>
             handleOpenNewOrder()
@@ -692,17 +908,37 @@ export function App() {
       ========================================== */}
 
       <NewOrderModal
-        isOpen={isNewOrderOpen}
+        isOpen={
+          isNewOrderOpen
+        }
         onClose={() => {
-          setIsNewOrderOpen(false);
-          setNewOrderPrefill(undefined);
+          setIsNewOrderOpen(
+            false
+          );
+
+          setNewOrderPrefill(
+            undefined
+          );
         }}
-        currentUser={currentUser}
-        pricing={pricing}
-        prefillData={newOrderPrefill}
-        onOrderCreated={(order) => {
-          setActiveTab("orders");
-          setSelectedOrderId(order.id);
+        currentUser={
+          currentUser
+        }
+        pricing={
+          pricing
+        }
+        prefillData={
+          newOrderPrefill
+        }
+        onOrderCreated={(
+          order
+        ) => {
+          setActiveTab(
+            "orders"
+          );
+
+          setSelectedOrderId(
+            order.id
+          );
         }}
       />
 
@@ -711,26 +947,38 @@ export function App() {
       ========================================== */}
 
       <NotificationDrawer
-        isOpen={isNotificationsOpen}
-        onClose={() =>
-          setIsNotificationsOpen(false)
+        isOpen={
+          isNotificationsOpen
         }
-        notifications={notifications}
-        userId={currentUser.id}
-        onSelectOrder={(orderId) => {
-          setSelectedOrderId(orderId);
+        onClose={() =>
+          setIsNotificationsOpen(
+            false
+          )
+        }
+        notifications={
+          notifications
+        }
+        userId={
+          currentUser.id
+        }
+        onSelectOrder={(
+          orderId
+        ) => {
+          setSelectedOrderId(
+            orderId
+          );
 
-          /*
-           * Kurye ise sipariş ekranına,
-           * müşteri ise orders ekranına.
-           */
           if (
             currentUser.role ===
             "courier"
           ) {
-            setActiveTab("courier_panel");
+            setActiveTab(
+              "courier_panel"
+            );
           } else {
-            setActiveTab("orders");
+            setActiveTab(
+              "orders"
+            );
           }
         }}
       />
