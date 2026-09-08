@@ -147,6 +147,10 @@ class StorageService {
       }
     );
 
+    // =========================================================
+    // KULLANICI LISTENER
+    // =========================================================
+
     if (role === "admin") {
       const unsubscribeUsers = onSnapshot(
         collection(db, "users"),
@@ -164,11 +168,18 @@ class StorageService {
             liveUsers.length,
             "müşteri:",
             liveUsers.filter(
-              (user) => user.role === "customer"
+              (user) =>
+                user.role === "customer"
             ).length,
             "kurye:",
             liveUsers.filter(
-              (user) => user.role === "courier"
+              (user) =>
+                user.role === "courier"
+            ).length,
+            "yönetici:",
+            liveUsers.filter(
+              (user) =>
+                user.role === "admin"
             ).length
           );
 
@@ -198,14 +209,64 @@ class StorageService {
             id: snapshot.id,
           };
 
+          /*
+           * ÖNEMLİ:
+           *
+           * Kullanıcı müşteri iken admin yapılırsa,
+           * mevcut listener customer olarak çalışmaya
+           * devam etmemeli.
+           *
+           * Rol değiştiğinde listener'ları yeniden
+           * başlatıyoruz.
+           */
+
+          const previousRole =
+            this.currentUser?.role;
+
+          if (
+            previousRole &&
+            previousRole !== liveUser.role
+          ) {
+            console.log(
+              "🔄 Kullanıcı rolü değişti:",
+              {
+                oldRole: previousRole,
+                newRole: liveUser.role,
+                uid: liveUser.id,
+              }
+            );
+
+            this.currentUser =
+              liveUser;
+
+            this.users = [
+              ...this.users.filter(
+                (user) =>
+                  user.id !== uid
+              ),
+              liveUser,
+            ];
+
+            this.emit();
+
+            // Yeni role göre listener'ları yeniden kur.
+            this.startListeners(
+              liveUser
+            );
+
+            return;
+          }
+
           this.users = [
             ...this.users.filter(
-              (user) => user.id !== uid
+              (user) =>
+                user.id !== uid
             ),
             liveUser,
           ];
 
-          this.currentUser = liveUser;
+          this.currentUser =
+            liveUser;
 
           this.emit();
         },
@@ -222,13 +283,24 @@ class StorageService {
       );
     }
 
+    // =========================================================
+    // SİPARİŞ LISTENER
+    // =========================================================
+
     let ordersQuery;
 
     if (role === "admin") {
+      // Yönetici bütün siparişleri görür.
       ordersQuery = query(
         collection(db, "orders")
       );
+
+      console.log(
+        "👑 ADMIN sipariş listener aktif:",
+        uid
+      );
     } else if (role === "courier") {
+      // Kurye sadece kendisine atanmış siparişleri görür.
       ordersQuery = query(
         collection(db, "orders"),
         where(
@@ -237,7 +309,13 @@ class StorageService {
           uid
         )
       );
+
+      console.log(
+        "🚴 KURYE sipariş listener aktif:",
+        uid
+      );
     } else {
+      // Müşteri sadece kendi siparişlerini görür.
       ordersQuery = query(
         collection(db, "orders"),
         where(
@@ -246,41 +324,62 @@ class StorageService {
           uid
         )
       );
+
+      console.log(
+        "👤 MÜŞTERİ sipariş listener aktif:",
+        uid
+      );
     }
 
-    const unsubscribeOrders = onSnapshot(
-      ordersQuery,
-      (snapshot) => {
-        this.orders =
-          snapshot.docs.map(
-            (item) => ({
-              ...(item.data() as Order),
-              id: item.id,
-            })
+    const unsubscribeOrders =
+      onSnapshot(
+        ordersQuery,
+        (snapshot) => {
+          this.orders =
+            snapshot.docs.map(
+              (item) => ({
+                ...(item.data() as Order),
+                id: item.id,
+              })
+            );
+
+          console.log(
+            "📦 Canlı sipariş sayısı:",
+            this.orders.length,
+            "rol:",
+            role
           );
 
-        this.emit();
-      },
-      (error) => {
-        console.error(
-          "❌ Orders listener hatası:",
-          error
-        );
-      }
-    );
+          this.emit();
+        },
+        (error) => {
+          console.error(
+            "❌ Orders listener hatası:",
+            error
+          );
+        }
+      );
 
     this.unsubscribers.push(
       unsubscribeOrders
     );
 
-    const notificationsQuery = query(
-      collection(db, "notifications"),
-      where(
-        "userId",
-        "==",
-        uid
-      )
-    );
+    // =========================================================
+    // BİLDİRİMLER
+    // =========================================================
+
+    const notificationsQuery =
+      query(
+        collection(
+          db,
+          "notifications"
+        ),
+        where(
+          "userId",
+          "==",
+          uid
+        )
+      );
 
     const unsubscribeNotifications =
       onSnapshot(
@@ -308,33 +407,42 @@ class StorageService {
       unsubscribeNotifications
     );
 
-    const unsubscribePricing = onSnapshot(
-      doc(
-        db,
-        "settings",
-        "pricing"
-      ),
-      (snapshot) => {
-        if (snapshot.exists()) {
-          this.pricing = {
-            ...DEFAULT_PRICING,
-            ...(snapshot.data() as PricingConfig),
-          };
-        }
+    // =========================================================
+    // FİYATLANDIRMA
+    // =========================================================
 
-        this.emit();
-      },
-      (error) => {
-        console.error(
-          "❌ Pricing listener hatası:",
-          error
-        );
-      }
-    );
+    const unsubscribePricing =
+      onSnapshot(
+        doc(
+          db,
+          "settings",
+          "pricing"
+        ),
+        (snapshot) => {
+          if (snapshot.exists()) {
+            this.pricing = {
+              ...DEFAULT_PRICING,
+              ...(snapshot.data() as PricingConfig),
+            };
+          }
+
+          this.emit();
+        },
+        (error) => {
+          console.error(
+            "❌ Pricing listener hatası:",
+            error
+          );
+        }
+      );
 
     this.unsubscribers.push(
       unsubscribePricing
     );
+
+    // =========================================================
+    // KURYE KONUMLARI
+    // =========================================================
 
     if (role === "admin") {
       const unsubscribeLocations =
@@ -415,6 +523,10 @@ class StorageService {
     }
   }
 
+  // =========================================================
+  // LISTENER TEMİZLEME
+  // =========================================================
+
   private cleanupListeners() {
     this.unsubscribers.forEach(
       (unsubscribe) => {
@@ -428,6 +540,10 @@ class StorageService {
 
     this.unsubscribers = [];
   }
+
+  // =========================================================
+  // SUBSCRIBER
+  // =========================================================
 
   subscribe(
     callback: Subscriber
@@ -444,7 +560,9 @@ class StorageService {
     }
 
     return () => {
-      this.subscribers.delete(callback);
+      this.subscribers.delete(
+        callback
+      );
     };
   }
 
@@ -462,6 +580,10 @@ class StorageService {
       }
     );
   }
+
+  // =========================================================
+  // CURRENT USER
+  // =========================================================
 
   setCurrentUser(
     user: UserProfile | null
@@ -486,6 +608,10 @@ class StorageService {
     UserProfile | null {
     return this.currentUser;
   }
+
+  // =========================================================
+  // USERS
+  // =========================================================
 
   getUsers(): UserProfile[] {
     return [...this.users];
@@ -531,6 +657,10 @@ class StorageService {
       }
     );
   }
+
+  // =========================================================
+  // CREATE COURIER
+  // =========================================================
 
   async createCourier(data: {
     name: string;
@@ -706,6 +836,10 @@ class StorageService {
     }
   }
 
+  // =========================================================
+  // COURIER STATUS
+  // =========================================================
+
   async updateCourierStatus(
     courierId: string,
     status: CourierAvailability
@@ -746,6 +880,10 @@ class StorageService {
 
     return existing;
   }
+
+  // =========================================================
+  // ORDERS
+  // =========================================================
 
   getOrders(): Order[] {
     return [...this.orders];
@@ -883,6 +1021,10 @@ class StorageService {
     this.emit();
   }
 
+  // =========================================================
+  // PRICING
+  // =========================================================
+
   getPricing():
     PricingConfig {
     return this.pricing;
@@ -922,6 +1064,10 @@ class StorageService {
       pricing
     );
   }
+
+  // =========================================================
+  // NOTIFICATIONS
+  // =========================================================
 
   getNotifications(
     userId: string
@@ -978,6 +1124,10 @@ class StorageService {
     );
   }
 
+  // =========================================================
+  // COURIER LOCATION
+  // =========================================================
+
   getCourierLocation(
     courierId: string
   ):
@@ -1025,6 +1175,10 @@ class StorageService {
 
     return finalLocation;
   }
+
+  // =========================================================
+  // DESTROY
+  // =========================================================
 
   destroy() {
     this.cleanupListeners();
