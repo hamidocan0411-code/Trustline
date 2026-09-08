@@ -1,86 +1,121 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   loginUser,
+  loginWithGoogle,
   registerUser,
-} from '../services/auth';
-
-type AuthMode = 'login' | 'register';
+} from "../services/auth";
 
 interface AuthScreenProps {
-  onAuthenticated?: () => void;
+  onLogin?: () => void;
 }
 
-export function AuthScreen({
-  onAuthenticated,
+function getAuthErrorMessage(error: unknown): string {
+  const code =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error
+      ? String(
+          (error as { code?: unknown }).code ?? ""
+        )
+      : "";
+
+  switch (code) {
+    case "auth/invalid-credential":
+    case "auth/wrong-password":
+    case "auth/user-not-found":
+      return "E-posta veya şifre hatalı.";
+
+    case "auth/email-already-in-use":
+      return "Bu e-posta adresi zaten kayıtlı.";
+
+    case "auth/invalid-email":
+      return "Geçerli bir e-posta adresi girin.";
+
+    case "auth/weak-password":
+      return "Şifre en az 6 karakter olmalıdır.";
+
+    case "auth/popup-closed-by-user":
+      return "Google giriş penceresi kapatıldı.";
+
+    case "auth/popup-blocked":
+      return "Google giriş penceresi tarayıcı tarafından engellendi.";
+
+    case "auth/cancelled-popup-request":
+      return "Google giriş işlemi iptal edildi.";
+
+    case "auth/account-exists-with-different-credential":
+      return "Bu e-posta başka bir giriş yöntemiyle zaten kayıtlı.";
+
+    case "auth/operation-not-allowed":
+      return "Bu giriş yöntemi Firebase Console'da etkinleştirilmemiş.";
+
+    case "auth/network-request-failed":
+      return "İnternet bağlantınızı kontrol edin.";
+
+    case "auth/too-many-requests":
+      return "Çok fazla deneme yapıldı. Bir süre sonra tekrar deneyin.";
+
+    default:
+      if (error instanceof Error && error.message) {
+        return error.message;
+      }
+
+      return "Bir hata oluştu. Lütfen tekrar deneyin.";
+  }
+}
+
+export default function AuthScreen({
+  onLogin,
 }: AuthScreenProps) {
-  const [mode, setMode] =
-    useState<AuthMode>('login');
-
-  const [name, setName] =
-    useState('');
-
-  const [phone, setPhone] =
-    useState('');
-
-  const [email, setEmail] =
-    useState('');
-
-  const [password, setPassword] =
-    useState('');
-
-  const [loading, setLoading] =
+  const [isRegister, setIsRegister] =
     useState(false);
 
-  const [error, setError] =
-    useState('');
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  const [success, setSuccess] =
-    useState('');
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] =
+    useState(false);
 
-  const isRegister =
-    mode === 'register';
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const handleSubmit = async (
-    event: React.FormEvent
+  const resetMessages = () => {
+    setError("");
+    setSuccess("");
+  };
+
+  const handleEmailAuth = async (
+    event: React.FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
 
-    if (loading) return;
+    resetMessages();
 
-    setError('');
-    setSuccess('');
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone.trim();
 
-    if (isRegister && !name.trim()) {
-      setError(
-        'Ad soyad alanı zorunludur.'
-      );
+    if (isRegister && !cleanName) {
+      setError("Ad soyad alanını doldurun.");
       return;
     }
 
-    if (isRegister && !phone.trim()) {
-      setError(
-        'Telefon numarası zorunludur.'
-      );
-      return;
-    }
-
-    if (!email.trim()) {
-      setError(
-        'E-posta adresi zorunludur.'
-      );
+    if (!cleanEmail) {
+      setError("E-posta adresinizi girin.");
       return;
     }
 
     if (!password) {
-      setError(
-        'Şifre zorunludur.'
-      );
+      setError("Şifrenizi girin.");
       return;
     }
 
     if (password.length < 6) {
       setError(
-        'Şifre en az 6 karakter olmalıdır.'
+        "Şifre en az 6 karakter olmalıdır."
       );
       return;
     }
@@ -89,299 +124,320 @@ export function AuthScreen({
 
     try {
       if (isRegister) {
-        await registerUser(
-          email.trim(),
+        await registerUser({
+          name: cleanName,
+          email: cleanEmail,
           password,
-          name.trim(),
-          phone.trim()
-        );
+          phone: cleanPhone,
+        });
 
         setSuccess(
-          'Hesabınız başarıyla oluşturuldu.'
+          "Hesabınız başarıyla oluşturuldu."
         );
 
-        onAuthenticated?.();
+        onLogin?.();
       } else {
         await loginUser(
-          email.trim(),
+          cleanEmail,
           password
         );
 
-        onAuthenticated?.();
+        setSuccess(
+          "Giriş başarılı. Yönlendiriliyorsunuz..."
+        );
+
+        onLogin?.();
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(
-        'Auth işlemi başarısız:',
+        "Email authentication error:",
         err
       );
 
-      let message =
-        'Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.';
-
-      switch (err?.code) {
-        case 'auth/email-already-in-use':
-          message =
-            'Bu e-posta adresi zaten kayıtlı.';
-          break;
-
-        case 'auth/invalid-email':
-          message =
-            'Geçerli bir e-posta adresi girin.';
-          break;
-
-        case 'auth/weak-password':
-          message =
-            'Şifre en az 6 karakter olmalıdır.';
-          break;
-
-        case 'auth/invalid-credential':
-        case 'auth/wrong-password':
-        case 'auth/user-not-found':
-          message =
-            'E-posta veya şifre hatalı.';
-          break;
-
-        case 'auth/operation-not-allowed':
-          message =
-            'E-posta/şifre ile giriş Firebase üzerinde etkin değil.';
-          break;
-
-        case 'auth/network-request-failed':
-          message =
-            'İnternet bağlantısı kurulamadı.';
-          break;
-
-        default:
-          if (err?.message) {
-            message = err.message;
-          }
-      }
-
-      setError(message);
+      setError(
+        getAuthErrorMessage(err)
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const switchMode = (
-    nextMode: AuthMode
-  ) => {
-    setMode(nextMode);
-    setError('');
-    setSuccess('');
+  const handleGoogleLogin = async () => {
+    resetMessages();
+    setGoogleLoading(true);
+
+    try {
+      await loginWithGoogle();
+
+      setSuccess(
+        "Google hesabınızla giriş başarılı."
+      );
+
+      onLogin?.();
+    } catch (err) {
+      console.error(
+        "Google authentication error:",
+        err
+      );
+
+      setError(
+        getAuthErrorMessage(err)
+      );
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
+  const switchMode = () => {
+    resetMessages();
+    setIsRegister((current) => !current);
+    setPassword("");
+  };
+
+  const isLoading =
+    loading || googleLoading;
+
   return (
-    <div className="min-h-screen bg-[#0B0B0D] text-white flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
-
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 rounded-[26px] bg-[#D6A84F] flex items-center justify-center mx-auto shadow-[0_0_45px_rgba(214,168,79,0.18)]">
-            <span className="text-[#0B0B0D] text-4xl font-black">
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
+          {/* Header */}
+          <div className="bg-slate-900 px-6 py-8 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-2xl font-black text-slate-900">
               T
-            </span>
-          </div>
-
-          <h1 className="text-2xl font-black mt-5 tracking-tight">
-            TRUSTLINE
-          </h1>
-
-          <p className="text-[#D6A84F] text-[11px] font-bold tracking-[0.3em] mt-1">
-            EXPRESS
-          </p>
-
-          <p className="text-[#777777] text-sm mt-4">
-            Profesyonel şehir içi kurye hizmeti
-          </p>
-        </div>
-
-        <div className="bg-[#19191E] border border-[#303036] rounded-[28px] p-5 sm:p-7 shadow-2xl">
-
-          <div className="grid grid-cols-2 gap-1 bg-[#0F0F12] rounded-2xl p-1 mb-6">
-            <button
-              type="button"
-              onClick={() =>
-                switchMode('login')
-              }
-              className={`rounded-xl py-3 text-sm font-bold transition ${
-                mode === 'login'
-                  ? 'bg-[#D6A84F] text-[#0B0B0D]'
-                  : 'text-[#888888] hover:text-white'
-              }`}
-            >
-              Giriş Yap
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                switchMode('register')
-              }
-              className={`rounded-xl py-3 text-sm font-bold transition ${
-                mode === 'register'
-                  ? 'bg-[#D6A84F] text-[#0B0B0D]'
-                  : 'text-[#888888] hover:text-white'
-              }`}
-            >
-              Kayıt Ol
-            </button>
-          </div>
-
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-4"
-          >
-
-            {isRegister && (
-              <div>
-                <label className="block text-xs text-[#999999] mb-2">
-                  Ad Soyad
-                </label>
-
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(event) =>
-                    setName(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Adınız Soyadınız"
-                  autoComplete="name"
-                  className="w-full h-12 rounded-xl bg-[#222229] border border-[#303036] px-4 text-sm text-white placeholder:text-[#555555] outline-none focus:border-[#D6A84F] transition"
-                />
-              </div>
-            )}
-
-            {isRegister && (
-              <div>
-                <label className="block text-xs text-[#999999] mb-2">
-                  Telefon
-                </label>
-
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(event) =>
-                    setPhone(
-                      event.target.value
-                    )
-                  }
-                  placeholder="05XX XXX XX XX"
-                  autoComplete="tel"
-                  className="w-full h-12 rounded-xl bg-[#222229] border border-[#303036] px-4 text-sm text-white placeholder:text-[#555555] outline-none focus:border-[#D6A84F] transition"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs text-[#999999] mb-2">
-                E-posta
-              </label>
-
-              <input
-                type="email"
-                value={email}
-                onChange={(event) =>
-                  setEmail(
-                    event.target.value
-                  )
-                }
-                placeholder="ornek@mail.com"
-                autoComplete="email"
-                className="w-full h-12 rounded-xl bg-[#222229] border border-[#303036] px-4 text-sm text-white placeholder:text-[#555555] outline-none focus:border-[#D6A84F] transition"
-              />
             </div>
 
-            <div>
-              <label className="block text-xs text-[#999999] mb-2">
-                Şifre
-              </label>
+            <h1 className="text-2xl font-bold text-white">
+              Trustline Express
+            </h1>
 
-              <input
-                type="password"
-                value={password}
-                onChange={(event) =>
-                  setPassword(
-                    event.target.value
-                  )
-                }
-                placeholder="En az 6 karakter"
-                autoComplete={
-                  isRegister
-                    ? 'new-password'
-                    : 'current-password'
-                }
-                className="w-full h-12 rounded-xl bg-[#222229] border border-[#303036] px-4 text-sm text-white placeholder:text-[#555555] outline-none focus:border-[#D6A84F] transition"
-              />
+            <p className="mt-2 text-sm text-slate-300">
+              Güvenli ve hızlı teslimat
+            </p>
+          </div>
+
+          <div className="p-6 sm:p-8">
+            {/* Title */}
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">
+                {isRegister
+                  ? "Hesap Oluştur"
+                  : "Hoş Geldiniz"}
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                {isRegister
+                  ? "Trustline Express'e ücretsiz kayıt olun."
+                  : "Hesabınıza giriş yapın."}
+              </p>
             </div>
 
+            {/* Error */}
             {error && (
-              <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3">
-                <p className="text-red-300 text-xs leading-relaxed">
-                  {error}
-                </p>
+              <div
+                role="alert"
+                className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+              >
+                {error}
               </div>
             )}
 
+            {/* Success */}
             {success && (
-              <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3">
-                <p className="text-emerald-300 text-xs leading-relaxed">
-                  {success}
-                </p>
+              <div
+                role="status"
+                className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+              >
+                {success}
               </div>
             )}
 
+            {/* Google */}
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full h-13 rounded-xl bg-[#D6A84F] text-[#0B0B0D] font-black text-sm hover:brightness-105 transition disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+              className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading
-                ? 'Lütfen bekleyin...'
-                : isRegister
-                ? 'Hesap Oluştur'
-                : 'Giriş Yap'}
+              {googleLoading ? (
+                <>
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-800" />
+                  Google ile bağlanılıyor...
+                </>
+              ) : (
+                <>
+                  <span className="flex h-5 w-5 items-center justify-center text-base font-bold">
+                    G
+                  </span>
+                  Google ile devam et
+                </>
+              )}
             </button>
 
-          </form>
+            {/* Divider */}
+            <div className="my-6 flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-200" />
 
-          <div className="mt-6 text-center">
-            <p className="text-[#555555] text-[10px] leading-relaxed">
-              Trustline Express V1
-            </p>
+              <span className="text-xs font-medium text-slate-400">
+                VEYA
+              </span>
 
-            <p className="text-[#444444] text-[10px] mt-1">
-              Güvenli Firebase Authentication
-            </p>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
+            {/* Email form */}
+            <form
+              onSubmit={handleEmailAuth}
+              className="space-y-4"
+            >
+              {isRegister && (
+                <>
+                  <div>
+                    <label
+                      htmlFor="name"
+                      className="mb-1.5 block text-sm font-medium text-slate-700"
+                    >
+                      Ad Soyad
+                    </label>
+
+                    <input
+                      id="name"
+                      type="text"
+                      value={name}
+                      onChange={(e) =>
+                        setName(e.target.value)
+                      }
+                      placeholder="Adınız Soyadınız"
+                      autoComplete="name"
+                      disabled={isLoading}
+                      className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="phone"
+                      className="mb-1.5 block text-sm font-medium text-slate-700"
+                    >
+                      Telefon
+                      <span className="ml-1 text-slate-400">
+                        (opsiyonel)
+                      </span>
+                    </label>
+
+                    <input
+                      id="phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) =>
+                        setPhone(e.target.value)
+                      }
+                      placeholder="05XX XXX XX XX"
+                      autoComplete="tel"
+                      disabled={isLoading}
+                      className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-100"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label
+                  htmlFor="email"
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
+                  E-posta
+                </label>
+
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) =>
+                    setEmail(e.target.value)
+                  }
+                  placeholder="ornek@email.com"
+                  autoComplete="email"
+                  disabled={isLoading}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-100"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="password"
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
+                  Şifre
+                </label>
+
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) =>
+                    setPassword(e.target.value)
+                  }
+                  placeholder="En az 6 karakter"
+                  autoComplete={
+                    isRegister
+                      ? "new-password"
+                      : "current-password"
+                  }
+                  disabled={isLoading}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-100"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full rounded-xl bg-slate-900 px-4 py-3.5 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    İşleniyor...
+                  </span>
+                ) : isRegister ? (
+                  "Hesap Oluştur"
+                ) : (
+                  "Giriş Yap"
+                )}
+              </button>
+            </form>
+
+            {/* Switch */}
+            <div className="mt-6 text-center text-sm text-slate-500">
+              {isRegister
+                ? "Zaten hesabınız var mı?"
+                : "Henüz hesabınız yok mu?"}
+
+              <button
+                type="button"
+                onClick={switchMode}
+                disabled={isLoading}
+                className="ml-1 font-bold text-slate-900 hover:underline disabled:opacity-50"
+              >
+                {isRegister
+                  ? "Giriş Yap"
+                  : "Kayıt Ol"}
+              </button>
+            </div>
+
+            {/* Info */}
+            <div className="mt-6 rounded-xl bg-slate-50 p-4 text-xs leading-5 text-slate-500">
+              Hesap bilgileriniz güvenli şekilde
+              Firebase Authentication ve Firestore
+              üzerinde saklanır.
+            </div>
           </div>
-
         </div>
 
-        <div className="mt-5 flex items-center justify-center gap-2 text-[#555555]">
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-          >
-            <path
-              d="M12 3l7 4v5c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9V7l7-4z"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-
-          <span className="text-[10px]">
-            Güvenli hesap sistemi
-          </span>
-        </div>
-
+        <p className="mt-6 text-center text-xs text-slate-400">
+          © {new Date().getFullYear()} Trustline Express
+        </p>
       </div>
     </div>
   );
 }
-
-export default AuthScreen;
