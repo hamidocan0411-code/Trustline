@@ -3,12 +3,12 @@ import {
   deleteDoc,
   doc,
   getDoc,
-  getDocs,
   onSnapshot,
   query,
   setDoc,
   updateDoc,
   where,
+  type Unsubscribe,
 } from "firebase/firestore";
 
 import {
@@ -16,7 +16,6 @@ import {
   getAuth,
   onAuthStateChanged,
   signOut,
-  type User,
 } from "firebase/auth";
 
 import {
@@ -27,6 +26,7 @@ import {
 import {
   db,
   auth,
+  waitForAuthState,
 } from "./firebase";
 
 import type {
@@ -43,7 +43,15 @@ import {
   DEFAULT_PRICING,
 } from "../utils/pricing";
 
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Subscriber = () => void;
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
 
 const ADMIN_EMAIL =
   "hamidocan0411@gmail.com";
@@ -51,7 +59,15 @@ const ADMIN_EMAIL =
 const SECONDARY_APP_NAME =
   "TrustlineCourierCreator";
 
+/* ============================================================
+   STORAGE SERVICE
+============================================================ */
+
 class StorageService {
+  /* ----------------------------------------------------------
+     STATE
+  ---------------------------------------------------------- */
+
   private currentUser:
     | UserProfile
     | null = null;
@@ -66,18 +82,28 @@ class StorageService {
   private courierLocations:
     CourierLocation[] = [];
 
-  private pricing: PricingConfig =
-    DEFAULT_PRICING;
+  private pricing:
+    PricingConfig = {
+      ...DEFAULT_PRICING,
+    };
+
+  /* ----------------------------------------------------------
+     LISTENERS
+  ---------------------------------------------------------- */
 
   private subscribers =
     new Set<Subscriber>();
 
-  private unsubscribers:
-    (() => void)[] = [];
+  private firestoreUnsubscribers:
+    Unsubscribe[] = [];
 
   private authUnsubscribe:
-    | (() => void)
+    | Unsubscribe
     | null = null;
+
+  /* ----------------------------------------------------------
+     INIT STATE
+  ---------------------------------------------------------- */
 
   private initialized = false;
 
@@ -87,309 +113,223 @@ class StorageService {
     | string
     | null = null;
 
-  // =========================================================
-  // INITIALIZE
-  // =========================================================
+  private activeRole:
+    | string
+    | null = null;
+
+  /* ==========================================================
+     INIT
+  ========================================================== */
 
   async init(): Promise<void> {
-    if (this.initialized) {
+    /*
+     * Aynı anda birden fazla init çağrılmasını engelle.
+     */
+    if (this.initializing) {
       return;
     }
 
-    if (this.initializing) {
+    /*
+     * Auth listener zaten aktifse tekrar oluşturma.
+     */
+    if (this.initialized) {
       return;
     }
 
     this.initializing = true;
 
     try {
-      /*
-       * Auth değişikliklerini sürekli dinle.
-       *
-       * Bu sayede:
-       * - Sayfa ilk açıldığında
-       * - Login yapıldığında
-       * - Logout yapıldığında
-       * - Kullanıcı admin yapıldığında
-       *
-       * Storage otomatik güncellenir.
-       */
+      console.log(
+        "🔥 Storage init başlıyor..."
+      );
 
+      /*
+       * Firebase Auth başlangıç durumunu bekle.
+       */
+      await waitForAuthState();
+
+      /*
+       * Global Auth listener.
+       *
+       * Login / Logout / Session restore durumlarını
+       * merkezi olarak buradan yönetiyoruz.
+       */
       this.authUnsubscribe =
         onAuthStateChanged(
           auth,
           async (firebaseUser) => {
             try {
-              await this.handleAuthChange(
-                firebaseUser
+              if (!firebaseUser) {
+                console.log(
+                  "🔒 Firebase kullanıcı yok. Storage temizleniyor."
+                );
+
+                this.handleLogout();
+
+                return;
+              }
+
+              console.log(
+                "🔐 Firebase kullanıcı bulundu:",
+                firebaseUser.uid
+              );
+
+              await this.loadUserProfile(
+                firebaseUser.uid
               );
             } catch (error) {
               console.error(
-                "Auth değişimi işlenemedi:",
+                "❌ Auth state işleme hatası:",
                 error
               );
             }
+          },
+          (error) => {
+            console.error(
+              "❌ Auth listener hatası:",
+              error
+            );
+
+            this.handleLogout();
           }
         );
 
       this.initialized = true;
 
       console.log(
-        "🔥 Trustline Storage hazır"
+        "🔥 Trustline Storage sistemi hazır."
       );
     } catch (error) {
       console.error(
-        "Storage init hatası:",
+        "❌ Storage init hatası:",
         error
       );
     } finally {
       this.initializing = false;
+
+      this.emit();
     }
   }
 
-  // =========================================================
-  // AUTH CHANGE
-  // =========================================================
+  /* ==========================================================
+     USER PROFILE LOAD
+  ========================================================== */
 
-  private async handleAuthChange(
-    firebaseUser: User | null
+  private async loadUserProfile(
+    uid: string
   ): Promise<void> {
-    /*
-     * Kullanıcı çıkış yaptıysa
-     */
-
-    if (!firebaseUser) {
-      this.cleanupListeners();
-
-      this.currentUser = null;
-      this.activeUserId = null;
-
-      this.users = [];
-      this.orders = [];
-      this.notifications = [];
-      this.courierLocations = [];
-
-      this.pricing =
-        DEFAULT_PRICING;
-
-      this.emit();
-
-      console.log(
-        "👋 Storage: kullanıcı çıkış yaptı"
-      );
-
-      return;
-    }
-
-    /*
-     * Aynı kullanıcı zaten aktifse
-     * gereksiz listener oluşturma.
-     */
-
-    if (
-      this.activeUserId ===
-      firebaseUser.uid
-    ) {
-      return;
-    }
-
-    this.activeUserId =
-      firebaseUser.uid;
-
-    this.cleanupListeners();
-
-    console.log(
-      "🔐 Storage auth kullanıcı:",
-      firebaseUser.uid,
-      firebaseUser.email
-    );
-
-    let profile:
-      | UserProfile
-      | null = null;
-
     try {
       const profileRef =
         doc(
           db,
           "users",
-          firebaseUser.uid
+          uid
         );
 
-      const profileSnap =
-        await getDoc(
-          profileRef
+      const profileSnapshot =
+        await getDoc(profileRef);
+
+      /*
+       * Firebase Auth kullanıcısı var fakat
+       * Firestore profili yoksa listener başlatma.
+       */
+      if (!profileSnapshot.exists()) {
+        console.warn(
+          "⚠️ Firebase Auth kullanıcısı var fakat users koleksiyonunda profil bulunamadı:",
+          uid
         );
 
-      if (profileSnap.exists()) {
-        profile = {
-          ...(profileSnap.data() as UserProfile),
-          id: profileSnap.id,
-        };
-      } else {
-        /*
-         * Firestore profil belgesi yoksa
-         * fallback profil oluştur.
-         */
+        this.cleanupFirestoreListeners();
 
-        const email =
-          firebaseUser.email
-            ?.toLowerCase()
-            .trim() || "";
+        this.currentUser = null;
 
-        const isPrimaryAdmin =
-          email ===
-          ADMIN_EMAIL.toLowerCase();
+        this.activeUserId = null;
+        this.activeRole = null;
 
-        const now =
-          new Date().toISOString();
+        this.emit();
 
-        profile = {
-          id: firebaseUser.uid,
-          name:
-            firebaseUser.displayName ||
-            email ||
-            "Kullanıcı",
-          email,
-          phone:
-            firebaseUser.phoneNumber ||
-            "",
-          role:
-            isPrimaryAdmin
-              ? "admin"
-              : "customer",
-          createdAt: now,
-        };
-
-        /*
-         * Ana admin veya eksik profil için
-         * belgeyi güvenli şekilde oluştur.
-         */
-
-        try {
-          await setDoc(
-            profileRef,
-            {
-              ...profile,
-              updatedAt: now,
-            },
-            {
-              merge: true,
-            }
-          );
-        } catch (error) {
-          console.error(
-            "Eksik kullanıcı profili oluşturulamadı:",
-            error
-          );
-        }
+        return;
       }
-    } catch (error) {
-      console.error(
-        "Kullanıcı profili okunamadı:",
-        error
+
+      const profile: UserProfile = {
+        ...(profileSnapshot.data() as UserProfile),
+        id: profileSnapshot.id,
+      };
+
+      /*
+       * Aynı kullanıcı ve aynı rol zaten aktifse
+       * listener'ları yeniden oluşturma.
+       */
+      if (
+        this.activeUserId === profile.id &&
+        this.activeRole === profile.role &&
+        this.currentUser
+      ) {
+        this.currentUser = profile;
+
+        this.updateUserLocal(profile);
+
+        this.emit();
+
+        return;
+      }
+
+      console.log(
+        "👤 Kullanıcı profili yüklendi:",
+        {
+          id: profile.id,
+          email: profile.email,
+          role: profile.role,
+        }
+      );
+
+      this.currentUser = profile;
+
+      this.activeUserId = profile.id;
+
+      this.activeRole = profile.role;
+
+      /*
+       * Kullanıcı değiştiyse eski verileri temizle.
+       */
+      this.resetRealtimeData();
+
+      /*
+       * Aktif kullanıcıyı local listeye ekle.
+       */
+      this.updateUserLocal(
+        profile
       );
 
       /*
-       * Firestore okunamasa bile
-       * uygulama siyah ekran vermesin.
+       * Yeni kullanıcı listener'larını başlat.
        */
+      this.startListeners(
+        profile
+      );
 
-      const email =
-        firebaseUser.email
-          ?.toLowerCase()
-          .trim() || "";
+      this.emit();
+    } catch (error) {
+      console.error(
+        "❌ Kullanıcı profili yüklenemedi:",
+        error
+      );
 
-      profile = {
-        id: firebaseUser.uid,
-        name:
-          firebaseUser.displayName ||
-          email ||
-          "Kullanıcı",
-        email,
-        phone:
-          firebaseUser.phoneNumber ||
-          "",
-        role:
-          email ===
-          ADMIN_EMAIL.toLowerCase()
-            ? "admin"
-            : "customer",
-        createdAt:
-          new Date().toISOString(),
-      };
+      throw error;
     }
-
-    /*
-     * Ana admin e-postası her durumda admin.
-     */
-
-    if (
-      profile.email
-        ?.toLowerCase()
-        .trim() ===
-      ADMIN_EMAIL.toLowerCase()
-    ) {
-      profile = {
-        ...profile,
-        role: "admin",
-      };
-
-      try {
-        await setDoc(
-          doc(
-            db,
-            "users",
-            profile.id
-          ),
-          {
-            role: "admin",
-            updatedAt:
-              new Date().toISOString(),
-          },
-          {
-            merge: true,
-          }
-        );
-      } catch (error) {
-        console.error(
-          "Ana admin rolü güncellenemedi:",
-          error
-        );
-      }
-    }
-
-    this.currentUser =
-      profile;
-
-    this.users = [
-      profile,
-    ];
-
-    this.startListeners(
-      profile
-    );
-
-    this.emit();
-
-    console.log(
-      "🔥 Storage kullanıcı hazır:",
-      {
-        uid: profile.id,
-        email: profile.email,
-        role: profile.role,
-      }
-    );
   }
 
-  // =========================================================
-  // LISTENERS
-  // =========================================================
+  /* ==========================================================
+     START LISTENERS
+  ========================================================== */
 
   private startListeners(
     profile: UserProfile
   ): void {
-    this.cleanupListeners();
+    /*
+     * Her zaman önce eski listener'ları kapat.
+     */
+    this.cleanupFirestoreListeners();
 
     const uid =
       profile.id;
@@ -398,177 +338,253 @@ class StorageService {
       profile.role;
 
     console.log(
-      "🔥 Storage listeners başlatılıyor:",
+      "🔥 Firestore listener sistemi başlatılıyor:",
       {
         uid,
-        email:
-          profile.email,
         role,
+        email: profile.email,
       }
     );
 
-    // =======================================================
-    // USERS LISTENER
-    // =======================================================
+    /* ========================================================
+       USER LISTENER
+    ======================================================== */
 
-    if (
-      role === "admin"
-    ) {
-      const unsubscribeUsers =
+    this.startUserListener(
+      profile
+    );
+
+    /* ========================================================
+       ORDER LISTENER
+    ======================================================== */
+
+    this.startOrderListener(
+      uid,
+      role
+    );
+
+    /* ========================================================
+       NOTIFICATION LISTENER
+    ======================================================== */
+
+    this.startNotificationListener(
+      uid
+    );
+
+    /* ========================================================
+       PRICING LISTENER
+    ======================================================== */
+
+    this.startPricingListener();
+
+    /* ========================================================
+       COURIER LOCATION LISTENER
+    ======================================================== */
+
+    this.startCourierLocationListener(
+      uid,
+      role
+    );
+  }
+
+  /* ==========================================================
+     USER LISTENER
+  ========================================================== */
+
+  private startUserListener(
+    profile: UserProfile
+  ): void {
+    const uid =
+      profile.id;
+
+    const role =
+      profile.role;
+
+    /*
+     * ADMIN:
+     * Tüm kullanıcıları canlı dinler.
+     */
+    if (role === "admin") {
+      const unsubscribe =
         onSnapshot(
           collection(
             db,
             "users"
           ),
           (snapshot) => {
-            const liveUsers =
-              snapshot.docs.map(
-                (item) => ({
-                  ...(item.data() as UserProfile),
-                  id: item.id,
-                })
+            try {
+              this.users =
+                snapshot.docs.map(
+                  (item) => ({
+                    ...(item.data() as UserProfile),
+                    id: item.id,
+                  })
+                );
+
+              /*
+               * currentUser'ı canlı güncel tut.
+               */
+              const updatedCurrentUser =
+                this.users.find(
+                  (user) =>
+                    user.id === uid
+                );
+
+              if (updatedCurrentUser) {
+                this.currentUser =
+                  updatedCurrentUser;
+              }
+
+              console.log(
+                "👑 ADMIN kullanıcılar güncellendi:",
+                this.users.length
               );
 
-            /*
-             * Ana admin Firestore listesinde
-             * görünmese bile listeye ekle.
-             */
-
-            const hasCurrentUser =
-              liveUsers.some(
-                (user) =>
-                  user.id === uid
-              );
-
-            if (
-              !hasCurrentUser
-            ) {
-              liveUsers.push(
-                this.currentUser ||
-                  profile
+              this.emit();
+            } catch (error) {
+              console.error(
+                "❌ Admin users snapshot işleme hatası:",
+                error
               );
             }
-
-            this.users =
-              liveUsers;
-
-            console.log(
-              "👑 ADMIN users:",
-              {
-                total:
-                  liveUsers.length,
-                customers:
-                  liveUsers.filter(
-                    (user) =>
-                      user.role ===
-                      "customer"
-                  ).length,
-                couriers:
-                  liveUsers.filter(
-                    (user) =>
-                      user.role ===
-                      "courier"
-                  ).length,
-                admins:
-                  liveUsers.filter(
-                    (user) =>
-                      user.role ===
-                      "admin"
-                  ).length,
-              }
-            );
-
-            this.emit();
           },
           (error) => {
             console.error(
-              "❌ Users listener hatası:",
+              "❌ Admin users listener hatası:",
               error
             );
           }
         );
 
-      this.unsubscribers.push(
-        unsubscribeUsers
+      this.firestoreUnsubscribers.push(
+        unsubscribe
       );
-    } else {
-      const unsubscribeOwnUser =
-        onSnapshot(
-          doc(
-            db,
-            "users",
-            uid
-          ),
-          (snapshot) => {
-            if (
-              !snapshot.exists()
-            ) {
+
+      return;
+    }
+
+    /*
+     * CUSTOMER / COURIER:
+     * Sadece kendi profilini dinler.
+     */
+    const unsubscribe =
+      onSnapshot(
+        doc(
+          db,
+          "users",
+          uid
+        ),
+        (snapshot) => {
+          try {
+            /*
+             * Kullanıcı profili silinmişse
+             * güvenli şekilde logout state.
+             */
+            if (!snapshot.exists()) {
+              console.warn(
+                "⚠️ Kullanıcı profili artık mevcut değil:",
+                uid
+              );
+
+              this.currentUser = null;
+
+              this.emit();
+
               return;
             }
 
-            const liveUser: UserProfile =
-              {
+            const liveUser:
+              UserProfile = {
                 ...(snapshot.data() as UserProfile),
                 id: snapshot.id,
               };
 
             const previousRole =
-              this.currentUser
-                ?.role;
-
-            this.currentUser =
-              liveUser;
-
-            this.users = [
-              liveUser,
-            ];
-
-            this.emit();
+              this.currentUser?.role;
 
             /*
-             * Kullanıcı sonradan admin yapıldıysa
-             * listener'ları role göre yeniden kur.
+             * Rol değişmişse listener sistemini
+             * yeni role göre yeniden başlat.
              */
-
             if (
               previousRole &&
-              previousRole !==
-                liveUser.role
+              previousRole !== liveUser.role
             ) {
               console.log(
-                "🔄 Rol değişti:",
-                previousRole,
-                "→",
-                liveUser.role
+                "🔄 Kullanıcı rolü değişti:",
+                {
+                  oldRole:
+                    previousRole,
+                  newRole:
+                    liveUser.role,
+                  uid:
+                    liveUser.id,
+                }
               );
+
+              this.currentUser =
+                liveUser;
+
+              this.activeRole =
+                liveUser.role;
+
+              this.updateUserLocal(
+                liveUser
+              );
+
+              this.resetRealtimeData();
 
               this.startListeners(
                 liveUser
               );
+
+              this.emit();
+
+              return;
             }
-          },
-          (error) => {
+
+            /*
+             * Normal profil güncellemesi.
+             */
+            this.currentUser =
+              liveUser;
+
+            this.updateUserLocal(
+              liveUser
+            );
+
+            this.emit();
+          } catch (error) {
             console.error(
-              "❌ Own user listener hatası:",
+              "❌ Kullanıcı snapshot işleme hatası:",
               error
             );
           }
-        );
-
-      this.unsubscribers.push(
-        unsubscribeOwnUser
+        },
+        (error) => {
+          console.error(
+            "❌ Kullanıcı profil listener hatası:",
+            error
+          );
+        }
       );
-    }
 
-    // =======================================================
-    // ORDERS LISTENER
-    // =======================================================
+    this.firestoreUnsubscribers.push(
+      unsubscribe
+    );
+  }
 
+  /* ==========================================================
+     ORDER LISTENER
+  ========================================================== */
+
+  private startOrderListener(
+    uid: string,
+    role: string
+  ): void {
     let ordersQuery;
 
-    if (
-      role === "admin"
-    ) {
+    if (role === "admin") {
       ordersQuery =
         query(
           collection(
@@ -578,7 +594,7 @@ class StorageService {
         );
 
       console.log(
-        "👑 Admin tüm siparişleri dinliyor"
+        "👑 ADMIN tüm siparişleri dinliyor."
       );
     } else if (
       role === "courier"
@@ -595,6 +611,10 @@ class StorageService {
             uid
           )
         );
+
+      console.log(
+        "🚴 KURYE siparişleri dinliyor."
+      );
     } else {
       ordersQuery =
         query(
@@ -608,50 +628,62 @@ class StorageService {
             uid
           )
         );
+
+      console.log(
+        "👤 MÜŞTERİ siparişleri dinliyor."
+      );
     }
 
-    const unsubscribeOrders =
+    const unsubscribe =
       onSnapshot(
         ordersQuery,
         (snapshot) => {
-          this.orders =
-            snapshot.docs.map(
-              (item) => ({
-                ...(item.data() as Order),
-                id: item.id,
-              })
+          try {
+            this.orders =
+              snapshot.docs.map(
+                (item) => ({
+                  ...(item.data() as Order),
+                  id: item.id,
+                })
+              );
+
+            console.log(
+              "📦 Siparişler güncellendi:",
+              {
+                count:
+                  this.orders.length,
+                role,
+              }
             );
 
-          console.log(
-            "📦 Siparişler:",
-            this.orders.length
-          );
-
-          this.emit();
+            this.emit();
+          } catch (error) {
+            console.error(
+              "❌ Orders snapshot işleme hatası:",
+              error
+            );
+          }
         },
         (error) => {
           console.error(
             "❌ Orders listener hatası:",
             error
           );
-
-          /*
-           * Hata olsa bile uygulama çalışmaya devam eder.
-           */
-          this.orders = [];
-
-          this.emit();
         }
       );
 
-    this.unsubscribers.push(
-      unsubscribeOrders
+    this.firestoreUnsubscribers.push(
+      unsubscribe
     );
+  }
 
-    // =======================================================
-    // NOTIFICATIONS LISTENER
-    // =======================================================
+  /* ==========================================================
+     NOTIFICATION LISTENER
+  ========================================================== */
 
+  private startNotificationListener(
+    uid: string
+  ): void {
     const notificationsQuery =
       query(
         collection(
@@ -665,19 +697,26 @@ class StorageService {
         )
       );
 
-    const unsubscribeNotifications =
+    const unsubscribe =
       onSnapshot(
         notificationsQuery,
         (snapshot) => {
-          this.notifications =
-            snapshot.docs.map(
-              (item) => ({
-                ...(item.data() as NotificationItem),
-                id: item.id,
-              })
-            );
+          try {
+            this.notifications =
+              snapshot.docs.map(
+                (item) => ({
+                  ...(item.data() as NotificationItem),
+                  id: item.id,
+                })
+              );
 
-          this.emit();
+            this.emit();
+          } catch (error) {
+            console.error(
+              "❌ Notification snapshot işleme hatası:",
+              error
+            );
+          }
         },
         (error) => {
           console.error(
@@ -687,15 +726,17 @@ class StorageService {
         }
       );
 
-    this.unsubscribers.push(
-      unsubscribeNotifications
+    this.firestoreUnsubscribers.push(
+      unsubscribe
     );
+  }
 
-    // =======================================================
-    // PRICING LISTENER
-    // =======================================================
+  /* ==========================================================
+     PRICING LISTENER
+  ========================================================== */
 
-    const unsubscribePricing =
+  private startPricingListener(): void {
+    const unsubscribe =
       onSnapshot(
         doc(
           db,
@@ -703,67 +744,84 @@ class StorageService {
           "pricing"
         ),
         (snapshot) => {
-          if (
-            snapshot.exists()
-          ) {
-            this.pricing = {
-              ...DEFAULT_PRICING,
-              ...(snapshot.data() as PricingConfig),
-            };
-          } else {
-            this.pricing =
-              DEFAULT_PRICING;
-          }
+          try {
+            if (
+              snapshot.exists()
+            ) {
+              this.pricing = {
+                ...DEFAULT_PRICING,
+                ...(snapshot.data() as PricingConfig),
+              };
+            } else {
+              this.pricing = {
+                ...DEFAULT_PRICING,
+              };
+            }
 
-          this.emit();
+            this.emit();
+          } catch (error) {
+            console.error(
+              "❌ Pricing snapshot işleme hatası:",
+              error
+            );
+          }
         },
         (error) => {
           console.error(
             "❌ Pricing listener hatası:",
             error
           );
-
-          this.pricing =
-            DEFAULT_PRICING;
-
-          this.emit();
         }
       );
 
-    this.unsubscribers.push(
-      unsubscribePricing
+    this.firestoreUnsubscribers.push(
+      unsubscribe
     );
+  }
 
-    // =======================================================
-    // COURIER LOCATIONS
-    // =======================================================
+  /* ==========================================================
+     COURIER LOCATION LISTENER
+  ========================================================== */
 
-    if (
-      role === "admin"
-    ) {
-      const unsubscribeLocations =
+  private startCourierLocationListener(
+    uid: string,
+    role: string
+  ): void {
+    /*
+     * ADMIN:
+     * Tüm kurye konumlarını dinler.
+     */
+    if (role === "admin") {
+      const unsubscribe =
         onSnapshot(
           collection(
             db,
             "courierLocations"
           ),
           (snapshot) => {
-            this.courierLocations =
-              snapshot.docs.map(
-                (item) => {
-                  const data =
-                    item.data() as CourierLocation;
+            try {
+              this.courierLocations =
+                snapshot.docs.map(
+                  (item) => {
+                    const data =
+                      item.data() as CourierLocation;
 
-                  return {
-                    ...data,
-                    courierId:
-                      data.courierId ||
-                      item.id,
-                  };
-                }
+                    return {
+                      ...data,
+                      courierId:
+                        data.courierId ||
+                        item.id,
+                    };
+                  }
+                );
+
+              this.emit();
+            } catch (error) {
+              console.error(
+                "❌ Courier location snapshot işleme hatası:",
+                error
               );
-
-            this.emit();
+            }
           },
           (error) => {
             console.error(
@@ -773,13 +831,21 @@ class StorageService {
           }
         );
 
-      this.unsubscribers.push(
-        unsubscribeLocations
+      this.firestoreUnsubscribers.push(
+        unsubscribe
       );
-    } else if (
+
+      return;
+    }
+
+    /*
+     * COURIER:
+     * Sadece kendi konumunu dinler.
+     */
+    if (
       role === "courier"
     ) {
-      const unsubscribeLocation =
+      const unsubscribe =
         onSnapshot(
           doc(
             db,
@@ -787,69 +853,151 @@ class StorageService {
             uid
           ),
           (snapshot) => {
-            if (
-              snapshot.exists()
-            ) {
-              const data =
-                snapshot.data() as CourierLocation;
+            try {
+              if (
+                snapshot.exists()
+              ) {
+                const data =
+                  snapshot.data() as CourierLocation;
 
-              const location = {
-                ...data,
-                courierId:
-                  data.courierId ||
-                  uid,
-              };
+                const location:
+                  CourierLocation = {
+                    ...data,
+                    courierId:
+                      data.courierId ||
+                      uid,
+                  };
 
-              this.courierLocations = [
-                ...this.courierLocations.filter(
-                  (item) =>
-                    item.courierId !==
-                    uid
-                ),
-                location,
-              ];
+                this.courierLocations =
+                  [
+                    ...this.courierLocations.filter(
+                      (item) =>
+                        item.courierId !== uid
+                    ),
+                    location,
+                  ];
+              } else {
+                this.courierLocations =
+                  this.courierLocations.filter(
+                    (item) =>
+                      item.courierId !== uid
+                  );
+              }
+
+              this.emit();
+            } catch (error) {
+              console.error(
+                "❌ Kurye konum snapshot işleme hatası:",
+                error
+              );
             }
-
-            this.emit();
           },
           (error) => {
             console.error(
-              "❌ Courier location listener hatası:",
+              "❌ Kurye konum listener hatası:",
               error
             );
           }
         );
 
-      this.unsubscribers.push(
-        unsubscribeLocation
+      this.firestoreUnsubscribers.push(
+        unsubscribe
       );
     }
   }
 
-  // =========================================================
-  // CLEANUP LISTENERS
-  // =========================================================
+  /* ==========================================================
+     CLEANUP FIRESTORE LISTENERS
+  ========================================================== */
 
-  private cleanupListeners(): void {
-    this.unsubscribers.forEach(
-      (unsubscribe) => {
-        try {
-          unsubscribe();
-        } catch (error) {
-          console.warn(
-            "Listener kapatma hatası:",
-            error
-          );
-        }
+  private cleanupFirestoreListeners(): void {
+    for (
+      const unsubscribe of
+      this.firestoreUnsubscribers
+    ) {
+      try {
+        unsubscribe();
+      } catch (error) {
+        console.warn(
+          "⚠️ Listener kapatma hatası:",
+          error
+        );
       }
-    );
+    }
 
-    this.unsubscribers = [];
+    this.firestoreUnsubscribers =
+      [];
   }
 
-  // =========================================================
-  // SUBSCRIBE
-  // =========================================================
+  /* ==========================================================
+     RESET REALTIME DATA
+  ========================================================== */
+
+  private resetRealtimeData(): void {
+    this.users = [];
+    this.orders = [];
+    this.notifications = [];
+    this.courierLocations = [];
+
+    this.pricing = {
+      ...DEFAULT_PRICING,
+    };
+  }
+
+  /* ==========================================================
+     LOGOUT HANDLER
+  ========================================================== */
+
+  private handleLogout(): void {
+    this.cleanupFirestoreListeners();
+
+    this.currentUser = null;
+
+    this.activeUserId = null;
+
+    this.activeRole = null;
+
+    this.resetRealtimeData();
+
+    this.emit();
+
+    console.log(
+      "🧹 Storage logout temizliği tamamlandı."
+    );
+  }
+
+  /* ==========================================================
+     LOCAL USER UPDATE
+  ========================================================== */
+
+  private updateUserLocal(
+    user: UserProfile
+  ): void {
+    const exists =
+      this.users.some(
+        (item) =>
+          item.id === user.id
+      );
+
+    if (exists) {
+      this.users =
+        this.users.map(
+          (item) =>
+            item.id === user.id
+              ? user
+              : item
+        );
+    } else {
+      this.users = [
+        ...this.users,
+        user,
+      ];
+    }
+  }
+
+  /* ==========================================================
+     SUBSCRIBERS
+  ========================================================== */
 
   subscribe(
     callback: Subscriber
@@ -862,7 +1010,7 @@ class StorageService {
       callback();
     } catch (error) {
       console.error(
-        "Storage subscriber callback hatası:",
+        "❌ Storage subscriber ilk çağrı hatası:",
         error
       );
     }
@@ -875,45 +1023,43 @@ class StorageService {
   }
 
   private emit(): void {
-    this.subscribers.forEach(
-      (callback) => {
-        try {
-          callback();
-        } catch (error) {
-          console.error(
-            "Storage emit callback hatası:",
-            error
-          );
-        }
+    for (
+      const callback of
+      this.subscribers
+    ) {
+      try {
+        callback();
+      } catch (error) {
+        console.error(
+          "❌ Storage subscriber emit hatası:",
+          error
+        );
       }
-    );
+    }
   }
 
-  // =========================================================
-  // CURRENT USER
-  // =========================================================
+  /* ==========================================================
+     CURRENT USER
+  ========================================================== */
 
   setCurrentUser(
     user: UserProfile | null
   ): void {
+    /*
+     * Manuel setCurrentUser çağrısı
+     * eski component yapılarıyla uyumluluk için tutuldu.
+     *
+     * Asıl kaynak Firebase Auth + Firestore'dur.
+     */
+
     if (!user) {
-      this.currentUser =
-        null;
-
-      this.activeUserId =
-        null;
-
-      this.cleanupListeners();
-
-      this.users = [];
-      this.orders = [];
-      this.notifications = [];
-      this.courierLocations = [];
-
-      this.emit();
-
+      this.handleLogout();
       return;
     }
+
+    const userChanged =
+      this.activeUserId !== user.id ||
+      this.activeRole !== user.role;
 
     this.currentUser =
       user;
@@ -921,9 +1067,24 @@ class StorageService {
     this.activeUserId =
       user.id;
 
-    this.startListeners(
+    this.activeRole =
+      user.role;
+
+    this.updateUserLocal(
       user
     );
+
+    if (userChanged) {
+      this.resetRealtimeData();
+
+      this.updateUserLocal(
+        user
+      );
+
+      this.startListeners(
+        user
+      );
+    }
 
     this.emit();
   }
@@ -934,9 +1095,9 @@ class StorageService {
     return this.currentUser;
   }
 
-  // =========================================================
-  // USERS
-  // =========================================================
+  /* ==========================================================
+     USERS
+  ========================================================== */
 
   getUsers(): UserProfile[] {
     return [
@@ -955,19 +1116,19 @@ class StorageService {
     );
   }
 
-  getCouriers(): UserProfile[] {
+  getCouriers():
+    UserProfile[] {
     return this.users.filter(
       (user) =>
-        user.role ===
-        "courier"
+        user.role === "courier"
     );
   }
 
-  getCustomers(): UserProfile[] {
+  getCustomers():
+    UserProfile[] {
     return this.users.filter(
       (user) =>
-        user.role ===
-        "customer"
+        user.role === "customer"
     );
   }
 
@@ -975,7 +1136,7 @@ class StorageService {
     id: string,
     data: Partial<UserProfile>
   ): Promise<void> {
-    await setDoc(
+    await updateDoc(
       doc(
         db,
         "users",
@@ -985,16 +1146,13 @@ class StorageService {
         ...data,
         updatedAt:
           new Date().toISOString(),
-      },
-      {
-        merge: true,
       }
     );
   }
 
-  // =========================================================
-  // CREATE COURIER
-  // =========================================================
+  /* ==========================================================
+     CREATE COURIER
+  ========================================================== */
 
   async createCourier(data: {
     name: string;
@@ -1014,9 +1172,6 @@ class StorageService {
       data.phone?.trim() ||
       "";
 
-    const password =
-      data.password;
-
     if (!name) {
       throw new Error(
         "Kurye adı gerekli."
@@ -1030,8 +1185,8 @@ class StorageService {
     }
 
     if (
-      !password ||
-      password.length < 6
+      !data.password ||
+      data.password.length < 6
     ) {
       throw new Error(
         "Şifre en az 6 karakter olmalıdır."
@@ -1047,26 +1202,23 @@ class StorageService {
       );
     }
 
-    const currentProfile =
-      this.currentUser;
-
-    const isPrimaryAdmin =
+    if (
       adminUser.email
         ?.trim()
-        .toLowerCase() ===
-      ADMIN_EMAIL.toLowerCase();
-
-    const isAdmin =
-      isPrimaryAdmin ||
-      currentProfile?.role ===
-        "admin";
-
-    if (!isAdmin) {
+        .toLowerCase() !==
+      ADMIN_EMAIL.toLowerCase()
+    ) {
       throw new Error(
-        "Bu işlemi sadece yönetici yapabilir."
+        "Bu işlemi sadece yetkili admin yapabilir."
       );
     }
 
+    /*
+     * Secondary Firebase App.
+     *
+     * Yeni kullanıcı oluşturulduğunda
+     * ana admin oturumunun değişmesini engeller.
+     */
     const existingApp =
       getApps().find(
         (app) =>
@@ -1075,7 +1227,7 @@ class StorageService {
       );
 
     const secondaryApp =
-      existingApp ||
+      existingApp ??
       initializeApp(
         auth.app.options,
         SECONDARY_APP_NAME
@@ -1086,97 +1238,107 @@ class StorageService {
         secondaryApp
       );
 
-    let createdUser:
-      | User
+    let createdUserId:
+      | string
       | null = null;
 
     try {
-      /*
-       * Secondary Auth kullanıyoruz.
-       *
-       * Böylece admin oturumu
-       * değişmeden kurye hesabı oluşturulur.
-       */
-
       const credential =
         await createUserWithEmailAndPassword(
           secondaryAuth,
           email,
-          password
+          data.password
         );
 
-      createdUser =
+      const courierUser =
         credential.user;
+
+      createdUserId =
+        courierUser.uid;
 
       const now =
         new Date().toISOString();
 
-      const profile: UserProfile =
-        {
+      const profile:
+        UserProfile = {
           id:
-            createdUser.uid,
+            courierUser.uid,
+
           name,
+
           email:
-            createdUser.email ||
+            courierUser.email ||
             email,
+
           phone,
+
           role:
             "courier",
+
           courierStatus:
             "Çevrimdışı",
+
           totalDeliveries:
             0,
+
           rating:
             5,
+
           createdAt:
             now,
         };
 
+      /*
+       * Firestore profil oluştur.
+       */
       await setDoc(
         doc(
           db,
           "users",
-          createdUser.uid
+          courierUser.uid
         ),
         {
           ...profile,
           updatedAt:
             now,
-        },
-        {
-          merge: true,
         }
       );
 
-      this.users = [
-        ...this.users.filter(
-          (user) =>
-            user.id !==
-            profile.id
-        ),
-        profile,
-      ];
-
-      this.emit();
+      /*
+       * Secondary auth oturumunu kapat.
+       * Ana admin auth etkilenmez.
+       */
+      await signOut(
+        secondaryAuth
+      );
 
       return profile;
     } catch (error: any) {
-      /*
-       * Firestore profil yazılamazsa
-       * oluşturulan auth hesabını temizle.
-       */
+      console.error(
+        "❌ Kurye oluşturma hatası:",
+        error
+      );
 
-      if (
-        createdUser
-      ) {
-        try {
-          await createdUser.delete();
-        } catch (deleteError) {
-          console.error(
-            "Oluşturulan kullanıcı temizlenemedi:",
-            deleteError
-          );
+      /*
+       * Yarım kalmış kullanıcı varsa
+       * mümkün olduğunca temizlemeye çalış.
+       */
+      try {
+        if (
+          secondaryAuth.currentUser
+        ) {
+          await secondaryAuth.currentUser.delete();
         }
+      } catch {
+        // ignore cleanup error
+      }
+
+      try {
+        await signOut(
+          secondaryAuth
+        );
+      } catch {
+        // ignore cleanup error
       }
 
       if (
@@ -1202,35 +1364,31 @@ class StorageService {
         "auth/weak-password"
       ) {
         throw new Error(
-          "Şifre çok zayıf."
+          "Şifre en az 6 karakter olmalıdır."
         );
       }
 
       throw error;
-    } finally {
-      try {
-        await signOut(
-          secondaryAuth
-        );
-      } catch {
-        // ignore
-      }
     }
   }
 
-  // =========================================================
-  // COURIER STATUS
-  // =========================================================
+  /* ==========================================================
+     COURIER STATUS
+  ========================================================== */
 
   async updateCourierStatus(
     courierId: string,
     status: CourierAvailability
   ):
     Promise<
-      | UserProfile
-      | undefined
+      UserProfile | undefined
     > {
-    await setDoc(
+    const existing =
+      this.getUserById(
+        courierId
+      );
+
+    await updateDoc(
       doc(
         db,
         "users",
@@ -1239,48 +1397,38 @@ class StorageService {
       {
         courierStatus:
           status,
+
         updatedAt:
           new Date().toISOString(),
-      },
-      {
-        merge: true,
       }
     );
 
-    const existing =
-      this.getUserById(
-        courierId
-      );
-
-    if (
-      existing
-    ) {
+    /*
+     * Optimistic local update.
+     * Snapshot geldiğinde tekrar doğrulanır.
+     */
+    if (existing) {
       const updatedUser = {
         ...existing,
         courierStatus:
           status,
       };
 
-      this.users =
-        this.users.map(
-          (user) =>
-            user.id ===
-            courierId
-              ? updatedUser
-              : user
-        );
+      this.updateUserLocal(
+        updatedUser
+      );
 
       this.emit();
 
       return updatedUser;
     }
 
-    return undefined;
+    return existing;
   }
 
-  // =========================================================
-  // ORDERS
-  // =========================================================
+  /* ==========================================================
+     ORDERS
+  ========================================================== */
 
   getOrders(): Order[] {
     return [
@@ -1302,19 +1450,23 @@ class StorageService {
   async createOrder(
     order: Order
   ): Promise<Order> {
+    if (!order.id) {
+      throw new Error(
+        "Sipariş ID gerekli."
+      );
+    }
+
     const now =
       new Date().toISOString();
 
-    const finalOrder: Order =
-      {
+    const finalOrder:
+      Order = {
         ...order,
-        id:
-          String(
-            order.id
-          ),
+
         createdAt:
           order.createdAt ||
           now,
+
         updatedAt:
           now,
       };
@@ -1325,10 +1477,7 @@ class StorageService {
         "orders",
         finalOrder.id
       ),
-      finalOrder,
-      {
-        merge: true,
-      }
+      finalOrder
     );
 
     return finalOrder;
@@ -1338,46 +1487,55 @@ class StorageService {
     id: string,
     data: Partial<Order>
   ): Promise<Order> {
+    if (!id) {
+      throw new Error(
+        "Sipariş ID gerekli."
+      );
+    }
+
     const updatedAt =
       new Date().toISOString();
+
+    await updateDoc(
+      doc(
+        db,
+        "orders",
+        id
+      ),
+      {
+        ...data,
+        updatedAt,
+      }
+    );
 
     const current =
       this.getOrderById(
         id
       );
 
-    const updatedOrder =
-      {
-        ...(current ||
-          {
-            id,
-          }),
+    const updatedOrder:
+      Order = {
+        ...(current || {
+          id,
+        }),
+
         ...data,
+
         id,
+
         updatedAt,
       } as Order;
 
-    await setDoc(
-      doc(
-        db,
-        "orders",
-        id
-      ),
-      updatedOrder,
-      {
-        merge: true,
-      }
-    );
-
-    const existsInMemory =
+    /*
+     * Local optimistic update.
+     */
+    const exists =
       this.orders.some(
         (order) =>
           order.id === id
       );
 
-    if (
-      existsInMemory
-    ) {
+    if (exists) {
       this.orders =
         this.orders.map(
           (order) =>
@@ -1418,11 +1576,18 @@ class StorageService {
         courierId
       );
 
+    if (!courier) {
+      throw new Error(
+        "Kurye bulunamadı."
+      );
+    }
+
     if (
-      !courier
+      courier.role !==
+      "courier"
     ) {
       throw new Error(
-        "Seçilen kurye bulunamadı."
+        "Seçilen kullanıcı kurye değil."
       );
     }
 
@@ -1430,12 +1595,13 @@ class StorageService {
       orderId,
       {
         courierId,
+
         courierName:
-          courier.name ||
-          "",
+          courier.name || "",
+
         courierPhone:
-          courier.phone ||
-          "",
+          courier.phone || "",
+
         status:
           "Kurye Atandı",
       }
@@ -1445,6 +1611,12 @@ class StorageService {
   async deleteOrder(
     orderId: string
   ): Promise<void> {
+    if (!orderId) {
+      throw new Error(
+        "Sipariş ID gerekli."
+      );
+    }
+
     await deleteDoc(
       doc(
         db,
@@ -1456,16 +1628,15 @@ class StorageService {
     this.orders =
       this.orders.filter(
         (order) =>
-          order.id !==
-          orderId
+          order.id !== orderId
       );
 
     this.emit();
   }
 
-  // =========================================================
-  // PRICING
-  // =========================================================
+  /* ==========================================================
+     PRICING
+  ========================================================== */
 
   getPricing():
     PricingConfig {
@@ -1477,14 +1648,13 @@ class StorageService {
   async updatePricing(
     pricing: PricingConfig
   ): Promise<void> {
-    const finalPricing:
-      PricingConfig =
-        {
-          ...DEFAULT_PRICING,
-          ...pricing,
-          updatedAt:
-            new Date().toISOString(),
-        };
+    const finalPricing = {
+      ...DEFAULT_PRICING,
+      ...pricing,
+
+      updatedAt:
+        new Date().toISOString(),
+    };
 
     await setDoc(
       doc(
@@ -1512,62 +1682,67 @@ class StorageService {
     );
   }
 
-  // =========================================================
-  // NOTIFICATIONS
-  // =========================================================
+  /* ==========================================================
+     NOTIFICATIONS
+  ========================================================== */
 
   getNotifications(
     userId: string
-  ): NotificationItem[] {
+  ):
+    NotificationItem[] {
     return [
       ...this.notifications
         .filter(
-          (
-            notification
-          ) =>
+          (notification) =>
             notification.userId ===
             userId
         )
         .sort(
-          (a, b) =>
-            new Date(
-              b.createdAt ||
-                0
-            ).getTime() -
-            new Date(
-              a.createdAt ||
-                0
-            ).getTime()
+          (a, b) => {
+            const dateA =
+              new Date(
+                a.createdAt || 0
+              ).getTime();
+
+            const dateB =
+              new Date(
+                b.createdAt || 0
+              ).getTime();
+
+            return (
+              dateB -
+              dateA
+            );
+          }
         ),
     ];
   }
 
   async createNotification(
-    notification: NotificationItem
+    notification:
+      NotificationItem
   ): Promise<void> {
-    const id =
-      notification.id;
-
-    if (!id) {
+    if (!notification.id) {
       throw new Error(
         "Bildirim ID gerekli."
       );
     }
 
+    const now =
+      new Date().toISOString();
+
     await setDoc(
       doc(
         db,
         "notifications",
-        id
+        notification.id
       ),
       {
         ...notification,
+
         createdAt:
           notification.createdAt ||
-          new Date().toISOString(),
-      },
-      {
-        merge: true,
+          now,
       }
     );
   }
@@ -1575,7 +1750,7 @@ class StorageService {
   async markNotificationAsRead(
     notificationId: string
   ): Promise<void> {
-    await setDoc(
+    await updateDoc(
       doc(
         db,
         "notifications",
@@ -1583,18 +1758,30 @@ class StorageService {
       ),
       {
         read: true,
-        updatedAt:
-          new Date().toISOString(),
-      },
-      {
-        merge: true,
       }
     );
+
+    /*
+     * Local update.
+     */
+    this.notifications =
+      this.notifications.map(
+        (notification) =>
+          notification.id ===
+          notificationId
+            ? {
+                ...notification,
+                read: true,
+              }
+            : notification
+      );
+
+    this.emit();
   }
 
-  // =========================================================
-  // COURIER LOCATION
-  // =========================================================
+  /* ==========================================================
+     COURIER LOCATION
+  ========================================================== */
 
   getCourierLocation(
     courierId: string
@@ -1608,29 +1795,21 @@ class StorageService {
     );
   }
 
-  getCourierLocations():
-    CourierLocation[] {
-    return [
-      ...this.courierLocations,
-    ];
-  }
-
   async updateCourierLocation(
     location: CourierLocation
-  ): Promise<CourierLocation> {
-    if (
-      !location.courierId
-    ) {
+  ):
+    Promise<CourierLocation> {
+    if (!location.courierId) {
       throw new Error(
         "Kurye ID gerekli."
       );
     }
 
-    const finalLocation =
-      {
+    const finalLocation:
+      CourierLocation = {
         ...location,
+
         updatedAt:
-          location.updatedAt ||
           new Date().toISOString(),
       };
 
@@ -1646,6 +1825,9 @@ class StorageService {
       }
     );
 
+    /*
+     * Local update.
+     */
     this.courierLocations = [
       ...this.courierLocations.filter(
         (item) =>
@@ -1660,43 +1842,16 @@ class StorageService {
     return finalLocation;
   }
 
-  // =========================================================
-  // FORCE REFRESH USERS
-  // =========================================================
-
-  async refreshUsers(): Promise<void> {
-    try {
-      const snapshot =
-        await getDocs(
-          collection(
-            db,
-            "users"
-          )
-        );
-
-      this.users =
-        snapshot.docs.map(
-          (item) => ({
-            ...(item.data() as UserProfile),
-            id: item.id,
-          })
-        );
-
-      this.emit();
-    } catch (error) {
-      console.error(
-        "Users manuel yenileme hatası:",
-        error
-      );
-    }
-  }
-
-  // =========================================================
-  // DESTROY
-  // =========================================================
+  /* ==========================================================
+     DESTROY
+  ========================================================== */
 
   destroy(): void {
-    this.cleanupListeners();
+    console.log(
+      "🧹 Storage destroy başlatıldı."
+    );
+
+    this.cleanupFirestoreListeners();
 
     if (
       this.authUnsubscribe
@@ -1706,10 +1861,10 @@ class StorageService {
       } catch {
         // ignore
       }
-    }
 
-    this.authUnsubscribe =
-      null;
+      this.authUnsubscribe =
+        null;
+    }
 
     this.initialized =
       false;
@@ -1717,50 +1872,31 @@ class StorageService {
     this.initializing =
       false;
 
-    this.activeUserId =
-      null;
-
     this.currentUser =
       null;
 
-    this.users = [];
+    this.activeUserId =
+      null;
 
-    this.orders = [];
+    this.activeRole =
+      null;
 
-    this.notifications =
-      [];
-
-    this.courierLocations =
-      [];
-
-    this.pricing =
-      DEFAULT_PRICING;
+    this.resetRealtimeData();
 
     this.emit();
   }
 }
 
-/*
- * ===========================================================
- * GLOBAL STORAGE INSTANCE
- * ===========================================================
- *
- * AdminPanel dahil tüm componentler:
- *
- * import { storage } from "../services/storage";
- *
- * şeklinde güvenli olarak kullanabilir.
- */
+/* ============================================================
+   SINGLETON EXPORT
+============================================================ */
 
 export const storage =
   new StorageService();
 
 /*
- * Storage uygulama açılır açılmaz başlatılır.
- *
- * Hata oluşursa uygulamanın tamamı çökmez.
+ * Uygulama açıldığında Storage sistemini başlat.
  */
-
 void storage
   .init()
   .catch(
