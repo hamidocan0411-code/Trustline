@@ -512,7 +512,9 @@ export const NewOrderModal: React.FC<Props> = ({
 
     try {
       /*
-       * Fiyatı yeniden hesapla.
+       * ========================================================
+       * FİYATI YENİDEN HESAPLA
+       * ========================================================
        */
       const verifiedPrice =
         calculateOrderPrice(
@@ -523,11 +525,40 @@ export const NewOrderModal: React.FC<Props> = ({
         ).finalPrice;
 
       /*
-       * ÖNEMLİ:
-       * createOrder ASYNC olduğu için await kullanıyoruz.
+       * ========================================================
+       * ÖNEMLİ DÜZELTME:
+       *
+       * Firebase'e gönderilen Order nesnesine ID ekliyoruz.
+       *
+       * Önceden order.id olmadığı için storage.ts içindeki:
+       *
+       * doc(db, "orders", order.id)
+       *
+       * çağrısında order.id = undefined oluyordu.
+       *
+       * Bu da:
+       * "undefined is not an object (evaluating 'n.indexOf')"
+       *
+       * hatasına sebep oluyordu.
+       * ========================================================
+       */
+      const generatedOrderId =
+        typeof crypto !== 'undefined' &&
+        typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `order_${Date.now()}_${Math.random()
+              .toString(36)
+              .slice(2, 10)}`;
+
+      /*
+       * ========================================================
+       * SİPARİŞİ FIREBASE'E KAYDET
+       * ========================================================
        */
       const newOrder =
         await storage.createOrder({
+          id: generatedOrderId,
+
           customerId: currentUser.id,
 
           customerName:
@@ -569,7 +600,9 @@ export const NewOrderModal: React.FC<Props> = ({
         });
 
       /*
-       * Sipariş gerçekten oluşturulmuş mu?
+       * ========================================================
+       * SİPARİŞ GERÇEKTEN OLUŞTURULMUŞ MU?
+       * ========================================================
        */
       if (
         !newOrder ||
@@ -581,9 +614,9 @@ export const NewOrderModal: React.FC<Props> = ({
       }
 
       /*
+       * ========================================================
        * BAŞARILI SİPARİŞ
-       *
-       * Önce başarı ekranını açıyoruz.
+       * ========================================================
        */
       setErrorMsg('');
       setSuccessOrder(newOrder);
@@ -591,8 +624,8 @@ export const NewOrderModal: React.FC<Props> = ({
       /*
        * Ana sipariş listesini güncelle.
        *
-       * Callback hata verse bile sipariş zaten Firebase'e
-       * kaydedilmiş olduğundan kullanıcıya hata göstermiyoruz.
+       * Callback hata verse bile Firebase'e kaydedilmiş
+       * siparişin başarısını etkilemez.
        */
       try {
         onOrderCreated(newOrder);
