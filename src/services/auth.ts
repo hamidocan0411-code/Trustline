@@ -23,8 +23,7 @@ serverTimestamp,
 
 import { auth, db } from “./firebase”;
 
-export const ADMIN_EMAIL =
-“hamidocan0411@gmail.com”;
+export const ADMIN_EMAIL = “hamidocan0411@gmail.com”;
 
 export type UserRole =
 | “customer”
@@ -65,6 +64,7 @@ code: string;
 };
 
 error.code = code;
+
 return error;
 }
 
@@ -162,8 +162,7 @@ data.courierStatus === “Çevrimdışı”
 ? data.courierStatus
 : undefined,
 totalDeliveries:
-typeof data.totalDeliveries ===
-“number”
+typeof data.totalDeliveries === “number”
 ? data.totalDeliveries
 : 0,
 rating:
@@ -174,22 +173,18 @@ createdAt,
 };
 }
 
-/**
+export async function ensureUserProfile(
+user: User
+): Promise {
+const userRef = doc(
+db,
+“users”,
+user.uid
+);
 
-* Firebase kullanıcısının Firestore profilini
-* getirir veya ilk girişte oluşturur.
-    */
-    export async function ensureUserProfile(
-    user: User
-    ): Promise {
-    const userRef = doc(
-    db,
-    “users”,
-    user.uid
-    );
-
-const snapshot =
-await getDoc(userRef);
+const snapshot = await getDoc(
+userRef
+);
 
 if (snapshot.exists()) {
 return normalizeProfile(
@@ -199,8 +194,7 @@ user
 );
 }
 
-const role =
-getDefaultRole(
+const role = getDefaultRole(
 user.email ?? “”
 );
 
@@ -209,19 +203,14 @@ id: user.uid,
 name:
 user.displayName?.trim() ||
 “Trustline Kullanıcısı”,
-email:
-user.email ?? “”,
-phone:
-user.phoneNumber ?? “”,
+email: user.email ?? “”,
+phone: user.phoneNumber ?? “”,
 role,
-avatar:
-user.photoURL ?? “”,
+avatar: user.photoURL ?? “”,
 totalDeliveries: 0,
 rating: 5,
-createdAt:
-new Date().toISOString(),
-createdAtServer:
-serverTimestamp(),
+createdAt: new Date().toISOString(),
+createdAtServer: serverTimestamp(),
 };
 
 await setDoc(
@@ -236,24 +225,17 @@ user
 );
 }
 
-/**
-
-* Email + şifre ile kayıt.
-    */
-    export async function registerUser({
-    name,
-    email,
-    password,
-    phone = “”,
-    }: RegisterData): Promise {
-    const cleanName =
-    name.trim();
-
-const cleanEmail =
-email.trim().toLowerCase();
-
-const cleanPhone =
-phone.trim();
+export async function registerUser({
+name,
+email,
+password,
+phone = “”,
+}: RegisterData): Promise {
+const cleanName = name.trim();
+const cleanEmail = email
+.trim()
+.toLowerCase();
+const cleanPhone = phone.trim();
 
 if (!cleanName) {
 throw new Error(
@@ -280,22 +262,19 @@ cleanEmail,
 password
 );
 
-const user =
-credential.user;
+const user = credential.user;
 
 try {
 await updateProfile(
 user,
 {
-displayName:
-cleanName,
+displayName: cleanName,
 }
 );
 
-const role =
-  getDefaultRole(
-    cleanEmail
-  );
+const role = getDefaultRole(
+  cleanEmail
+);
 const profileData = {
   id: user.uid,
   name: cleanName,
@@ -305,10 +284,8 @@ const profileData = {
   avatar: "",
   totalDeliveries: 0,
   rating: 5,
-  createdAt:
-    new Date().toISOString(),
-  createdAtServer:
-    serverTimestamp(),
+  createdAt: new Date().toISOString(),
+  createdAtServer: serverTimestamp(),
 };
 await setDoc(
   doc(
@@ -343,16 +320,13 @@ throw error;
 }
 }
 
-/**
-
-* Email + şifre ile giriş.
-    */
-    export async function loginUser(
-    email: string,
-    password: string
-    ): Promise {
-    const cleanEmail =
-    email.trim().toLowerCase();
+export async function loginUser(
+email: string,
+password: string
+): Promise {
+const cleanEmail = email
+.trim()
+.toLowerCase();
 
 if (!cleanEmail) {
 throw new Error(
@@ -373,8 +347,7 @@ cleanEmail,
 password
 );
 
-const user =
-credential.user;
+const user = credential.user;
 
 if (!user.emailVerified) {
 await signOut(auth).catch(
@@ -393,40 +366,26 @@ user
 );
 }
 
-/**
-
-* Google provider.
-    */
-    function createGoogleProvider(): GoogleAuthProvider {
-    const provider =
-    new GoogleAuthProvider();
+function createGoogleProvider(): GoogleAuthProvider {
+const provider =
+new GoogleAuthProvider();
 
 provider.setCustomParameters({
 prompt: “select_account”,
 });
 
-provider.addScope(
-“profile”
-);
-
-provider.addScope(
-“email”
-);
+provider.addScope(“profile”);
+provider.addScope(“email”);
 
 return provider;
 }
 
-/**
-
-* Mobil cihaz kontrolü.
-    */
-    function isMobileDevice(): boolean {
-    if (
-    typeof window ===
-    “undefined”
-    ) {
-    return false;
-    }
+function isMobileDevice(): boolean {
+if (
+typeof window === “undefined”
+) {
+return false;
+}
 
 const userAgent =
 navigator.userAgent ||
@@ -444,8 +403,7 @@ userAgent
 const isIPadOS =
 navigator.platform ===
 “MacIntel” &&
-navigator.maxTouchPoints >
-1;
+navigator.maxTouchPoints > 1;
 
 return (
 isMobileUserAgent ||
@@ -453,32 +411,14 @@ isIPadOS
 );
 }
 
-/**
+export async function loginWithGoogle(): Promise {
+const provider =
+createGoogleProvider();
 
-* Google ile giriş.
-* ÖNEMLİ:
-* Firebase Auth oturumunu önce
-* local persistence ile sabitliyoruz.
-* Mobil:
-* redirect
-* Masaüstü:
-* popup
-* Popup desteklenmezse:
-* redirect
-    */
-    export async function loginWithGoogle(): Promise {
-    const provider =
-    createGoogleProvider();
-
-/*
-
-* Google dönüşünden sonra oturumun
-* sayfa yenilense bile korunmasını sağla.
-    */
-    await setPersistence(
-    auth,
-    browserLocalPersistence
-    );
+await setPersistence(
+auth,
+browserLocalPersistence
+);
 
 if (isMobileDevice()) {
 await signInWithRedirect(
@@ -500,7 +440,7 @@ auth,
 provider
 );
 
-return await ensureUserProfile(
+return ensureUserProfile(
   credential.user
 );
 
@@ -534,78 +474,51 @@ throw error;
 }
 }
 
-/**
+export async function handleGoogleRedirectResult(): Promise<AuthUserProfile | null> {
+try {
+if (auth.currentUser) {
+return ensureUserProfile(
+auth.currentUser
+);
+}
 
-* Google redirect sonucunu işler.
-* Bu fonksiyon uygulama açılır açılmaz
-* sadece redirect dönüşünü kontrol eder.
-    /
-    export async function handleGoogleRedirectResult(): Promise<AuthUserProfile | null> {
-    try {
-    /
-    * Eğer Firebase zaten kullanıcıyı
-    * restore ettiyse doğrudan kullan.
-        */
-        if (auth.currentUser) {
-        return await ensureUserProfile(
-        auth.currentUser
-        );
-        }
-    const result =
-    await getRedirectResult(
+const result =
+  await getRedirectResult(
     auth
-    );
-    if (result?.user) {
-    return await ensureUserProfile(
+  );
+if (result?.user) {
+  return ensureUserProfile(
     result.user
+  );
+}
+return null;
+
+} catch (error) {
+console.error(
+“Google redirect sonucu alınamadı:”,
+error
+);
+
+if (auth.currentUser) {
+  try {
+    return ensureUserProfile(
+      auth.currentUser
     );
-    }
-    /*
-    * Redirect sonucu yoksa burada
-    * uzun süre beklemiyoruz.
-    * Auth listener asıl kullanıcı
-    * senkronizasyonunu yapacak.
-        */
-        return null;
-        } catch (error) {
-        console.error(
-        “Google redirect sonucu alınamadı:”,
-        error
-        );
-    /*
-    * Firebase kullanıcıyı oluşturmuşsa
-    * redirect sonucundaki hataya rağmen
-    * kullanıcıyı kaybetme.
-        */
-        if (auth.currentUser) {
-        try {
-        return await ensureUserProfile(
-        auth.currentUser
-        );
-        } catch {
-        // Orijinal hata aşağıdan fırlatılır.
-        }
-        }
-    throw error;
-    }
-    }
+  } catch {
+    // Firebase kullanıcısı henüz hazır değil.
+  }
+}
+throw error;
 
-/**
+}
+}
 
-* Çıkış.
-    */
-    export async function logoutUser(): Promise {
-    await signOut(auth);
-    }
+export async function logoutUser(): Promise {
+await signOut(auth);
+}
 
-/**
-
-* Mevcut Firebase kullanıcısının
-* Firestore profilini getirir.
-    */
-    export async function getCurrentUserProfile(): Promise<AuthUserProfile | null> {
-    const user =
-    auth.currentUser;
+export async function getCurrentUserProfile(): Promise<AuthUserProfile | null> {
+const user = auth.currentUser;
 
 if (!user) {
 return null;
@@ -614,8 +527,7 @@ return null;
 if (
 user.providerData.some(
 (provider) =>
-provider.providerId ===
-“password”
+provider.providerId === “password”
 ) &&
 !user.emailVerified
 ) {
@@ -628,7 +540,7 @@ return null;
 }
 
 try {
-return await ensureUserProfile(
+return ensureUserProfile(
 user
 );
 } catch (error) {
@@ -642,142 +554,96 @@ return null;
 }
 }
 
-/**
+export function subscribeToAuth(
+callback: (
+user: User | null,
+profile: AuthUserProfile | null
+) => void
+): () => void {
+return onAuthStateChanged(
+auth,
+async (user) => {
+if (!user) {
+callback(
+null,
+null
+);
+return;
+}
 
-* Kullanıcı auth durumunu dinler.
-* Google kullanıcısı için email doğrulaması
-* aranmaz.
-    */
-    export function subscribeToAuth(
-    callback: (
-    user: User | null,
-    profile: AuthUserProfile | null
-    ) => void
-    ): () => void {
-    return onAuthStateChanged(
-    auth,
-    async (user) => {
-    if (!user) {
-    callback(
-    null,
-    null
-    );
-    return;
-    }
-    /*
-    * Email + şifre kullanıcıları için
-    * doğrulama zorunlu.
-    *
-    * Google kullanıcıları buraya
-    * takılmaz.
-    */
-    if (
+  if (
     user.providerData.some(
-    (provider) =>
-    provider.providerId ===
-    “password”
+      (provider) =>
+        provider.providerId ===
+        "password"
     ) &&
     !user.emailVerified
-    ) {
+  ) {
     await signOut(
-    auth
+      auth
     ).catch(
-    () => undefined
+      () => undefined
     );
-
- callback(
-   null,
-   null
- );
- return;
-
-    }
-    try {
-    /*
-    * Kullanıcı auth state’e girdikten sonra
-    * Firestore profilini al.
-    */
+    callback(
+      null,
+      null
+    );
+    return;
+  }
+  try {
     const profile =
-    await ensureUserProfile(
-    user
+      await ensureUserProfile(
+        user
+      );
+    callback(
+      user,
+      profile
     );
-
- callback(
-   user,
-   profile
- );
-
-    } catch (error) {
+  } catch (error) {
     console.error(
-    “Kullanıcı profili alınamadı:”,
-    error
+      "Kullanıcı profili alınamadı:",
+      error
     );
-
- /*
-  * Google Auth başarılıysa kullanıcıyı
-  * login ekranına düşürmemek için
-  * user'ı koruyoruz.
-  */
- callback(
-   user,
-   null
- );
-
-    }
-    }
+    callback(
+      user,
+      null
     );
-    }
+  }
+}
 
-/**
+);
+}
 
-* Admin kontrolü.
-    */
-    export function isAdminUser(
-    profile: AuthUserProfile | null
-    ): boolean {
-    if (!profile) {
-    return false;
-    }
+export function isAdminUser(
+profile: AuthUserProfile | null
+): boolean {
+if (!profile) {
+return false;
+}
 
 return (
-profile.role ===
-“admin” ||
+profile.role === “admin” ||
 profile.email.toLowerCase() ===
 ADMIN_EMAIL.toLowerCase()
 );
 }
 
-/**
+export function isCourierUser(
+profile: AuthUserProfile | null
+): boolean {
+return (
+profile?.role === “courier”
+);
+}
 
-* Kurye kontrolü.
-    */
-    export function isCourierUser(
-    profile: AuthUserProfile | null
-    ): boolean {
-    return (
-    profile?.role ===
-    “courier”
-    );
-    }
+export function isCustomerUser(
+profile: AuthUserProfile | null
+): boolean {
+return (
+profile?.role === “customer”
+);
+}
 
-/**
-
-* Müşteri kontrolü.
-    */
-    export function isCustomerUser(
-    profile: AuthUserProfile | null
-    ): boolean {
-    return (
-    profile?.role ===
-    “customer”
-    );
-    }
-
-/**
-
-* Firebase Auth kullanıcısını
-* doğrudan döndürür.
-    */
-    export function getFirebaseUser(): User | null {
-    return auth.currentUser;
-    }
+export function getFirebaseUser(): User | null {
+return auth.currentUser;
+}
