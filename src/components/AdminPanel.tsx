@@ -14,6 +14,8 @@ import {
   ShieldCheck,
   Truck,
   Users,
+  UserPlus,
+  UserMinus,
   X,
   Zap,
 } from "lucide-react";
@@ -29,6 +31,21 @@ import type {
 import { storage } from "../services/storage";
 import { DeliveryProofCard } from "./DeliveryProofCard";
 
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
+
+import {
+  auth,
+  db,
+} from "../services/firebase";
+
 interface Props {
   orders: Order[];
   pricing: PricingConfig;
@@ -41,7 +58,11 @@ type AdminTab =
   | "couriers"
   | "customers"
   | "pricing"
+  | "admins"
   | "settings";
+
+const PRIMARY_ADMIN_EMAIL =
+  "hamidocan0411@gmail.com";
 
 const ORDER_STATUSES: OrderStatus[] = [
   "Kurye Bekleniyor",
@@ -124,6 +145,24 @@ export const AdminPanel: React.FC<Props> = ({
   const [vipMultiplier, setVipMultiplier] =
     useState(pricing?.vipMultiplier ?? 1.6);
 
+  /*
+   * YÖNETİCİ YÖNETİMİ
+   */
+  const [admins, setAdmins] =
+    useState<UserProfile[]>([]);
+
+  const [adminEmail, setAdminEmail] =
+    useState("");
+
+  const [adminSearchResult, setAdminSearchResult] =
+    useState<UserProfile | null>(null);
+
+  const [adminSearching, setAdminSearching] =
+    useState(false);
+
+  const [adminSaving, setAdminSaving] =
+    useState(false);
+
   const safeOrders =
     Array.isArray(orders)
       ? orders
@@ -177,6 +216,55 @@ export const AdminPanel: React.FC<Props> = ({
     }
   };
 
+  /*
+   * FIRESTORE'DAN YÖNETİCİLERİ GETİR
+   *
+   * admins koleksiyonundaki UID'ler ile
+   * users koleksiyonundaki profilleri eşleştiriyoruz.
+   */
+  const loadAdmins = async () => {
+    try {
+      const adminsSnapshot =
+        await getDocs(
+          collection(db, "admins")
+        );
+
+      if (adminsSnapshot.empty) {
+        setAdmins([]);
+        return;
+      }
+
+      const adminIds =
+        adminsSnapshot.docs.map(
+          (item) => item.id
+        );
+
+      const usersSnapshot =
+        await getDocs(
+          collection(db, "users")
+        );
+
+      const users =
+        usersSnapshot.docs
+          .map(
+            (item) =>
+              item.data() as UserProfile
+          )
+          .filter((user) =>
+            adminIds.includes(user.id)
+          );
+
+      setAdmins(users);
+    } catch (error) {
+      console.error(
+        "Yöneticiler alınamadı:",
+        error
+      );
+
+      setAdmins([]);
+    }
+  };
+
   useEffect(() => {
     loadUsers();
 
@@ -200,6 +288,262 @@ export const AdminPanel: React.FC<Props> = ({
       unsubscribe?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "admins") {
+      void loadAdmins();
+    }
+  }, [activeTab]);
+
+  /*
+   * E-POSTA İLE KULLANICI ARA
+   */
+  const searchAdminUser =
+    async () => {
+      const email =
+        adminEmail
+          .trim()
+          .toLowerCase();
+
+      if (!email) {
+        alert(
+          "Yönetici yapmak istediğiniz kişinin e-posta adresini girin."
+        );
+        return;
+      }
+
+      setAdminSearching(true);
+      setAdminSearchResult(null);
+
+      try {
+        const usersQuery =
+          query(
+            collection(
+              db,
+              "users"
+            ),
+            where(
+              "email",
+              "==",
+              email
+            )
+          );
+
+        const snapshot =
+          await getDocs(
+            usersQuery
+          );
+
+        if (snapshot.empty) {
+          alert(
+            "Bu e-posta adresiyle kayıtlı kullanıcı bulunamadı. Önce kullanıcının Trustline Express'e kayıt olması gerekiyor."
+          );
+          return;
+        }
+
+        const user =
+          snapshot.docs[0]
+            .data() as UserProfile;
+
+        setAdminSearchResult(
+          user
+        );
+      } catch (error: any) {
+        console.error(
+          "Yönetici kullanıcı arama hatası:",
+          error
+        );
+
+        alert(
+          error?.message ||
+            "Kullanıcı aranamadı. Firestore yetkilerini kontrol edin."
+        );
+      } finally {
+        setAdminSearching(false);
+      }
+    };
+
+  /*
+   * KULLANICIYI YÖNETİCİ YAP
+   *
+   * admins/{UID} oluşturulur.
+   *
+   * Ayrıca users/{UID}.role = admin yapılır.
+   */
+  const makeAdmin =
+    async (
+      user: UserProfile
+    ) => {
+      if (!user.id) {
+        alert(
+          "Kullanıcının Firebase UID bilgisi bulunamadı."
+        );
+        return;
+      }
+
+      if (
+        user.email?.toLowerCase() ===
+        PRIMARY_ADMIN_EMAIL
+      ) {
+        alert(
+          "Bu kullanıcı zaten ana yöneticidir."
+        );
+        return;
+      }
+
+      if (
+        user.role === "admin"
+      ) {
+        /*
+         * users profili admin ama admins dokümanı
+         * eksik olabilir. Yine de dokümanı garantiye alıyoruz.
+         */
+      }
+
+      setAdminSaving(true);
+
+      try {
+        await setDoc(
+          doc(
+            db,
+            "admins",
+            user.id
+          ),
+          {
+            uid: user.id,
+            email: user.email || "",
+            name: user.name || "",
+            role: "admin",
+            createdAt:
+              new Date().toISOString(),
+            createdBy:
+              auth.currentUser?.uid ||
+              null,
+          },
+          {
+            merge: true,
+          }
+        );
+
+        await setDoc(
+          doc(
+            db,
+            "users",
+            user.id
+          ),
+          {
+            role: "admin",
+          },
+          {
+            merge: true,
+          }
+        );
+
+        alert(
+          `${user.name || user.email} artık yönetici.`
+        );
+
+        setAdminSearchResult(
+          null
+        );
+
+        setAdminEmail("");
+
+        await loadAdmins();
+
+        loadUsers();
+      } catch (error: any) {
+        console.error(
+          "Yönetici oluşturma hatası:",
+          error
+        );
+
+        alert(
+          error?.message ||
+            "Yönetici yapılamadı. Firestore yetkilerini kontrol edin."
+        );
+      } finally {
+        setAdminSaving(false);
+      }
+    };
+
+  /*
+   * YÖNETİCİ YETKİSİNİ KALDIR
+   */
+  const removeAdmin =
+    async (
+      user: UserProfile
+    ) => {
+      const email =
+        (
+          user.email || ""
+        ).toLowerCase();
+
+      if (
+        email ===
+        PRIMARY_ADMIN_EMAIL
+      ) {
+        alert(
+          "Ana yöneticinin yetkisi kaldırılamaz."
+        );
+        return;
+      }
+
+      const confirmed =
+        window.confirm(
+          `${user.name || user.email} adlı kullanıcının yönetici yetkisi kaldırılsın mı?`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      setAdminSaving(true);
+
+      try {
+        await deleteDoc(
+          doc(
+            db,
+            "admins",
+            user.id
+          )
+        );
+
+        await setDoc(
+          doc(
+            db,
+            "users",
+            user.id
+          ),
+          {
+            role: "customer",
+          },
+          {
+            merge: true,
+          }
+        );
+
+        alert(
+          "Yönetici yetkisi kaldırıldı."
+        );
+
+        await loadAdmins();
+
+        loadUsers();
+      } catch (error: any) {
+        console.error(
+          "Yönetici kaldırma hatası:",
+          error
+        );
+
+        alert(
+          error?.message ||
+            "Yönetici yetkisi kaldırılamadı."
+        );
+      } finally {
+        setAdminSaving(false);
+      }
+    };
 
   const totalOrders =
     safeOrders.length;
@@ -353,6 +697,10 @@ export const AdminPanel: React.FC<Props> = ({
   const refresh = () => {
     loadUsers();
 
+    if (activeTab === "admins") {
+      void loadAdmins();
+    }
+
     try {
       onRefreshData?.();
     } catch (error) {
@@ -392,109 +740,85 @@ export const AdminPanel: React.FC<Props> = ({
     );
   };
 
-  /*
-   * GERÇEK KURYE HESABI OLUŞTURMA
-   *
-   * ÖNEMLİ:
-   * storage.createCourier() doğrudan çağrılıyor.
-   *
-   * Böylece class içindeki "this" bağlantısı
-   * kaybolmuyor ve:
-   *
-   * undefined is not an object
-   * evaluating 'this.users'
-   *
-   * hatası oluşmuyor.
-   */
-  const handleAddCourier = async (
-    event: React.FormEvent
-  ) => {
-    event.preventDefault();
+  const handleAddCourier =
+    async (
+      event: React.FormEvent
+    ) => {
+      event.preventDefault();
 
-    const name =
-      courierName.trim();
+      const name =
+        courierName.trim();
 
-    const email =
-      courierEmail.trim();
+      const email =
+        courierEmail.trim();
 
-    const phone =
-      courierPhone.trim();
+      const phone =
+        courierPhone.trim();
 
-    const password =
-      courierPassword;
+      const password =
+        courierPassword;
 
-    if (!name) {
-      alert(
-        "Kurye adı girin."
-      );
-      return;
-    }
+      if (!name) {
+        alert(
+          "Kurye adı girin."
+        );
+        return;
+      }
 
-    if (!email) {
-      alert(
-        "Kurye e-postası girin."
-      );
-      return;
-    }
+      if (!email) {
+        alert(
+          "Kurye e-postası girin."
+        );
+        return;
+      }
 
-    if (
-      !password ||
-      password.length < 6
-    ) {
-      alert(
-        "Şifre en az 6 karakter olmalıdır."
-      );
-      return;
-    }
+      if (
+        !password ||
+        password.length < 6
+      ) {
+        alert(
+          "Şifre en az 6 karakter olmalıdır."
+        );
+        return;
+      }
 
-    setAddingCourier(true);
+      setAddingCourier(true);
 
-    try {
-      /*
-       * BURASI ÖNEMLİ:
-       *
-       * HATALI:
-       * const createCourier =
-       *   storage.createCourier;
-       *
-       * await createCourier(...);
-       *
-       * DOĞRU:
-       */
-      await storage.createCourier({
-        name,
-        email,
-        phone,
-        password,
-      });
+      try {
+        await storage.createCourier({
+          name,
+          email,
+          phone,
+          password,
+        });
 
-      setCourierName("");
-      setCourierEmail("");
-      setCourierPhone("");
-      setCourierPassword("");
+        setCourierName("");
+        setCourierEmail("");
+        setCourierPhone("");
+        setCourierPassword("");
 
-      setShowAddCourier(false);
+        setShowAddCourier(false);
 
-      refresh();
+        refresh();
 
-      alert(
-        "Kurye hesabı başarıyla oluşturuldu."
-      );
-    } catch (error: any) {
-      console.error(
-        "Kurye oluşturma hatası:",
-        error
-      );
+        alert(
+          "Kurye hesabı başarıyla oluşturuldu."
+        );
+      } catch (error: any) {
+        console.error(
+          "Kurye oluşturma hatası:",
+          error
+        );
 
-      const message =
-        error?.message ||
-        "Kurye oluşturulamadı.";
+        const message =
+          error?.message ||
+          "Kurye oluşturulamadı.";
 
-      alert(message);
-    } finally {
-      setAddingCourier(false);
-    }
-  };
+        alert(message);
+      } finally {
+        setAddingCourier(false);
+      }
+    };
 
   const changeCourierStatus =
     async (
@@ -545,9 +869,6 @@ export const AdminPanel: React.FC<Props> = ({
         let updatedOrder =
           originalOrder;
 
-        /*
-         * Kurye değiştirildiyse ata.
-         */
         if (
           selectedCourier &&
           selectedCourier !==
@@ -561,13 +882,6 @@ export const AdminPanel: React.FC<Props> = ({
             );
         }
 
-        /*
-         * assignCourier sipariş durumunu
-         * "Kurye Atandı" yapabilir.
-         *
-         * Bu nedenle eski selectedStatus'ı
-         * tekrar yazıp değişikliği bozmuyoruz.
-         */
         if (
           selectedStatus &&
           selectedStatus !==
@@ -680,10 +994,6 @@ export const AdminPanel: React.FC<Props> = ({
       };
 
       try {
-        /*
-         * storage.ts içinde updatePricing
-         * varsa doğrudan kullanıyoruz.
-         */
         await storage.updatePricing(
           nextPricing
         );
@@ -735,6 +1045,11 @@ export const AdminPanel: React.FC<Props> = ({
       id: "pricing",
       label: "Fiyatlandırma",
       icon: DollarSign,
+    },
+    {
+      id: "admins",
+      label: "Yöneticiler",
+      icon: ShieldCheck,
     },
     {
       id: "settings",
@@ -1385,6 +1700,320 @@ export const AdminPanel: React.FC<Props> = ({
               >
                 Fiyatları Firebase'e Kaydet
               </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab ===
+          "admins" && (
+          <div className="mx-auto max-w-4xl space-y-6">
+            <div>
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-[#D6A84F]/10 p-3">
+                  <ShieldCheck
+                    size={22}
+                    className="text-[#D6A84F]"
+                  />
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-bold">
+                    Yöneticiler
+                  </h2>
+
+                  <p className="text-sm text-[#999999]">
+                    Yönetici hesaplarını buradan
+                    ekleyebilir veya kaldırabilirsiniz.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-4">
+              <div className="flex items-start gap-3">
+                <ShieldCheck
+                  size={20}
+                  className="mt-0.5 shrink-0 text-[#D6A84F]"
+                />
+
+                <div>
+                  <p className="font-semibold text-[#D6A84F]">
+                    Ana Yönetici
+                  </p>
+
+                  <p className="mt-1 text-sm text-[#CCCCCC]">
+                    {PRIMARY_ADMIN_EMAIL}
+                  </p>
+
+                  <p className="mt-1 text-xs text-[#888888]">
+                    Ana yöneticinin yetkisi bu panelden
+                    kaldırılamaz.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#303036] bg-[#19191E] p-5">
+              <h3 className="font-semibold">
+                Yeni Yönetici Ekle
+              </h3>
+
+              <p className="mt-1 text-sm text-[#777777]">
+                Kullanıcının Trustline Express hesabında
+                kayıtlı olan e-posta adresini girin.
+              </p>
+
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <input
+                  type="email"
+                  value={
+                    adminEmail
+                  }
+                  onChange={(
+                    event
+                  ) => {
+                    setAdminEmail(
+                      event.target.value
+                    );
+                    setAdminSearchResult(
+                      null
+                    );
+                  }}
+                  onKeyDown={(
+                    event
+                  ) => {
+                    if (
+                      event.key ===
+                      "Enter"
+                    ) {
+                      void searchAdminUser();
+                    }
+                  }}
+                  placeholder="ornek@gmail.com"
+                  className="flex-1 rounded-xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 text-sm outline-none focus:border-[#D6A84F]"
+                />
+
+                <button
+                  type="button"
+                  onClick={
+                    searchAdminUser
+                  }
+                  disabled={
+                    adminSearching
+                  }
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#D6A84F] px-5 py-3 font-bold text-[#0B0B0D] transition hover:bg-[#c49740] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Search size={17} />
+
+                  {adminSearching
+                    ? "Aranıyor..."
+                    : "Kullanıcıyı Bul"}
+                </button>
+              </div>
+
+              {adminSearchResult && (
+                <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-full bg-emerald-500/10 p-3">
+                        <Users
+                          size={20}
+                          className="text-emerald-400"
+                        />
+                      </div>
+
+                      <div>
+                        <p className="font-semibold">
+                          {
+                            adminSearchResult.name ||
+                            "İsimsiz kullanıcı"
+                          }
+                        </p>
+
+                        <p className="text-sm text-[#999999]">
+                          {
+                            adminSearchResult.email
+                          }
+                        </p>
+
+                        <p className="mt-1 text-xs text-[#666666]">
+                          UID:{" "}
+                          {
+                            adminSearchResult.id
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void makeAdmin(
+                          adminSearchResult
+                        )
+                      }
+                      disabled={
+                        adminSaving
+                      }
+                      className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 font-bold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <UserPlus
+                        size={17}
+                      />
+
+                      {adminSaving
+                        ? "Kaydediliyor..."
+                        : "Yönetici Yap"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold">
+                    Mevcut Yöneticiler
+                  </h3>
+
+                  <p className="text-xs text-[#777777]">
+                    {
+                      admins.length
+                    }{" "}
+                    yönetici hesabı
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void loadAdmins()
+                  }
+                  className="rounded-xl border border-[#303036] bg-[#19191E] p-2 text-[#999999] hover:text-white"
+                  title="Yöneticileri yenile"
+                >
+                  <RefreshCw
+                    size={16}
+                  />
+                </button>
+              </div>
+
+              <div className="grid gap-3">
+                <div className="rounded-2xl border border-[#D6A84F]/20 bg-[#19191E] p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-full bg-[#D6A84F]/10 p-3">
+                        <ShieldCheck
+                          size={20}
+                          className="text-[#D6A84F]"
+                        />
+                      </div>
+
+                      <div>
+                        <p className="font-semibold">
+                          Ana Yönetici
+                        </p>
+
+                        <p className="text-sm text-[#999999]">
+                          {
+                            PRIMARY_ADMIN_EMAIL
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="rounded-full border border-[#D6A84F]/20 bg-[#D6A84F]/10 px-3 py-1 text-xs font-bold text-[#D6A84F]">
+                      ANA YÖNETİCİ
+                    </span>
+                  </div>
+                </div>
+
+                {admins
+                  .filter(
+                    (admin) =>
+                      admin.email?.toLowerCase() !==
+                      PRIMARY_ADMIN_EMAIL
+                  )
+                  .map(
+                    (admin) => (
+                      <div
+                        key={
+                          admin.id
+                        }
+                        className="rounded-2xl border border-[#303036] bg-[#19191E] p-5"
+                      >
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="rounded-full bg-blue-500/10 p-3">
+                              <ShieldCheck
+                                size={20}
+                                className="text-blue-400"
+                              />
+                            </div>
+
+                            <div>
+                              <p className="font-semibold">
+                                {
+                                  admin.name ||
+                                  "Yönetici"
+                                }
+                              </p>
+
+                              <p className="text-sm text-[#999999]">
+                                {
+                                  admin.email
+                                }
+                              </p>
+
+                              <p className="mt-1 text-xs text-[#666666]">
+                                UID:{" "}
+                                {
+                                  admin.id
+                                }
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void removeAdmin(
+                                admin
+                              )
+                            }
+                            disabled={
+                              adminSaving
+                            }
+                            className="flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 font-semibold text-red-400 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <UserMinus
+                              size={17}
+                            />
+                            Yetkiyi Kaldır
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                {admins.filter(
+                  (admin) =>
+                    admin.email?.toLowerCase() !==
+                    PRIMARY_ADMIN_EMAIL
+                ).length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-[#303036] bg-[#19191E] p-8 text-center">
+                    <ShieldCheck
+                      size={30}
+                      className="mx-auto text-[#444444]"
+                    />
+
+                    <p className="mt-3 text-sm text-[#777777]">
+                      Henüz başka yönetici eklenmedi.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
