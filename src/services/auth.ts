@@ -12,14 +12,14 @@ signInWithRedirect,
 signOut,
 updateProfile,
 type User,
-} from “firebase/auth”;
+} from "firebase/auth";
 
 import {
 doc,
 getDoc,
 setDoc,
 serverTimestamp,
-} from “firebase/firestore”;
+} from "firebase/firestore";
 
 import { auth, db } from “./firebase”;
 
