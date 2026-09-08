@@ -1,6 +1,9 @@
 import React from 'react';
 import type { UserProfile } from '../types';
 
+const TRUSTLINE_LOGO =
+  'https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png';
+
 interface NavbarProps {
   currentUser: UserProfile;
   onSwitchUser?: () => void;
@@ -33,12 +36,16 @@ export function Navbar({
     >
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
 
-        {/* LOGO */}
+        {/* TRUSTLINE LOGO */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-[#D6A84F] flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(214,168,79,0.15)]">
-            <span className="text-[#0B0B0D] font-black text-xl">
-              T
-            </span>
+          <div className="w-11 h-11 rounded-xl bg-[#19191E] border border-[#303036] flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_20px_rgba(214,168,79,0.15)]">
+            <img
+              src={TRUSTLINE_LOGO}
+              alt="Trustline Express"
+              className="w-full h-full object-contain p-1.5"
+              loading="eager"
+              draggable={false}
+            />
           </div>
 
           <div className="min-w-0">
@@ -54,7 +61,6 @@ export function Navbar({
 
         {/* USER INFO */}
         <div className="flex items-center gap-2 ml-auto">
-
           <div className="hidden sm:block text-right">
             <div className="text-white text-xs font-semibold truncate max-w-[150px]">
               {currentUser.name}
