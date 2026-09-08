@@ -13,10 +13,13 @@ import {
 import {
   createUserWithEmailAndPassword,
   getAuth,
-  getApps,
-  initializeApp,
   signOut,
 } from "firebase/auth";
+
+import {
+  getApps,
+  initializeApp,
+} from "firebase/app";
 
 import { db, auth } from "./firebase";
 
@@ -48,15 +51,8 @@ class StorageService {
 
   private subscribers = new Set<Subscriber>();
   private unsubscribers: (() => void)[] = [];
-
   private initialized = false;
   private initializing = false;
-
-  /*
-   * =========================================================
-   * INIT
-   * =========================================================
-   */
 
   async init(): Promise<void> {
     if (this.initializing) {
@@ -70,10 +66,8 @@ class StorageService {
 
       if (!firebaseUser) {
         this.cleanupListeners();
-
         this.initialized = true;
         this.initializing = false;
-
         return;
       }
 
@@ -125,23 +119,16 @@ class StorageService {
       return auth.currentUser;
     }
 
-    return new Promise<ReturnType<typeof getAuth>["currentUser"]>(
-      (resolve) => {
-        const unsubscribe = auth.onAuthStateChanged(
-          (user) => {
-            unsubscribe();
-            resolve(user);
-          }
-        );
-      }
-    );
+    return new Promise<
+      ReturnType<typeof getAuth>["currentUser"]
+    >((resolve) => {
+      const unsubscribe =
+        auth.onAuthStateChanged((user) => {
+          unsubscribe();
+          resolve(user);
+        });
+    });
   }
-
-  /*
-   * =========================================================
-   * LIVE LISTENERS
-   * =========================================================
-   */
 
   private startListeners(
     profile: UserProfile
@@ -159,18 +146,6 @@ class StorageService {
         role,
       }
     );
-
-    /*
-     * =======================================================
-     * USERS
-     * =======================================================
-     *
-     * ADMIN:
-     * Bütün users koleksiyonunu canlı dinler.
-     *
-     * CUSTOMER / COURIER:
-     * Sadece kendi profilini dinler.
-     */
 
     if (role === "admin") {
       const unsubscribeUsers = onSnapshot(
@@ -247,12 +222,6 @@ class StorageService {
       );
     }
 
-    /*
-     * =======================================================
-     * ORDERS
-     * =======================================================
-     */
-
     let ordersQuery;
 
     if (role === "admin") {
@@ -282,12 +251,13 @@ class StorageService {
     const unsubscribeOrders = onSnapshot(
       ordersQuery,
       (snapshot) => {
-        this.orders = snapshot.docs.map(
-          (item) => ({
-            ...(item.data() as Order),
-            id: item.id,
-          })
-        );
+        this.orders =
+          snapshot.docs.map(
+            (item) => ({
+              ...(item.data() as Order),
+              id: item.id,
+            })
+          );
 
         this.emit();
       },
@@ -302,12 +272,6 @@ class StorageService {
     this.unsubscribers.push(
       unsubscribeOrders
     );
-
-    /*
-     * =======================================================
-     * NOTIFICATIONS
-     * =======================================================
-     */
 
     const notificationsQuery = query(
       collection(db, "notifications"),
@@ -344,12 +308,6 @@ class StorageService {
       unsubscribeNotifications
     );
 
-    /*
-     * =======================================================
-     * PRICING
-     * =======================================================
-     */
-
     const unsubscribePricing = onSnapshot(
       doc(
         db,
@@ -377,12 +335,6 @@ class StorageService {
     this.unsubscribers.push(
       unsubscribePricing
     );
-
-    /*
-     * =======================================================
-     * COURIER LOCATIONS
-     * =======================================================
-     */
 
     if (role === "admin") {
       const unsubscribeLocations =
@@ -463,12 +415,6 @@ class StorageService {
     }
   }
 
-  /*
-   * =========================================================
-   * CLEANUP
-   * =========================================================
-   */
-
   private cleanupListeners() {
     this.unsubscribers.forEach(
       (unsubscribe) => {
@@ -483,18 +429,10 @@ class StorageService {
     this.unsubscribers = [];
   }
 
-  /*
-   * =========================================================
-   * SUBSCRIBERS
-   * =========================================================
-   */
-
   subscribe(
     callback: Subscriber
   ): () => void {
-    this.subscribers.add(
-      callback
-    );
+    this.subscribers.add(callback);
 
     try {
       callback();
@@ -506,9 +444,7 @@ class StorageService {
     }
 
     return () => {
-      this.subscribers.delete(
-        callback
-      );
+      this.subscribers.delete(callback);
     };
   }
 
@@ -526,12 +462,6 @@ class StorageService {
       }
     );
   }
-
-  /*
-   * =========================================================
-   * CURRENT USER
-   * =========================================================
-   */
 
   setCurrentUser(
     user: UserProfile | null
@@ -556,12 +486,6 @@ class StorageService {
     UserProfile | null {
     return this.currentUser;
   }
-
-  /*
-   * =========================================================
-   * USERS
-   * =========================================================
-   */
 
   getUsers(): UserProfile[] {
     return [...this.users];
@@ -607,12 +531,6 @@ class StorageService {
       }
     );
   }
-
-  /*
-   * =========================================================
-   * COURIER
-   * =========================================================
-   */
 
   async createCourier(data: {
     name: string;
@@ -720,14 +638,6 @@ class StorageService {
         rating: 5,
         createdAt: now,
       };
-
-      /*
-       * NOT:
-       * Firestore Rules admin kontrolüne göre
-       * bu yazma işlemi mevcut projede permission
-       * hatası verebilir. Bu işlem daha sonra
-       * server tarafına taşınmalıdır.
-       */
 
       await setDoc(
         doc(
@@ -837,12 +747,6 @@ class StorageService {
     return existing;
   }
 
-  /*
-   * =========================================================
-   * ORDERS
-   * =========================================================
-   */
-
   getOrders(): Order[] {
     return [...this.orders];
   }
@@ -902,15 +806,14 @@ class StorageService {
     const current =
       this.getOrderById(id);
 
-    const updatedOrder =
-      {
-        ...(current || {
-          id,
-        }),
-        ...data,
+    const updatedOrder = {
+      ...(current || {
         id,
-        updatedAt,
-      } as Order;
+      }),
+      ...data,
+      id,
+      updatedAt,
+    } as Order;
 
     this.orders =
       this.orders.map(
@@ -980,12 +883,6 @@ class StorageService {
     this.emit();
   }
 
-  /*
-   * =========================================================
-   * PRICING
-   * =========================================================
-   */
-
   getPricing():
     PricingConfig {
     return this.pricing;
@@ -994,12 +891,11 @@ class StorageService {
   async updatePricing(
     pricing: PricingConfig
   ) {
-    const finalPricing =
-      {
-        ...pricing,
-        updatedAt:
-          new Date().toISOString(),
-      };
+    const finalPricing = {
+      ...pricing,
+      updatedAt:
+        new Date().toISOString(),
+    };
 
     await setDoc(
       doc(
@@ -1026,12 +922,6 @@ class StorageService {
       pricing
     );
   }
-
-  /*
-   * =========================================================
-   * NOTIFICATIONS
-   * =========================================================
-   */
 
   getNotifications(
     userId: string
@@ -1088,12 +978,6 @@ class StorageService {
     );
   }
 
-  /*
-   * =========================================================
-   * COURIER LOCATION
-   * =========================================================
-   */
-
   getCourierLocation(
     courierId: string
   ):
@@ -1142,12 +1026,6 @@ class StorageService {
     return finalLocation;
   }
 
-  /*
-   * =========================================================
-   * DESTROY
-   * =========================================================
-   */
-
   destroy() {
     this.cleanupListeners();
 
@@ -1170,10 +1048,6 @@ class StorageService {
 
 export const storage =
   new StorageService();
-
-/*
- * Uygulama başlarken Storage'ı hazırla.
- */
 
 void storage.init().catch(
   (error) => {
