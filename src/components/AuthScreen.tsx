@@ -9,6 +9,15 @@ interface AuthScreenProps {
   onLogin?: () => void;
 }
 
+/**
+ * Trustline Express logo
+ *
+ * Harici görsel URL'si kullanılıyor.
+ * Projeye herhangi bir logo dosyası eklemeye gerek yok.
+ */
+const TRUSTLINE_LOGO =
+  "https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png";
+
 function getAuthErrorMessage(error: unknown): string {
   const code =
     typeof error === "object" &&
@@ -101,9 +110,11 @@ function AuthScreen({
     clearMessages();
 
     const cleanName = name.trim();
+
     const cleanEmail = email
       .trim()
       .toLowerCase();
+
     const cleanPhone = phone.trim();
 
     if (isRegister && !cleanName) {
@@ -170,6 +181,7 @@ function AuthScreen({
 
   const handleGoogle = async () => {
     clearMessages();
+
     setGoogleLoading(true);
 
     try {
@@ -196,23 +208,63 @@ function AuthScreen({
 
   const toggleMode = () => {
     clearMessages();
+
     setIsRegister(
       (current) => !current
     );
+
     setPassword("");
   };
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
+
         <div className="overflow-hidden rounded-3xl bg-white shadow-2xl">
 
-          {/* LOGO / HEADER */}
+          {/* =====================================================
+              LOGO / HEADER
+          ====================================================== */}
+
           <div className="bg-slate-900 px-6 py-8 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-2xl font-black text-slate-900">
-              T
+
+            {/* LOGO */}
+            <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl bg-white p-2 shadow-[0_0_35px_rgba(214,168,79,0.22)] ring-1 ring-white/10">
+              <img
+                src={TRUSTLINE_LOGO}
+                alt="Trustline Express"
+                className="h-full w-full object-contain"
+                loading="eager"
+                draggable={false}
+                onError={(event) => {
+                  /**
+                   * Logo yüklenemezse kırık görsel yerine
+                   * Trustline'ın T harfini göster.
+                   */
+                  event.currentTarget.style.display =
+                    "none";
+
+                  const fallback =
+                    event.currentTarget
+                      .nextElementSibling as HTMLElement | null;
+
+                  if (fallback) {
+                    fallback.style.display =
+                      "flex";
+                  }
+                }}
+              />
+
+              {/* LOGO FALLBACK */}
+              <span
+                className="hidden h-full w-full items-center justify-center rounded-2xl bg-slate-900 text-4xl font-black text-white"
+                aria-hidden="true"
+              >
+                T
+              </span>
             </div>
 
+            {/* BRAND NAME */}
             <h1 className="text-2xl font-bold text-white">
               Trustline Express
             </h1>
@@ -221,6 +273,10 @@ function AuthScreen({
               Güvenli ve hızlı teslimat
             </p>
           </div>
+
+          {/* =====================================================
+              CONTENT
+          ====================================================== */}
 
           <div className="p-6 sm:p-8">
 
@@ -269,6 +325,7 @@ function AuthScreen({
               {googleLoading ? (
                 <>
                   <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-800" />
+
                   Google ile bağlanılıyor...
                 </>
               ) : (
@@ -276,6 +333,7 @@ function AuthScreen({
                   <span className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 text-sm font-bold">
                     G
                   </span>
+
                   Google ile devam et
                 </>
               )}
@@ -331,6 +389,7 @@ function AuthScreen({
                     className="mb-1.5 block text-sm font-medium text-slate-700"
                   >
                     Telefon
+
                     <span className="ml-1 text-slate-400">
                       (opsiyonel)
                     </span>
@@ -410,6 +469,7 @@ function AuthScreen({
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+
                     İşleniyor...
                   </span>
                 ) : isRegister ? (
@@ -447,6 +507,7 @@ function AuthScreen({
           </div>
         </div>
 
+        {/* FOOTER */}
         <p className="mt-6 text-center text-xs text-slate-400">
           © {new Date().getFullYear()} Trustline Express
         </p>
