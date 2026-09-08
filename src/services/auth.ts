@@ -67,6 +67,20 @@ function createAuthError(
   return error;
 }
 
+function getErrorCode(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error
+  ) {
+    return String(
+      Reflect.get(error, "code") ?? ""
+    );
+  }
+
+  return "";
+}
+
 function getDefaultRole(
   email: string
 ): UserRole {
@@ -312,18 +326,12 @@ export async function registerUser({
 
     throw createAuthError(
       "auth/email-verification-required",
-      "Hesabınız oluşturuldu. E-posta adresinizi doğrulamanız gerekiyor. E-postanıza gönderilen bağlantıya tıklayın."
+      "Hesabınız oluşturuldu. E-posta adresinizi doğrulamanız gerekiyor. E-postanıza gönderilen doğrulama bağlantısına tıklayın."
     );
   } catch (error) {
     if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      Reflect.get(
-        error,
-        "code"
-      ) ===
-        "auth/email-verification-required"
+      getErrorCode(error) ===
+      "auth/email-verification-required"
     ) {
       throw error;
     }
@@ -408,9 +416,6 @@ function createGoogleProvider(): GoogleAuthProvider {
 
 /**
  * Mobil cihaz kontrolü.
- *
- * iPhone / iPad / Android cihazlarda
- * Google popup yerine redirect kullanılır.
  */
 function isMobileDevice(): boolean {
   if (
@@ -433,13 +438,6 @@ function isMobileDevice(): boolean {
       userAgent
     );
 
-  /*
-   * iPadOS bazı sürümlerde
-   * masaüstü Safari gibi görünür.
-   *
-   * Bu nedenle touch + Mac kontrolü
-   * de yapıyoruz.
-   */
   const isIPadOS =
     navigator.platform ===
       "MacIntel" &&
@@ -453,25 +451,73 @@ function isMobileDevice(): boolean {
 }
 
 /**
+ * Firebase Auth kullanıcısını kısa süre bekler.
+ *
+ * Google redirect sonrasında bazı tarayıcılarda
+ * auth.currentUser hemen hazır olmayabilir.
+ */
+function waitForAuthUser(
+  timeoutMs = 8000
+): Promise<User | null> {
+  if (auth.currentUser) {
+    return Promise.resolve(
+      auth.currentUser
+    );
+  }
+
+  return new Promise(
+    (resolve) => {
+      let finished = false;
+
+      const finish = (
+        user: User | null
+      ) => {
+        if (finished) return;
+
+        finished = true;
+        unsubscribe();
+        clearTimeout(timer);
+
+        resolve(user);
+      };
+
+      const unsubscribe =
+        onAuthStateChanged(
+          auth,
+          (user) => {
+            if (user) {
+              finish(user);
+            }
+          },
+          () => {
+            finish(null);
+          }
+        );
+
+      const timer =
+        setTimeout(() => {
+          finish(
+            auth.currentUser
+          );
+        }, timeoutMs);
+    }
+  );
+}
+
+/**
  * Google ile giriş.
  *
- * MOBİL:
- * Direkt redirect kullanılır.
+ * Mobil:
+ * Redirect.
  *
- * MASAÜSTÜ:
- * Önce popup denenir.
- * Popup engellenirse redirect'e geçilir.
+ * Masaüstü:
+ * Popup.
+ * Popup çalışmazsa redirect.
  */
 export async function loginWithGoogle(): Promise<AuthUserProfile> {
   const provider =
     createGoogleProvider();
 
-  /*
-   * iPhone / iPad / Android:
-   *
-   * Popup kullanmıyoruz.
-   * Direkt Google sayfasına yönlendiriyoruz.
-   */
   if (isMobileDevice()) {
     await signInWithRedirect(
       auth,
@@ -484,9 +530,6 @@ export async function loginWithGoogle(): Promise<AuthUserProfile> {
     );
   }
 
-  /*
-   * Masaüstünde popup kullan.
-   */
   try {
     const credential =
       await signInWithPopup(
@@ -499,21 +542,8 @@ export async function loginWithGoogle(): Promise<AuthUserProfile> {
     );
   } catch (error) {
     const code =
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error
-        ? String(
-            Reflect.get(
-              error,
-              "code"
-            ) ?? ""
-          )
-        : "";
+      getErrorCode(error);
 
-    /*
-     * Popup engellendiyse
-     * redirect'e geç.
-     */
     const shouldUseRedirect =
       code ===
         "auth/popup-blocked" ||
@@ -546,8 +576,10 @@ export async function loginWithGoogle(): Promise<AuthUserProfile> {
 /**
  * Google redirect sonucunu işler.
  *
- * Google'dan geri dönüldüğünde
- * AuthScreen tarafından çağrılır.
+ * Önemli:
+ * getRedirectResult() boş dönerse bile
+ * auth.currentUser ve onAuthStateChanged
+ * üzerinden oturumu yakalamaya çalışırız.
  */
 export async function handleGoogleRedirectResult(): Promise<AuthUserProfile | null> {
   try {
@@ -556,18 +588,52 @@ export async function handleGoogleRedirectResult(): Promise<AuthUserProfile | nu
         auth
       );
 
-    if (!result) {
+    if (result?.user) {
+      return await ensureUserProfile(
+        result.user
+      );
+    }
+
+    /*
+     * Redirect sonucu boş olabilir.
+     * Bu durumda Firebase Auth state'inin
+     * hazır olmasını bekliyoruz.
+     */
+    const user =
+      await waitForAuthUser(
+        8000
+      );
+
+    if (!user) {
       return null;
     }
 
     return await ensureUserProfile(
-      result.user
+      user
     );
   } catch (error) {
     console.error(
       "Google redirect sonucu alınamadı:",
       error
     );
+
+    /*
+     * getRedirectResult sırasında hata oluşsa bile
+     * auth.currentUser hazırlandıysa kullanıcıyı
+     * kaybetme.
+     */
+    const currentUser =
+      auth.currentUser;
+
+    if (currentUser) {
+      try {
+        return await ensureUserProfile(
+          currentUser
+        );
+      } catch {
+        // Alttaki orijinal hatayı döndüreceğiz.
+      }
+    }
 
     throw error;
   }
