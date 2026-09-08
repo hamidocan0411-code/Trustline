@@ -12,23 +12,20 @@ signInWithRedirect,
 signOut,
 updateProfile,
 type User,
-} from "firebase/auth";
+} from “firebase/auth”;
 
 import {
 doc,
 getDoc,
 setDoc,
 serverTimestamp,
-} from "firebase/firestore";
+} from “firebase/firestore”;
 
 import { auth, db } from “./firebase”;
 
 export const ADMIN_EMAIL = “hamidocan0411@gmail.com”;
 
-export type UserRole =
-| “customer”
-| “courier”
-| “admin”;
+export type UserRole = “customer” | “courier” | “admin”;
 
 export interface AuthUserProfile {
 id: string;
@@ -39,10 +36,7 @@ role: UserRole;
 avatar?: string;
 vehicle?: string;
 plate?: string;
-courierStatus?:
-| “Müsait”
-| “Meşgul”
-| “Çevrimdışı”;
+courierStatus?: “Müsait” | “Meşgul” | “Çevrimdışı”;
 totalDeliveries?: number;
 rating?: number;
 createdAt: string;
@@ -59,12 +53,8 @@ function createAuthError(
 code: string,
 message: string
 ): Error & { code: string } {
-const error = new Error(message) as Error & {
-code: string;
-};
-
+const error = new Error(message) as Error & { code: string };
 error.code = code;
-
 return error;
 }
 
@@ -74,19 +64,14 @@ typeof error === “object” &&
 error !== null &&
 “code” in error
 ) {
-return String(
-Reflect.get(error, “code”) ?? “”
-);
+return String(Reflect.get(error, “code”) ?? “”);
 }
 
 return “”;
 }
 
-function getDefaultRole(
-email: string
-): UserRole {
-return email.trim().toLowerCase() ===
-ADMIN_EMAIL.toLowerCase()
+function getDefaultRole(email: string): UserRole {
+return email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase()
 ? “admin”
 : “customer”;
 }
@@ -117,11 +102,9 @@ typeof data.email === “string”
 : fallbackUser?.email ?? “”;
 
 const name =
-typeof data.name === “string” &&
-data.name.trim()
+typeof data.name === “string” && data.name.trim()
 ? data.name
-: fallbackUser?.displayName ??
-“Trustline Kullanıcısı”;
+: fallbackUser?.displayName ?? “Trustline Kullanıcısı”;
 
 const phone =
 typeof data.phone === “string”
@@ -138,15 +121,11 @@ id: uid,
 name,
 email,
 phone,
-role: normalizeRole(
-data.role,
-email
-),
+role: normalizeRole(data.role, email),
 avatar:
 typeof data.avatar === “string”
 ? data.avatar
-: fallbackUser?.photoURL ??
-undefined,
+: fallbackUser?.photoURL ?? undefined,
 vehicle:
 typeof data.vehicle === “string”
 ? data.vehicle
@@ -176,15 +155,8 @@ createdAt,
 export async function ensureUserProfile(
 user: User
 ): Promise {
-const userRef = doc(
-db,
-“users”,
-user.uid
-);
-
-const snapshot = await getDoc(
-userRef
-);
+const userRef = doc(db, “users”, user.uid);
+const snapshot = await getDoc(userRef);
 
 if (snapshot.exists()) {
 return normalizeProfile(
@@ -194,9 +166,7 @@ user
 );
 }
 
-const role = getDefaultRole(
-user.email ?? “”
-);
+const role = getDefaultRole(user.email ?? “”);
 
 const profileData = {
 id: user.uid,
@@ -213,10 +183,7 @@ createdAt: new Date().toISOString(),
 createdAtServer: serverTimestamp(),
 };
 
-await setDoc(
-userRef,
-profileData
-);
+await setDoc(userRef, profileData);
 
 return normalizeProfile(
 user.uid,
@@ -232,21 +199,15 @@ password,
 phone = “”,
 }: RegisterData): Promise {
 const cleanName = name.trim();
-const cleanEmail = email
-.trim()
-.toLowerCase();
+const cleanEmail = email.trim().toLowerCase();
 const cleanPhone = phone.trim();
 
 if (!cleanName) {
-throw new Error(
-“Ad soyad gerekli.”
-);
+throw new Error(“Ad soyad gerekli.”);
 }
 
 if (!cleanEmail) {
-throw new Error(
-“E-posta adresi gerekli.”
-);
+throw new Error(“E-posta adresi gerekli.”);
 }
 
 if (password.length < 6) {
@@ -265,16 +226,11 @@ password
 const user = credential.user;
 
 try {
-await updateProfile(
-user,
-{
+await updateProfile(user, {
 displayName: cleanName,
-}
-);
+});
 
-const role = getDefaultRole(
-  cleanEmail
-);
+const role = getDefaultRole(cleanEmail);
 const profileData = {
   id: user.uid,
   name: cleanName,
@@ -288,16 +244,10 @@ const profileData = {
   createdAtServer: serverTimestamp(),
 };
 await setDoc(
-  doc(
-    db,
-    "users",
-    user.uid
-  ),
+  doc(db, "users", user.uid),
   profileData
 );
-await sendEmailVerification(
-  user
-);
+await sendEmailVerification(user);
 await signOut(auth);
 throw createAuthError(
   "auth/email-verification-required",
@@ -312,9 +262,7 @@ getErrorCode(error) ===
 throw error;
 }
 
-await signOut(auth).catch(
-  () => undefined
-);
+await signOut(auth).catch(() => undefined);
 throw error;
 
 }
@@ -324,20 +272,14 @@ export async function loginUser(
 email: string,
 password: string
 ): Promise {
-const cleanEmail = email
-.trim()
-.toLowerCase();
+const cleanEmail = email.trim().toLowerCase();
 
 if (!cleanEmail) {
-throw new Error(
-“E-posta adresi gerekli.”
-);
+throw new Error(“E-posta adresi gerekli.”);
 }
 
 if (!password) {
-throw new Error(
-“Şifre gerekli.”
-);
+throw new Error(“Şifre gerekli.”);
 }
 
 const credential =
@@ -350,9 +292,7 @@ password
 const user = credential.user;
 
 if (!user.emailVerified) {
-await signOut(auth).catch(
-() => undefined
-);
+await signOut(auth).catch(() => undefined);
 
 throw createAuthError(
   "auth/email-not-verified",
@@ -361,14 +301,11 @@ throw createAuthError(
 
 }
 
-return ensureUserProfile(
-user
-);
+return ensureUserProfile(user);
 }
 
 function createGoogleProvider(): GoogleAuthProvider {
-const provider =
-new GoogleAuthProvider();
+const provider = new GoogleAuthProvider();
 
 provider.setCustomParameters({
 prompt: “select_account”,
@@ -381,9 +318,7 @@ return provider;
 }
 
 function isMobileDevice(): boolean {
-if (
-typeof window === “undefined”
-) {
+if (typeof window === “undefined”) {
 return false;
 }
 
@@ -396,24 +331,17 @@ const mobileRegex =
 /Android|iPhone|iPad|iPod|IEMobile|Opera Mini|Mobile/i;
 
 const isMobileUserAgent =
-mobileRegex.test(
-userAgent
-);
+mobileRegex.test(userAgent);
 
 const isIPadOS =
-navigator.platform ===
-“MacIntel” &&
+navigator.platform === “MacIntel” &&
 navigator.maxTouchPoints > 1;
 
-return (
-isMobileUserAgent ||
-isIPadOS
-);
+return isMobileUserAgent || isIPadOS;
 }
 
 export async function loginWithGoogle(): Promise {
-const provider =
-createGoogleProvider();
+const provider = createGoogleProvider();
 
 await setPersistence(
 auth,
@@ -445,16 +373,13 @@ return ensureUserProfile(
 );
 
 } catch (error) {
-const code =
-getErrorCode(error);
+const code = getErrorCode(error);
 
 const shouldUseRedirect =
-  code ===
-    "auth/popup-blocked" ||
+  code === "auth/popup-blocked" ||
   code ===
     "auth/operation-not-supported-in-this-environment" ||
-  code ===
-    "auth/popup-closed-by-user";
+  code === "auth/popup-closed-by-user";
 if (shouldUseRedirect) {
   await signInWithRedirect(
     auth,
@@ -505,7 +430,7 @@ if (auth.currentUser) {
       auth.currentUser
     );
   } catch {
-    // Firebase kullanıcısı henüz hazır değil.
+    // Firebase kullanicisi henuz hazir degil.
   }
 }
 throw error;
@@ -540,12 +465,10 @@ return null;
 }
 
 try {
-return ensureUserProfile(
-user
-);
+return ensureUserProfile(user);
 } catch (error) {
 console.error(
-“Mevcut kullanıcı profili alınamadı:”,
+“Mevcut kullanici profili alinamadi:”,
 error
 );
 
@@ -564,30 +487,21 @@ return onAuthStateChanged(
 auth,
 async (user) => {
 if (!user) {
-callback(
-null,
-null
-);
+callback(null, null);
 return;
 }
 
   if (
     user.providerData.some(
       (provider) =>
-        provider.providerId ===
-        "password"
+        provider.providerId === "password"
     ) &&
     !user.emailVerified
   ) {
-    await signOut(
-      auth
-    ).catch(
+    await signOut(auth).catch(
       () => undefined
     );
-    callback(
-      null,
-      null
-    );
+    callback(null, null);
     return;
   }
   try {
@@ -601,7 +515,7 @@ return;
     );
   } catch (error) {
     console.error(
-      "Kullanıcı profili alınamadı:",
+      "Kullanici profili alinamadi:",
       error
     );
     callback(
@@ -631,17 +545,13 @@ ADMIN_EMAIL.toLowerCase()
 export function isCourierUser(
 profile: AuthUserProfile | null
 ): boolean {
-return (
-profile?.role === “courier”
-);
+return profile?.role === “courier”;
 }
 
 export function isCustomerUser(
 profile: AuthUserProfile | null
 ): boolean {
-return (
-profile?.role === “customer”
-);
+return profile?.role === “customer”;
 }
 
 export function getFirebaseUser(): User | null {
