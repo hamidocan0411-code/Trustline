@@ -1,4 +1,7 @@
-import React, { useState } from "react";
+import React, {
+  useState,
+} from "react";
+
 import {
   loginUser,
   loginWithGoogle,
@@ -11,24 +14,33 @@ interface AuthScreenProps {
 
 /**
  * Trustline Express logo
- *
- * Harici görsel URL'si kullanılıyor.
- * Projeye herhangi bir logo dosyası eklemeye gerek yok.
  */
 const TRUSTLINE_LOGO =
   "https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png";
 
-function getAuthErrorMessage(error: unknown): string {
+function getAuthErrorMessage(
+  error: unknown
+): string {
   const code =
     typeof error === "object" &&
     error !== null &&
     "code" in error
       ? String(
-          (error as { code?: unknown }).code ?? ""
+          (
+            error as {
+              code?: unknown;
+            }
+          ).code ?? ""
         )
       : "";
 
   switch (code) {
+    case "auth/email-verification-required":
+      return "Hesabınız oluşturuldu. E-posta adresinize bir doğrulama bağlantısı gönderdik. E-postanızı doğruladıktan sonra giriş yapabilirsiniz.";
+
+    case "auth/email-not-verified":
+      return "E-posta adresiniz henüz doğrulanmamış. E-postanıza gönderilen doğrulama bağlantısına tıklayın.";
+
     case "auth/invalid-credential":
     case "auth/wrong-password":
     case "auth/user-not-found":
@@ -82,20 +94,35 @@ function AuthScreen({
   const [isRegister, setIsRegister] =
     useState(false);
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [name, setName] =
+    useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] =
+  const [phone, setPhone] =
+    useState("");
+
+  const [email, setEmail] =
+    useState("");
+
+  const [password, setPassword] =
+    useState("");
+
+  const [loading, setLoading] =
     useState(false);
 
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [
+    googleLoading,
+    setGoogleLoading,
+  ] = useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const [success, setSuccess] =
+    useState("");
 
   const isLoading =
-    loading || googleLoading;
+    loading ||
+    googleLoading;
 
   const clearMessages = () => {
     setError("");
@@ -109,26 +136,36 @@ function AuthScreen({
 
     clearMessages();
 
-    const cleanName = name.trim();
+    const cleanName =
+      name.trim();
 
-    const cleanEmail = email
-      .trim()
-      .toLowerCase();
+    const cleanEmail =
+      email.trim().toLowerCase();
 
-    const cleanPhone = phone.trim();
+    const cleanPhone =
+      phone.trim();
 
-    if (isRegister && !cleanName) {
-      setError("Ad soyad alanını doldurun.");
+    if (
+      isRegister &&
+      !cleanName
+    ) {
+      setError(
+        "Ad soyad alanını doldurun."
+      );
       return;
     }
 
     if (!cleanEmail) {
-      setError("E-posta adresinizi girin.");
+      setError(
+        "E-posta adresinizi girin."
+      );
       return;
     }
 
     if (!password) {
-      setError("Şifrenizi girin.");
+      setError(
+        "Şifrenizi girin."
+      );
       return;
     }
 
@@ -150,19 +187,27 @@ function AuthScreen({
           phone: cleanPhone,
         });
 
+        /*
+         * registerUser doğrulama gerektiğinde
+         * özel hata döndürür.
+         *
+         * Normalde buraya ulaşılmaz.
+         */
         setSuccess(
-          "Hesabınız başarıyla oluşturuldu."
-        );
-      } else {
-        await loginUser(
-          cleanEmail,
-          password
+          "Hesabınız oluşturuldu. E-posta adresinizi doğrulayın."
         );
 
-        setSuccess(
-          "Giriş başarılı."
-        );
+        return;
       }
+
+      await loginUser(
+        cleanEmail,
+        password
+      );
+
+      setSuccess(
+        "Giriş başarılı."
+      );
 
       onLogin?.();
     } catch (err) {
@@ -170,6 +215,40 @@ function AuthScreen({
         "Authentication error:",
         err
       );
+
+      const code =
+        typeof err === "object" &&
+        err !== null &&
+        "code" in err
+          ? String(
+              (
+                err as {
+                  code?: unknown;
+                }
+              ).code ?? ""
+            )
+          : "";
+
+      if (
+        code ===
+        "auth/email-verification-required"
+      ) {
+        setIsRegister(
+          false
+        );
+
+        setEmail(
+          cleanEmail
+        );
+
+        setPassword("");
+
+        setSuccess(
+          "Hesabınız oluşturuldu. E-posta adresinize doğrulama bağlantısı gönderildi. E-postanızı doğruladıktan sonra Giriş Yap bölümünden giriş yapabilirsiniz."
+        );
+
+        return;
+      }
 
       setError(
         getAuthErrorMessage(err)
@@ -222,14 +301,12 @@ function AuthScreen({
 
         <div className="overflow-hidden rounded-3xl bg-white shadow-2xl">
 
-          {/* =====================================================
-              LOGO / HEADER
-          ====================================================== */}
+          {/* LOGO / HEADER */}
 
           <div className="bg-slate-900 px-6 py-8 text-center">
 
-            {/* LOGO */}
             <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl bg-white p-2 shadow-[0_0_35px_rgba(214,168,79,0.22)] ring-1 ring-white/10">
+
               <img
                 src={TRUSTLINE_LOGO}
                 alt="Trustline Express"
@@ -237,10 +314,6 @@ function AuthScreen({
                 loading="eager"
                 draggable={false}
                 onError={(event) => {
-                  /**
-                   * Logo yüklenemezse kırık görsel yerine
-                   * Trustline'ın T harfini göster.
-                   */
                   event.currentTarget.style.display =
                     "none";
 
@@ -255,7 +328,6 @@ function AuthScreen({
                 }}
               />
 
-              {/* LOGO FALLBACK */}
               <span
                 className="hidden h-full w-full items-center justify-center rounded-2xl bg-slate-900 text-4xl font-black text-white"
                 aria-hidden="true"
@@ -264,7 +336,6 @@ function AuthScreen({
               </span>
             </div>
 
-            {/* BRAND NAME */}
             <h1 className="text-2xl font-bold text-white">
               Trustline Express
             </h1>
@@ -274,13 +345,10 @@ function AuthScreen({
             </p>
           </div>
 
-          {/* =====================================================
-              CONTENT
-          ====================================================== */}
+          {/* CONTENT */}
 
           <div className="p-6 sm:p-8">
 
-            {/* TITLE */}
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-slate-900">
                 {isRegister
@@ -296,6 +364,7 @@ function AuthScreen({
             </div>
 
             {/* ERROR */}
+
             {error && (
               <div
                 role="alert"
@@ -306,16 +375,18 @@ function AuthScreen({
             )}
 
             {/* SUCCESS */}
+
             {success && (
               <div
                 role="status"
-                className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+                className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm leading-6 text-green-700"
               >
                 {success}
               </div>
             )}
 
             {/* GOOGLE */}
+
             <button
               type="button"
               onClick={handleGoogle}
@@ -340,6 +411,7 @@ function AuthScreen({
             </button>
 
             {/* DIVIDER */}
+
             <div className="my-6 flex items-center gap-3">
               <div className="h-px flex-1 bg-slate-200" />
 
@@ -351,12 +423,14 @@ function AuthScreen({
             </div>
 
             {/* FORM */}
+
             <form
               onSubmit={handleSubmit}
               className="space-y-4"
             >
 
               {/* NAME */}
+
               {isRegister && (
                 <div>
                   <label
@@ -371,7 +445,9 @@ function AuthScreen({
                     type="text"
                     value={name}
                     onChange={(e) =>
-                      setName(e.target.value)
+                      setName(
+                        e.target.value
+                      )
                     }
                     placeholder="Adınız Soyadınız"
                     autoComplete="name"
@@ -382,6 +458,7 @@ function AuthScreen({
               )}
 
               {/* PHONE */}
+
               {isRegister && (
                 <div>
                   <label
@@ -400,7 +477,9 @@ function AuthScreen({
                     type="tel"
                     value={phone}
                     onChange={(e) =>
-                      setPhone(e.target.value)
+                      setPhone(
+                        e.target.value
+                      )
                     }
                     placeholder="05XX XXX XX XX"
                     autoComplete="tel"
@@ -411,6 +490,7 @@ function AuthScreen({
               )}
 
               {/* EMAIL */}
+
               <div>
                 <label
                   htmlFor="auth-email"
@@ -424,7 +504,9 @@ function AuthScreen({
                   type="email"
                   value={email}
                   onChange={(e) =>
-                    setEmail(e.target.value)
+                    setEmail(
+                      e.target.value
+                    )
                   }
                   placeholder="ornek@email.com"
                   autoComplete="email"
@@ -434,6 +516,7 @@ function AuthScreen({
               </div>
 
               {/* PASSWORD */}
+
               <div>
                 <label
                   htmlFor="auth-password"
@@ -447,7 +530,9 @@ function AuthScreen({
                   type="password"
                   value={password}
                   onChange={(e) =>
-                    setPassword(e.target.value)
+                    setPassword(
+                      e.target.value
+                    )
                   }
                   placeholder="En az 6 karakter"
                   autoComplete={
@@ -461,6 +546,7 @@ function AuthScreen({
               </div>
 
               {/* SUBMIT */}
+
               <button
                 type="submit"
                 disabled={isLoading}
@@ -481,6 +567,7 @@ function AuthScreen({
             </form>
 
             {/* SWITCH */}
+
             <div className="mt-6 text-center text-sm text-slate-500">
               {isRegister
                 ? "Zaten hesabınız var mı?"
@@ -499,15 +586,23 @@ function AuthScreen({
             </div>
 
             {/* INFO */}
+
             <div className="mt-6 rounded-xl bg-slate-50 p-4 text-xs leading-5 text-slate-500">
               Hesap bilgileriniz güvenli şekilde
               Firebase Authentication ve Firestore
               üzerinde saklanır.
+
+              <div className="mt-2 font-semibold text-slate-600">
+                E-posta ve şifre ile kayıt olan
+                kullanıcıların e-posta adreslerini
+                doğrulaması zorunludur.
+              </div>
             </div>
           </div>
         </div>
 
         {/* FOOTER */}
+
         <p className="mt-6 text-center text-xs text-slate-400">
           © {new Date().getFullYear()} Trustline Express
         </p>
@@ -516,16 +611,8 @@ function AuthScreen({
   );
 }
 
-/*
- * İKİSİNİ DE EXPORT EDİYORUZ.
- *
- * App.tsx:
- * import { AuthScreen } from "./components/AuthScreen";
- *
- * veya:
- * import AuthScreen from "./components/AuthScreen";
- *
- * ikisi de çalışır.
- */
-export { AuthScreen };
+export {
+  AuthScreen,
+};
+
 export default AuthScreen;
