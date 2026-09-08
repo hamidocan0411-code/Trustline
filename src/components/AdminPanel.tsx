@@ -2595,4 +2595,4 @@ const InfoItem: React.FC<{
       {value || "—"}
     </p>
   </div>
-);
+); 
