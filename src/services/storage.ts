@@ -1,35 +1,29 @@
 import {
-  getApps,
-  initializeApp,
-} from "firebase/app";
-
-import {
-  createUserWithEmailAndPassword,
-  deleteUser,
-  getAuth,
-  signOut,
-} from "firebase/auth";
-
-import {
   collection,
   deleteDoc,
   doc,
   getDoc,
-  getDocs,
   onSnapshot,
   query,
   setDoc,
   updateDoc,
   where,
-  type DocumentData,
-  type Unsubscribe,
 } from "firebase/firestore";
 
-import { auth, db } from "./firebase";
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  getApps,
+  initializeApp,
+  signOut,
+} from "firebase/auth";
+
+import { db, auth } from "./firebase";
 
 import type {
-  Courier,
-  Customer,
+  CourierAvailability,
+  CourierLocation,
+  NotificationItem,
   Order,
   OrderStatus,
   PricingConfig,
@@ -38,449 +32,602 @@ import type {
 
 import { DEFAULT_PRICING } from "../utils/pricing";
 
-/*
-|--------------------------------------------------------------------------
-| TRUSTLINE STORAGE SERVICE
-|--------------------------------------------------------------------------
-|
-| Firestore veri katmanı.
-|
-| Kullanıcılar:
-|   users/{uid}
-|
-| Siparişler:
-|   orders/{orderId}
-|
-| Fiyatlandırma:
-|   settings/pricing
-|
-| Konum:
-|   courierLocations/{courierId}
-|
-| Bildirim:
-|   notifications/{notificationId}
-|
-|--------------------------------------------------------------------------
-*/
+type Subscriber = () => void;
+
+const ADMIN_EMAIL = "hamidocan0411@gmail.com";
 
 class StorageService {
   private currentUser: UserProfile | null = null;
 
   private users: UserProfile[] = [];
   private orders: Order[] = [];
-  private couriers: Courier[] = [];
-  private customers: Customer[] = [];
+  private notifications: NotificationItem[] = [];
+  private courierLocations: CourierLocation[] = [];
 
-  private unsubscribers: Unsubscribe[] = [];
+  private pricing: PricingConfig = DEFAULT_PRICING;
+
+  private subscribers = new Set<Subscriber>();
+  private unsubscribers: (() => void)[] = [];
 
   private initialized = false;
-
-  private secondaryAppName =
-    "TrustlineCourierCreator";
+  private initializing = false;
 
   /*
-  |--------------------------------------------------------------------------
-  | INIT
-  |--------------------------------------------------------------------------
-  */
+   * =========================================================
+   * INIT
+   * =========================================================
+   */
 
   async init(): Promise<void> {
-    if (this.initialized) {
+    if (this.initializing) {
       return;
     }
 
-    this.initialized = true;
+    this.initializing = true;
 
-    if (auth.currentUser) {
+    try {
+      const firebaseUser = await this.waitForAuth();
+
+      if (!firebaseUser) {
+        this.cleanupListeners();
+
+        this.initialized = true;
+        this.initializing = false;
+
+        return;
+      }
+
+      let profile: UserProfile | null = null;
+
       try {
-        await this.setCurrentUser(
-          auth.currentUser.uid
+        const profileSnap = await getDoc(
+          doc(db, "users", firebaseUser.uid)
         );
+
+        if (profileSnap.exists()) {
+          profile = {
+            ...(profileSnap.data() as UserProfile),
+            id: profileSnap.id,
+          };
+        }
       } catch (error) {
         console.error(
-          "Storage başlatılamadı:",
+          "Storage kullanıcı profili okunamadı:",
           error
         );
       }
-    }
-  }
 
-  /*
-  |--------------------------------------------------------------------------
-  | USER
-  |--------------------------------------------------------------------------
-  */
-
-  async setCurrentUser(
-    user: UserProfile | null
-  ): Promise<void> {
-    this.clearListeners();
-
-    this.currentUser = user;
-
-    this.users = [];
-    this.orders = [];
-    this.couriers = [];
-    this.customers = [];
-
-    if (!user) {
-      return;
-    }
-
-    /*
-     * Admin bütün kullanıcıları ve siparişleri görür.
-     */
-    if (user.role === "admin") {
-      this.subscribeAllUsers();
-      this.subscribeAllOrders();
-      return;
-    }
-
-    /*
-     * Müşteri sadece kendi siparişlerini görür.
-     */
-    if (user.role === "customer") {
-      this.subscribeCustomerOrders(
-        user.id
-      );
-      return;
-    }
-
-    /*
-     * Kurye sadece kendisine atanmış siparişleri görür.
-     */
-    if (user.role === "courier") {
-      this.subscribeCourierOrders(
-        user.id
-      );
-    }
-  }
-
-  getCurrentUser(): UserProfile | null {
-    return this.currentUser;
-  }
-
-  /*
-  |--------------------------------------------------------------------------
-  | LISTENERS
-  |--------------------------------------------------------------------------
-  */
-
-  private clearListeners(): void {
-    for (const unsubscribe of this.unsubscribers) {
-      try {
-        unsubscribe();
-      } catch {
-        // ignore
+      if (profile) {
+        this.currentUser = profile;
+        this.startListeners(profile);
       }
+
+      this.initialized = true;
+      this.initializing = false;
+
+      this.emit();
+
+      console.log(
+        "🔥 Trustline Storage Firebase canlı sistem hazır"
+      );
+    } catch (error) {
+      this.initializing = false;
+
+      console.error(
+        "Storage init hatası:",
+        error
+      );
     }
+  }
+
+  private async waitForAuth() {
+    if (auth.currentUser) {
+      return auth.currentUser;
+    }
+
+    return new Promise<ReturnType<typeof getAuth>["currentUser"]>(
+      (resolve) => {
+        const unsubscribe = auth.onAuthStateChanged(
+          (user) => {
+            unsubscribe();
+            resolve(user);
+          }
+        );
+      }
+    );
+  }
+
+  /*
+   * =========================================================
+   * LIVE LISTENERS
+   * =========================================================
+   */
+
+  private startListeners(
+    profile: UserProfile
+  ) {
+    this.cleanupListeners();
+
+    const uid = profile.id;
+    const role = profile.role;
+
+    console.log(
+      "🔥 Storage listener başlatılıyor:",
+      {
+        uid,
+        email: profile.email,
+        role,
+      }
+    );
+
+    /*
+     * =======================================================
+     * USERS
+     * =======================================================
+     *
+     * ADMIN:
+     * Bütün users koleksiyonunu canlı dinler.
+     *
+     * CUSTOMER / COURIER:
+     * Sadece kendi profilini dinler.
+     */
+
+    if (role === "admin") {
+      const unsubscribeUsers = onSnapshot(
+        collection(db, "users"),
+        (snapshot) => {
+          const liveUsers: UserProfile[] =
+            snapshot.docs.map((item) => ({
+              ...(item.data() as UserProfile),
+              id: item.id,
+            }));
+
+          this.users = liveUsers;
+
+          console.log(
+            "🔥 ADMIN canlı users:",
+            liveUsers.length,
+            "müşteri:",
+            liveUsers.filter(
+              (user) => user.role === "customer"
+            ).length,
+            "kurye:",
+            liveUsers.filter(
+              (user) => user.role === "courier"
+            ).length
+          );
+
+          this.emit();
+        },
+        (error) => {
+          console.error(
+            "❌ Admin users onSnapshot hatası:",
+            error
+          );
+        }
+      );
+
+      this.unsubscribers.push(
+        unsubscribeUsers
+      );
+    } else {
+      const unsubscribeOwnUser = onSnapshot(
+        doc(db, "users", uid),
+        (snapshot) => {
+          if (!snapshot.exists()) {
+            return;
+          }
+
+          const liveUser: UserProfile = {
+            ...(snapshot.data() as UserProfile),
+            id: snapshot.id,
+          };
+
+          this.users = [
+            ...this.users.filter(
+              (user) => user.id !== uid
+            ),
+            liveUser,
+          ];
+
+          this.currentUser = liveUser;
+
+          this.emit();
+        },
+        (error) => {
+          console.error(
+            "❌ Kullanıcı profil listener hatası:",
+            error
+          );
+        }
+      );
+
+      this.unsubscribers.push(
+        unsubscribeOwnUser
+      );
+    }
+
+    /*
+     * =======================================================
+     * ORDERS
+     * =======================================================
+     */
+
+    let ordersQuery;
+
+    if (role === "admin") {
+      ordersQuery = query(
+        collection(db, "orders")
+      );
+    } else if (role === "courier") {
+      ordersQuery = query(
+        collection(db, "orders"),
+        where(
+          "courierId",
+          "==",
+          uid
+        )
+      );
+    } else {
+      ordersQuery = query(
+        collection(db, "orders"),
+        where(
+          "customerId",
+          "==",
+          uid
+        )
+      );
+    }
+
+    const unsubscribeOrders = onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        this.orders = snapshot.docs.map(
+          (item) => ({
+            ...(item.data() as Order),
+            id: item.id,
+          })
+        );
+
+        this.emit();
+      },
+      (error) => {
+        console.error(
+          "❌ Orders listener hatası:",
+          error
+        );
+      }
+    );
+
+    this.unsubscribers.push(
+      unsubscribeOrders
+    );
+
+    /*
+     * =======================================================
+     * NOTIFICATIONS
+     * =======================================================
+     */
+
+    const notificationsQuery = query(
+      collection(db, "notifications"),
+      where(
+        "userId",
+        "==",
+        uid
+      )
+    );
+
+    const unsubscribeNotifications =
+      onSnapshot(
+        notificationsQuery,
+        (snapshot) => {
+          this.notifications =
+            snapshot.docs.map(
+              (item) => ({
+                ...(item.data() as NotificationItem),
+                id: item.id,
+              })
+            );
+
+          this.emit();
+        },
+        (error) => {
+          console.error(
+            "❌ Notifications listener hatası:",
+            error
+          );
+        }
+      );
+
+    this.unsubscribers.push(
+      unsubscribeNotifications
+    );
+
+    /*
+     * =======================================================
+     * PRICING
+     * =======================================================
+     */
+
+    const unsubscribePricing = onSnapshot(
+      doc(
+        db,
+        "settings",
+        "pricing"
+      ),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          this.pricing = {
+            ...DEFAULT_PRICING,
+            ...(snapshot.data() as PricingConfig),
+          };
+        }
+
+        this.emit();
+      },
+      (error) => {
+        console.error(
+          "❌ Pricing listener hatası:",
+          error
+        );
+      }
+    );
+
+    this.unsubscribers.push(
+      unsubscribePricing
+    );
+
+    /*
+     * =======================================================
+     * COURIER LOCATIONS
+     * =======================================================
+     */
+
+    if (role === "admin") {
+      const unsubscribeLocations =
+        onSnapshot(
+          collection(
+            db,
+            "courierLocations"
+          ),
+          (snapshot) => {
+            this.courierLocations =
+              snapshot.docs.map(
+                (item) => {
+                  const data =
+                    item.data() as CourierLocation;
+
+                  return {
+                    ...data,
+                    courierId:
+                      data.courierId ||
+                      item.id,
+                  };
+                }
+              );
+
+            this.emit();
+          },
+          (error) => {
+            console.error(
+              "❌ Courier locations listener hatası:",
+              error
+            );
+          }
+        );
+
+      this.unsubscribers.push(
+        unsubscribeLocations
+      );
+    } else if (role === "courier") {
+      const unsubscribeLocation =
+        onSnapshot(
+          doc(
+            db,
+            "courierLocations",
+            uid
+          ),
+          (snapshot) => {
+            if (snapshot.exists()) {
+              const data =
+                snapshot.data() as CourierLocation;
+
+              this.courierLocations = [
+                ...this.courierLocations.filter(
+                  (item) =>
+                    item.courierId !== uid
+                ),
+                {
+                  ...data,
+                  courierId:
+                    data.courierId ||
+                    uid,
+                },
+              ];
+            }
+
+            this.emit();
+          },
+          (error) => {
+            console.error(
+              "❌ Kurye konum listener hatası:",
+              error
+            );
+          }
+        );
+
+      this.unsubscribers.push(
+        unsubscribeLocation
+      );
+    }
+  }
+
+  /*
+   * =========================================================
+   * CLEANUP
+   * =========================================================
+   */
+
+  private cleanupListeners() {
+    this.unsubscribers.forEach(
+      (unsubscribe) => {
+        try {
+          unsubscribe();
+        } catch {
+          // ignore
+        }
+      }
+    );
 
     this.unsubscribers = [];
   }
 
-  private addListener(
-    unsubscribe: Unsubscribe
-  ): void {
-    this.unsubscribers.push(
-      unsubscribe
+  /*
+   * =========================================================
+   * SUBSCRIBERS
+   * =========================================================
+   */
+
+  subscribe(
+    callback: Subscriber
+  ): () => void {
+    this.subscribers.add(
+      callback
     );
+
+    try {
+      callback();
+    } catch (error) {
+      console.error(
+        "Storage subscriber hatası:",
+        error
+      );
+    }
+
+    return () => {
+      this.subscribers.delete(
+        callback
+      );
+    };
   }
 
-  private subscribeAllUsers(): void {
-    const usersRef = collection(
-      db,
-      "users"
-    );
-
-    const unsubscribe = onSnapshot(
-      usersRef,
-      (snapshot) => {
-        this.users = snapshot.docs.map(
-          (item) =>
-            item.data() as UserProfile
-        );
-
-        this.couriers =
-          this.users.filter(
-            (item) =>
-              item.role === "courier"
-          ) as Courier[];
-
-        this.customers =
-          this.users.filter(
-            (item) =>
-              item.role === "customer"
-          ) as Customer[];
-      },
-      (error) => {
-        console.error(
-          "Kullanıcı listener hatası:",
-          error
-        );
-      }
-    );
-
-    this.addListener(unsubscribe);
-  }
-
-  private subscribeAllOrders(): void {
-    const ordersRef = collection(
-      db,
-      "orders"
-    );
-
-    const unsubscribe = onSnapshot(
-      ordersRef,
-      (snapshot) => {
-        this.orders = snapshot.docs
-          .map((item) =>
-            item.data() as Order
-          )
-          .sort(
-            (a, b) =>
-              new Date(
-                b.createdAt
-              ).getTime() -
-              new Date(
-                a.createdAt
-              ).getTime()
+  private emit() {
+    this.subscribers.forEach(
+      (callback) => {
+        try {
+          callback();
+        } catch (error) {
+          console.error(
+            "Storage emit hatası:",
+            error
           );
-      },
-      (error) => {
-        console.error(
-          "Sipariş listener hatası:",
-          error
-        );
+        }
       }
     );
-
-    this.addListener(unsubscribe);
-  }
-
-  private subscribeCustomerOrders(
-    customerId: string
-  ): void {
-    const ordersRef = collection(
-      db,
-      "orders"
-    );
-
-    const q = query(
-      ordersRef,
-      where(
-        "customerId",
-        "==",
-        customerId
-      )
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        this.orders = snapshot.docs
-          .map((item) =>
-            item.data() as Order
-          )
-          .sort(
-            (a, b) =>
-              new Date(
-                b.createdAt
-              ).getTime() -
-              new Date(
-                a.createdAt
-              ).getTime()
-          );
-      },
-      (error) => {
-        console.error(
-          "Müşteri sipariş listener hatası:",
-          error
-        );
-      }
-    );
-
-    this.addListener(unsubscribe);
-  }
-
-  private subscribeCourierOrders(
-    courierId: string
-  ): void {
-    const ordersRef = collection(
-      db,
-      "orders"
-    );
-
-    const q = query(
-      ordersRef,
-      where(
-        "courierId",
-        "==",
-        courierId
-      )
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        this.orders = snapshot.docs
-          .map((item) =>
-            item.data() as Order
-          )
-          .sort(
-            (a, b) =>
-              new Date(
-                b.createdAt
-              ).getTime() -
-              new Date(
-                a.createdAt
-              ).getTime()
-          );
-      },
-      (error) => {
-        console.error(
-          "Kurye sipariş listener hatası:",
-          error
-        );
-      }
-    );
-
-    this.addListener(unsubscribe);
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | USERS
-  |--------------------------------------------------------------------------
-  */
+   * =========================================================
+   * CURRENT USER
+   * =========================================================
+   */
 
-  async getCouriers(): Promise<
-    Courier[]
-  > {
-    if (this.currentUser?.role === "admin") {
-      return [...this.couriers];
+  setCurrentUser(
+    user: UserProfile | null
+  ) {
+    this.currentUser = user;
+
+    if (user) {
+      this.startListeners(user);
+    } else {
+      this.cleanupListeners();
+
+      this.users = [];
+      this.orders = [];
+      this.notifications = [];
+      this.courierLocations = [];
     }
 
-    const snapshot = await getDocs(
-      query(
-        collection(db, "users"),
-        where(
-          "role",
-          "==",
-          "courier"
-        )
-      )
-    );
-
-    return snapshot.docs.map(
-      (item) =>
-        item.data() as Courier
-    );
+    this.emit();
   }
 
-  async getCustomers(): Promise<
-    Customer[]
-  > {
-    if (this.currentUser?.role === "admin") {
-      return [...this.customers];
-    }
-
-    const snapshot = await getDocs(
-      query(
-        collection(db, "users"),
-        where(
-          "role",
-          "==",
-          "customer"
-        )
-      )
-    );
-
-    return snapshot.docs.map(
-      (item) =>
-        item.data() as Customer
-    );
-  }
-
-  async getUsers(): Promise<
-    UserProfile[]
-  > {
-    if (this.currentUser?.role === "admin") {
-      return [...this.users];
-    }
-
-    if (!this.currentUser) {
-      return [];
-    }
-
-    const userRef = doc(
-      db,
-      "users",
-      this.currentUser.id
-    );
-
-    const snapshot =
-      await getDoc(userRef);
-
-    if (!snapshot.exists()) {
-      return [];
-    }
-
-    return [
-      snapshot.data() as UserProfile,
-    ];
-  }
-
-  async getUserById(
-    userId: string
-  ): Promise<UserProfile | null> {
-    const snapshot = await getDoc(
-      doc(db, "users", userId)
-    );
-
-    if (!snapshot.exists()) {
-      return null;
-    }
-
-    return snapshot.data() as UserProfile;
+  getCurrentUser():
+    UserProfile | null {
+    return this.currentUser;
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | COURIER CREATE
-  |--------------------------------------------------------------------------
-  |
-  | NOT:
-  | Bu yöntem frontend üzerinde secondary Firebase Auth
-  | kullanır.
-  |
-  | Production ortamında bunu Cloud Function + Admin SDK
-  | tarafına taşımak daha güvenlidir.
-  |
-  */
+   * =========================================================
+   * USERS
+   * =========================================================
+   */
+
+  getUsers(): UserProfile[] {
+    return [...this.users];
+  }
+
+  getUserById(
+    id: string
+  ): UserProfile | undefined {
+    return this.users.find(
+      (user) =>
+        user.id === id
+    );
+  }
+
+  getCouriers(): UserProfile[] {
+    return this.users.filter(
+      (user) =>
+        user.role === "courier"
+    );
+  }
+
+  getCustomers(): UserProfile[] {
+    return this.users.filter(
+      (user) =>
+        user.role === "customer"
+    );
+  }
+
+  async updateUser(
+    id: string,
+    data: Partial<UserProfile>
+  ) {
+    await updateDoc(
+      doc(
+        db,
+        "users",
+        id
+      ),
+      {
+        ...data,
+        updatedAt:
+          new Date().toISOString(),
+      }
+    );
+  }
+
+  /*
+   * =========================================================
+   * COURIER
+   * =========================================================
+   */
 
   async createCourier(data: {
     name: string;
     email: string;
-    phone: string;
+    phone?: string;
     password: string;
-    vehicle?: string;
-    plate?: string;
-  }): Promise<Courier> {
-    if (
-      !this.currentUser ||
-      this.currentUser.role !== "admin"
-    ) {
-      throw new Error(
-        "Kurye oluşturmak için admin yetkisi gerekir."
-      );
-    }
+  }): Promise<UserProfile> {
+    const name =
+      data.name.trim();
 
-    const name = data.name.trim();
-    const email = data.email
-      .trim()
-      .toLowerCase();
-    const phone = data.phone.trim();
-    const password = data.password;
+    const email =
+      data.email.trim().toLowerCase();
+
+    const phone =
+      data.phone?.trim() || "";
 
     if (!name) {
       throw new Error(
@@ -490,104 +637,124 @@ class StorageService {
 
     if (!email) {
       throw new Error(
-        "Kurye e-posta adresi gerekli."
+        "Kurye e-postası gerekli."
       );
     }
 
-    if (password.length < 6) {
+    if (
+      !data.password ||
+      data.password.length < 6
+    ) {
       throw new Error(
-        "Kurye şifresi en az 6 karakter olmalıdır."
+        "Şifre en az 6 karakter olmalıdır."
       );
     }
 
-    /*
-     * Ana admin oturumuna dokunmamak için
-     * ikinci Firebase App kullanıyoruz.
-     */
+    const adminUser =
+      auth.currentUser;
 
-    const secondaryApp =
+    if (!adminUser) {
+      throw new Error(
+        "Admin oturumu bulunamadı."
+      );
+    }
+
+    if (
+      adminUser.email
+        ?.trim()
+        .toLowerCase() !==
+      ADMIN_EMAIL.toLowerCase()
+    ) {
+      throw new Error(
+        "Bu işlemi sadece admin yapabilir."
+      );
+    }
+
+    const secondaryAppName =
+      "TrustlineCourierCreator";
+
+    const existingApp =
       getApps().find(
         (app) =>
           app.name ===
-          this.secondaryAppName
-      ) ??
+          secondaryAppName
+      );
+
+    const secondaryApp =
+      existingApp ??
       initializeApp(
-        auth.app.options,
-        this.secondaryAppName
+        adminUser.auth.app.options,
+        secondaryAppName
       );
 
     const secondaryAuth =
-      getAuth(secondaryApp);
-
-    let createdUser:
-      | typeof secondaryAuth.currentUser
-      | null = null;
+      getAuth(
+        secondaryApp
+      );
 
     try {
       const credential =
         await createUserWithEmailAndPassword(
           secondaryAuth,
           email,
-          password
+          data.password
         );
 
-      createdUser = credential.user;
+      const courierUser =
+        credential.user;
 
-      const uid = createdUser.uid;
+      const now =
+        new Date().toISOString();
 
-      const courier: Courier = {
-        id: uid,
+      const profile: UserProfile = {
+        id: courierUser.uid,
         name,
-        email,
+        email:
+          courierUser.email ||
+          email,
         phone,
         role: "courier",
-        vehicle:
-          data.vehicle?.trim() ||
-          "",
-        plate:
-          data.plate?.trim() ||
-          "",
         courierStatus:
           "Çevrimdışı",
         totalDeliveries: 0,
         rating: 5,
-        createdAt:
-          new Date().toISOString(),
-      } as Courier;
+        createdAt: now,
+      };
 
       /*
-       * ÖNEMLİ:
-       * Firestore Rules admin kontrolü kullanıyorsa
-       * bu yazma işlemi yeni kurye Auth oturumu nedeniyle
-       * admin olarak görünmeyebilir.
-       *
-       * Bu yüzden hata alınırsa Cloud Function mimarisine
-       * geçeceğiz.
+       * NOT:
+       * Firestore Rules admin kontrolüne göre
+       * bu yazma işlemi mevcut projede permission
+       * hatası verebilir. Bu işlem daha sonra
+       * server tarafına taşınmalıdır.
        */
 
       await setDoc(
-        doc(db, "users", uid),
-        courier
+        doc(
+          db,
+          "users",
+          courierUser.uid
+        ),
+        {
+          ...profile,
+          updatedAt: now,
+        }
       );
 
       await signOut(
         secondaryAuth
       );
 
-      return courier;
-    } catch (error) {
-      /*
-       * Auth hesabı oluştu ama Firestore yazılamadıysa
-       * yeni Auth hesabını temizlemeye çalış.
-       */
-      if (createdUser) {
-        try {
-          await deleteUser(
-            createdUser
-          );
-        } catch {
-          // ignore cleanup error
+      return profile;
+    } catch (error: any) {
+      try {
+        if (
+          secondaryAuth.currentUser
+        ) {
+          await secondaryAuth.currentUser.delete();
         }
+      } catch {
+        // ignore
       }
 
       try {
@@ -598,231 +765,170 @@ class StorageService {
         // ignore
       }
 
+      if (
+        error?.code ===
+        "auth/email-already-in-use"
+      ) {
+        throw new Error(
+          "Bu e-posta adresi zaten Firebase'de kayıtlı."
+        );
+      }
+
+      if (
+        error?.code ===
+        "auth/invalid-email"
+      ) {
+        throw new Error(
+          "Geçerli bir e-posta adresi girin."
+        );
+      }
+
+      if (
+        error?.code ===
+        "auth/weak-password"
+      ) {
+        throw new Error(
+          "Şifre çok zayıf."
+        );
+      }
+
       throw error;
     }
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | COURIER STATUS
-  |--------------------------------------------------------------------------
-  */
-
   async updateCourierStatus(
     courierId: string,
-    status: Courier["courierStatus"]
-  ): Promise<void> {
+    status: CourierAvailability
+  ) {
     await updateDoc(
-      doc(db, "users", courierId),
+      doc(
+        db,
+        "users",
+        courierId
+      ),
       {
         courierStatus: status,
+        updatedAt:
+          new Date().toISOString(),
       }
     );
+
+    const existing =
+      this.getUserById(
+        courierId
+      );
+
+    if (existing) {
+      this.users =
+        this.users.map(
+          (user) =>
+            user.id === courierId
+              ? {
+                  ...user,
+                  courierStatus:
+                    status,
+                }
+              : user
+        );
+
+      this.emit();
+    }
+
+    return existing;
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | ORDERS
-  |--------------------------------------------------------------------------
-  */
+   * =========================================================
+   * ORDERS
+   * =========================================================
+   */
 
-  async getOrders(): Promise<Order[]> {
+  getOrders(): Order[] {
     return [...this.orders];
   }
 
-  async getOrderById(
-    orderId: string
-  ): Promise<Order | null> {
-    const snapshot = await getDoc(
-      doc(db, "orders", orderId)
+  getOrderById(
+    id: string
+  ): Order | undefined {
+    return this.orders.find(
+      (order) =>
+        order.id === id
     );
-
-    if (!snapshot.exists()) {
-      return null;
-    }
-
-    return snapshot.data() as Order;
   }
 
   async createOrder(
     order: Order
   ): Promise<Order> {
-    if (!this.currentUser) {
-      throw new Error(
-        "Sipariş oluşturmak için giriş yapmalısınız."
-      );
-    }
-
-    if (
-      this.currentUser.role !==
-      "customer"
-    ) {
-      throw new Error(
-        "Siparişi yalnızca müşteri oluşturabilir."
-      );
-    }
-
-    const now =
-      new Date().toISOString();
-
-    const newOrder: Order = {
+    const finalOrder: Order = {
       ...order,
-      customerId:
-        this.currentUser.id,
-      customerName:
-        this.currentUser.name,
-      customerPhone:
-        this.currentUser.phone,
-      courierId:
-        order.courierId ?? null,
-      status:
-        order.status ||
-        "Kurye Bekleniyor",
       createdAt:
-        order.createdAt || now,
-      updatedAt: now,
-    };
-
-    await setDoc(
-      doc(db, "orders", newOrder.id),
-      newOrder
-    );
-
-    return newOrder;
-  }
-
-  async updateOrder(
-    orderId: string,
-    changes: Partial<Order>
-  ): Promise<Order> {
-    const orderRef = doc(
-      db,
-      "orders",
-      orderId
-    );
-
-    const snapshot =
-      await getDoc(orderRef);
-
-    if (!snapshot.exists()) {
-      throw new Error(
-        "Sipariş bulunamadı."
-      );
-    }
-
-    const existing =
-      snapshot.data() as Order;
-
-    const updatedOrder: Order = {
-      ...existing,
-      ...changes,
-      id: orderId,
+        order.createdAt ||
+        new Date().toISOString(),
       updatedAt:
         new Date().toISOString(),
     };
 
-    await updateDoc(
-      orderRef,
-      updatedOrder as DocumentData
+    await setDoc(
+      doc(
+        db,
+        "orders",
+        order.id
+      ),
+      finalOrder
     );
 
-    return updatedOrder;
+    return finalOrder;
   }
 
-  async deleteOrder(
-    orderId: string
-  ): Promise<void> {
-    await deleteDoc(
-      doc(db, "orders", orderId)
-    );
-  }
-
-  /*
-  |--------------------------------------------------------------------------
-  | ASSIGN COURIER
-  |--------------------------------------------------------------------------
-  */
-
-  async assignCourier(
-    orderId: string,
-    courierId: string
+  async updateOrder(
+    id: string,
+    data: Partial<Order>
   ): Promise<Order> {
-    const courier =
-      await this.getUserById(
-        courierId
-      );
+    const updatedAt =
+      new Date().toISOString();
 
-    if (!courier) {
-      throw new Error(
-        "Kurye bulunamadı."
-      );
-    }
+    await updateDoc(
+      doc(
+        db,
+        "orders",
+        id
+      ),
+      {
+        ...data,
+        updatedAt,
+      }
+    );
 
-    if (
-      courier.role !== "courier"
-    ) {
-      throw new Error(
-        "Seçilen kullanıcı kurye değil."
-      );
-    }
-
-    const order =
-      await this.getOrderById(
-        orderId
-      );
-
-    if (!order) {
-      throw new Error(
-        "Sipariş bulunamadı."
-      );
-    }
+    const current =
+      this.getOrderById(id);
 
     const updatedOrder =
-      await this.updateOrder(
-        orderId,
-        {
-          courierId:
-            courier.id,
-          courierName:
-            courier.name,
-          courierPhone:
-            courier.phone,
-          status:
-            order.status ===
-            "Kurye Bekleniyor"
-              ? "Kurye Atandı"
-              : order.status,
-        }
+      {
+        ...(current || {
+          id,
+        }),
+        ...data,
+        id,
+        updatedAt,
+      } as Order;
+
+    this.orders =
+      this.orders.map(
+        (order) =>
+          order.id === id
+            ? updatedOrder
+            : order
       );
 
-    /*
-     * Kurye meşgul yapılır.
-     */
-    try {
-      await this.updateCourierStatus(
-        courier.id,
-        "Meşgul"
-      );
-    } catch (error) {
-      console.warn(
-        "Kurye durumu güncellenemedi:",
-        error
-      );
-    }
+    this.emit();
 
     return updatedOrder;
   }
-
-  /*
-  |--------------------------------------------------------------------------
-  | ORDER STATUS
-  |--------------------------------------------------------------------------
-  */
 
   async updateOrderStatus(
     orderId: string,
     status: OrderStatus
-  ): Promise<Order> {
+  ) {
     return this.updateOrder(
       orderId,
       {
@@ -831,54 +937,65 @@ class StorageService {
     );
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | PRICING
-  |--------------------------------------------------------------------------
-  */
+  async assignCourier(
+    orderId: string,
+    courierId: string
+  ) {
+    const courier =
+      this.getUserById(
+        courierId
+      );
 
-  async getPricing(): Promise<PricingConfig> {
-    const pricingRef = doc(
-      db,
-      "settings",
-      "pricing"
+    return this.updateOrder(
+      orderId,
+      {
+        courierId,
+        courierName:
+          courier?.name || "",
+        courierPhone:
+          courier?.phone || "",
+        status:
+          "Kurye Atandı",
+      }
+    );
+  }
+
+  async deleteOrder(
+    orderId: string
+  ) {
+    await deleteDoc(
+      doc(
+        db,
+        "orders",
+        orderId
+      )
     );
 
-    const snapshot =
-      await getDoc(pricingRef);
+    this.orders =
+      this.orders.filter(
+        (order) =>
+          order.id !== orderId
+      );
 
-    if (!snapshot.exists()) {
-      const fallback: PricingConfig =
-        {
-          ...DEFAULT_PRICING,
-          updatedAt:
-            new Date().toISOString(),
-        };
+    this.emit();
+  }
 
-      return fallback;
-    }
+  /*
+   * =========================================================
+   * PRICING
+   * =========================================================
+   */
 
-    return snapshot.data() as PricingConfig;
+  getPricing():
+    PricingConfig {
+    return this.pricing;
   }
 
   async updatePricing(
-    pricing: Partial<PricingConfig>
-  ): Promise<PricingConfig> {
-    if (
-      !this.currentUser ||
-      this.currentUser.role !== "admin"
-    ) {
-      throw new Error(
-        "Fiyatlandırmayı yalnızca admin değiştirebilir."
-      );
-    }
-
-    const current =
-      await this.getPricing();
-
-    const updated: PricingConfig =
+    pricing: PricingConfig
+  ) {
+    const finalPricing =
       {
-        ...current,
         ...pricing,
         updatedAt:
           new Date().toISOString(),
@@ -890,119 +1007,179 @@ class StorageService {
         "settings",
         "pricing"
       ),
-      updated,
+      finalPricing,
       {
         merge: true,
       }
     );
 
-    return updated;
+    this.pricing =
+      finalPricing;
+
+    this.emit();
   }
 
   async setPricing(
-    pricing: Partial<PricingConfig>
-  ): Promise<PricingConfig> {
+    pricing: PricingConfig
+  ) {
     return this.updatePricing(
       pricing
     );
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | COURIER LOCATION
-  |--------------------------------------------------------------------------
-  */
+   * =========================================================
+   * NOTIFICATIONS
+   * =========================================================
+   */
 
-  async updateCourierLocation(
-    latitude: number,
-    longitude: number,
-    isSharing = true
-  ): Promise<void> {
-    if (!this.currentUser) {
-      throw new Error(
-        "Konum paylaşmak için giriş yapmalısınız."
-      );
-    }
+  getNotifications(
+    userId: string
+  ): NotificationItem[] {
+    return [
+      ...this.notifications
+        .filter(
+          (notification) =>
+            notification.userId ===
+            userId
+        )
+        .sort(
+          (a, b) =>
+            new Date(
+              b.createdAt || 0
+            ).getTime() -
+            new Date(
+              a.createdAt || 0
+            ).getTime()
+        ),
+    ];
+  }
 
-    if (
-      this.currentUser.role !==
-      "courier"
-    ) {
-      throw new Error(
-        "Sadece kuryeler konum paylaşabilir."
-      );
-    }
-
+  async createNotification(
+    notification: NotificationItem
+  ) {
     await setDoc(
       doc(
         db,
-        "courierLocations",
-        this.currentUser.id
+        "notifications",
+        notification.id
       ),
       {
-        courierId:
-          this.currentUser.id,
-        latitude,
-        longitude,
-        updatedAt:
+        ...notification,
+        createdAt:
+          notification.createdAt ||
           new Date().toISOString(),
-        isSharing,
-      },
-      {
-        merge: true,
       }
     );
   }
 
-  async stopCourierLocationSharing(): Promise<void> {
-    if (!this.currentUser) {
-      return;
-    }
-
-    if (
-      this.currentUser.role !==
-      "courier"
-    ) {
-      return;
-    }
-
-    await setDoc(
+  async markNotificationAsRead(
+    notificationId: string
+  ) {
+    await updateDoc(
       doc(
         db,
-        "courierLocations",
-        this.currentUser.id
+        "notifications",
+        notificationId
       ),
       {
-        courierId:
-          this.currentUser.id,
-        isSharing: false,
-        updatedAt:
-          new Date().toISOString(),
-      },
-      {
-        merge: true,
+        read: true,
       }
     );
   }
 
   /*
-  |--------------------------------------------------------------------------
-  | CLEANUP
-  |--------------------------------------------------------------------------
-  */
+   * =========================================================
+   * COURIER LOCATION
+   * =========================================================
+   */
 
-  destroy(): void {
-    this.clearListeners();
+  getCourierLocation(
+    courierId: string
+  ):
+    | CourierLocation
+    | undefined {
+    return this.courierLocations.find(
+      (location) =>
+        location.courierId ===
+        courierId
+    );
+  }
+
+  async updateCourierLocation(
+    location: CourierLocation
+  ): Promise<CourierLocation> {
+    const finalLocation = {
+      ...location,
+      updatedAt:
+        location.updatedAt ||
+        new Date().toISOString(),
+    };
+
+    await setDoc(
+      doc(
+        db,
+        "courierLocations",
+        location.courierId
+      ),
+      finalLocation,
+      {
+        merge: true,
+      }
+    );
+
+    this.courierLocations = [
+      ...this.courierLocations.filter(
+        (item) =>
+          item.courierId !==
+          location.courierId
+      ),
+      finalLocation,
+    ];
+
+    this.emit();
+
+    return finalLocation;
+  }
+
+  /*
+   * =========================================================
+   * DESTROY
+   * =========================================================
+   */
+
+  destroy() {
+    this.cleanupListeners();
+
+    this.initialized = false;
+    this.initializing = false;
 
     this.currentUser = null;
+
     this.users = [];
     this.orders = [];
-    this.couriers = [];
-    this.customers = [];
+    this.notifications = [];
+    this.courierLocations = [];
+
+    this.pricing =
+      DEFAULT_PRICING;
+
+    this.emit();
   }
 }
 
 export const storage =
   new StorageService();
 
-export default storage;
+/*
+ * Uygulama başlarken Storage'ı hazırla.
+ */
+
+void storage.init().catch(
+  (error) => {
+    console.error(
+      "Storage başlangıç hatası:",
+      error
+    );
+  }
+);
