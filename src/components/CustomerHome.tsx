@@ -1,364 +1,975 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from "react";
 import {
   ArrowRight,
   Bot,
   Calculator,
   CheckCircle2,
-  Clock,
-  Compass,
-  FileText,
+  Clock3,
+  MapPin,
   Package,
+  Plus,
   ShieldCheck,
   Sparkles,
-  TrendingUp,
   Truck,
   Zap,
-} from 'lucide-react';
-import { CourierType, Order, PricingConfig } from '../types';
-import { calculateOrderPrice, estimateDistanceBetweenAddresses } from '../utils/pricing';
+} from "lucide-react";
+
+import type {
+  Order,
+  PricingConfig,
+} from "../types";
 
 interface Props {
-  onOpenNewOrder: (prefill?: Partial<Order>) => void;
+  onOpenNewOrder: (
+    prefill?: Partial<Order>
+  ) => void;
   onOpenAI: () => void;
   onGoToOrders: () => void;
   activeOrders: Order[];
   pricing: PricingConfig;
 }
 
-export const CustomerHome: React.FC<Props> = ({
+export function CustomerHome({
   onOpenNewOrder,
   onOpenAI,
   onGoToOrders,
   activeOrders,
   pricing,
-}) => {
-  // Quick calculator state
-  const [calcKm, setCalcKm] = useState<number>(10);
-  const [calcType, setCalcType] = useState<CourierType>('Standart Kurye');
+}: Props) {
+  const [calcKm, setCalcKm] =
+    useState<number>(10);
 
-  const { finalPrice, isMinimumApplied } = calculateOrderPrice(calcKm, calcType, pricing);
+  const [calcType, setCalcType] =
+    useState<
+      "Standart Kurye" |
+      "Acil Kurye" |
+      "VIP Kurye"
+    >("Standart Kurye");
 
-  const activeOrder = activeOrders[0];
+  const activeOrder =
+    activeOrders?.[0] ?? null;
+
+  const activeOrderCount =
+    activeOrders?.length ?? 0;
+
+  /*
+   * ==========================================
+   * PRICE CALCULATOR
+   * ==========================================
+   */
+
+  const priceCalculation = useMemo(() => {
+    const km = Math.max(
+      0,
+      Number(calcKm) || 0
+    );
+
+    let multiplier = 1;
+
+    if (calcType === "Acil Kurye") {
+      multiplier =
+        pricing?.urgentMultiplier ?? 1.3;
+    }
+
+    if (calcType === "VIP Kurye") {
+      multiplier =
+        pricing?.vipMultiplier ?? 1.6;
+    }
+
+    const basePrice =
+      km *
+      (pricing?.perKmPrice ?? 50);
+
+    const calculatedPrice =
+      basePrice * multiplier;
+
+    const minimumPrice =
+      pricing?.minPrice ?? 250;
+
+    const finalPrice = Math.max(
+      calculatedPrice,
+      minimumPrice
+    );
+
+    return {
+      finalPrice,
+      basePrice,
+      minimumApplied:
+        calculatedPrice < minimumPrice,
+    };
+  }, [
+    calcKm,
+    calcType,
+    pricing,
+  ]);
+
+  /*
+   * ==========================================
+   * STATUS
+   * ==========================================
+   */
+
+  const getStatusText = (
+    order: Order
+  ) => {
+    switch (order.status) {
+      case "Kurye Bekleniyor":
+        return "Kurye aranıyor";
+
+      case "Kurye Atandı":
+        return "Kurye atandı";
+
+      case "Kurye Kabul Etti":
+        return "Kurye siparişi kabul etti";
+
+      case "Paket Alındı":
+        return "Paket alındı";
+
+      case "Teslimatta":
+        return "Teslimat devam ediyor";
+
+      default:
+        return order.status;
+    }
+  };
+
+  const getStatusProgress = (
+    order: Order
+  ) => {
+    switch (order.status) {
+      case "Kurye Bekleniyor":
+        return 20;
+
+      case "Kurye Atandı":
+        return 40;
+
+      case "Kurye Kabul Etti":
+        return 55;
+
+      case "Paket Alındı":
+        return 75;
+
+      case "Teslimatta":
+        return 90;
+
+      case "Teslim Edildi":
+        return 100;
+
+      default:
+        return 10;
+    }
+  };
+
+  /*
+   * ==========================================
+   * QUICK ORDER
+   * ==========================================
+   */
+
+  const handleQuickOrder = (
+    type:
+      | "Standart Kurye"
+      | "Acil Kurye"
+      | "VIP Kurye"
+  ) => {
+    const urgency =
+      type === "VIP Kurye"
+        ? "Çok Acil"
+        : type === "Acil Kurye"
+        ? "Acil"
+        : "Normal";
+
+    onOpenNewOrder({
+      courierType: type,
+      urgency,
+    });
+  };
+
+  /*
+   * ==========================================
+   * RENDER
+   * ==========================================
+   */
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Active Order Banner if any */}
-      {activeOrder && (
-        <div 
-          onClick={onGoToOrders}
-          className="bg-gradient-to-r from-[#19191E] via-[#222229] to-[#19191E] border border-[#D6A84F]/40 p-4 rounded-2xl cursor-pointer hover:border-[#D6A84F] transition-all shadow-lg shadow-[#D6A84F]/5 relative overflow-hidden group"
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[#D6A84F]/5 rounded-full blur-2xl pointer-events-none" />
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#D6A84F]/20 border border-[#D6A84F]/40 flex items-center justify-center shrink-0">
-                <Truck className="w-5 h-5 text-[#D6A84F] animate-bounce" />
+    <div className="mx-auto w-full max-w-6xl pb-8">
+      {/* ==========================================
+          PREMIUM HERO
+      ========================================== */}
+
+      <section className="relative overflow-hidden rounded-[32px] border border-[#2E2E36] bg-gradient-to-br from-[#1B1B21] via-[#111116] to-[#0D0D10] shadow-2xl">
+        {/* Ambient lights */}
+
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#D6A84F]/10 blur-3xl" />
+
+        <div className="pointer-events-none absolute -bottom-32 -left-24 h-72 w-72 rounded-full bg-[#D6A84F]/5 blur-3xl" />
+
+        {/* Grid */}
+
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.04]"
+          style={{
+            backgroundImage:
+              "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
+            backgroundSize: "32px 32px",
+          }}
+        />
+
+        <div className="relative p-6 sm:p-8 lg:p-10">
+          {/* Top badge */}
+
+          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#D6A84F]/20 bg-[#D6A84F]/10 px-3 py-1.5">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#D6A84F] opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#D6A84F]" />
+            </span>
+
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D6A84F]">
+              Trustline Express aktif
+            </span>
+          </div>
+
+          <div className="grid gap-8 lg:grid-cols-[1.3fr_0.7fr] lg:items-center">
+            {/* Hero text */}
+
+            <div>
+              <div className="mb-3 flex items-center gap-2 text-xs font-bold text-[#888891]">
+                <ShieldCheck
+                  size={15}
+                  className="text-[#D6A84F]"
+                />
+
+                Güvenli • Hızlı • Profesyonel
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-[#D6A84F] tracking-wide uppercase">
-                    Aktif Siparişiniz Var
+
+              <h1 className="max-w-2xl text-3xl font-black leading-[1.08] tracking-tight text-white sm:text-4xl lg:text-5xl">
+                Gönderin güvende,
+                <span className="block text-[#D6A84F]">
+                  teslimatınız bizde.
+                </span>
+              </h1>
+
+              <p className="mt-5 max-w-xl text-sm leading-6 text-[#9A9AA3] sm:text-base">
+                İhtiyacınız olan kurye hizmetini
+                birkaç saniyede oluşturun.
+                Siparişinizi oluşturun, kurye
+                sürecini anlık olarak takip edin.
+              </p>
+
+              {/* Main actions */}
+
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onOpenNewOrder()
+                  }
+                  className="group flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-[#D6A84F] px-6 text-sm font-black text-[#0B0B0D] shadow-lg shadow-[#D6A84F]/10 transition hover:-translate-y-0.5 hover:bg-[#E2B866]"
+                >
+                  <Plus size={19} />
+
+                  Yeni Kurye Çağır
+
+                  <ArrowRight
+                    size={17}
+                    className="transition-transform group-hover:translate-x-1"
+                  />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onOpenAI}
+                  className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-[#3A3A43] bg-white/[0.03] px-6 text-sm font-bold text-white transition hover:border-[#D6A84F]/40 hover:bg-white/[0.06]"
+                >
+                  <Bot
+                    size={18}
+                    className="text-[#D6A84F]"
+                  />
+
+                  Trustline AI
+                </button>
+              </div>
+            </div>
+
+            {/* Dashboard visual */}
+
+            <div className="hidden lg:block">
+              <div className="relative mx-auto h-64 w-64">
+                <div className="absolute inset-4 rounded-full border border-[#D6A84F]/10" />
+
+                <div className="absolute inset-10 rounded-full border border-dashed border-[#D6A84F]/20" />
+
+                <div className="absolute inset-[72px] flex items-center justify-center rounded-[28px] border border-[#D6A84F]/20 bg-[#D6A84F]/10 shadow-2xl shadow-[#D6A84F]/5">
+                  <Truck
+                    size={48}
+                    strokeWidth={1.5}
+                    className="text-[#D6A84F]"
+                  />
+                </div>
+
+                <div className="absolute left-1 top-12 flex h-10 w-10 items-center justify-center rounded-xl border border-[#303038] bg-[#18181D] shadow-xl">
+                  <MapPin
+                    size={17}
+                    className="text-[#D6A84F]"
+                  />
+                </div>
+
+                <div className="absolute right-1 top-28 flex h-10 w-10 items-center justify-center rounded-xl border border-[#303038] bg-[#18181D] shadow-xl">
+                  <Package
+                    size={17}
+                    className="text-[#D6A84F]"
+                  />
+                </div>
+
+                <div className="absolute bottom-8 left-14 flex h-9 w-9 items-center justify-center rounded-xl border border-[#303038] bg-[#18181D] shadow-xl">
+                  <Zap
+                    size={15}
+                    className="text-[#D6A84F]"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==========================================
+          ACTIVE ORDER
+      ========================================== */}
+
+      {activeOrder && (
+        <section className="mt-5 overflow-hidden rounded-[28px] border border-[#D6A84F]/20 bg-[#15151A] shadow-xl">
+          <button
+            type="button"
+            onClick={onGoToOrders}
+            className="w-full text-left"
+          >
+            <div className="p-5 sm:p-6">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#D6A84F]/10">
+                    <Truck
+                      size={20}
+                      className="text-[#D6A84F]"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[#D6A84F]">
+                        Aktif sipariş
+                      </span>
+
+                      {activeOrderCount > 1 && (
+                        <span className="rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-bold text-[#9999A2]">
+                          +{activeOrderCount - 1} aktif
+                        </span>
+                      )}
+                    </div>
+
+                    <h2 className="mt-1 text-base font-black text-white">
+                      {getStatusText(
+                        activeOrder
+                      )}
+                    </h2>
+
+                    <p className="mt-1 text-xs text-[#777780]">
+                      #{activeOrder.id}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start rounded-xl border border-[#303038] px-3 py-2 sm:self-auto">
+                  <span className="text-xs font-bold text-[#B4B4BC]">
+                    Detayları Gör
                   </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#0B0B0D] border border-[#303036] text-white font-mono">
-                    #{activeOrder.id}
+
+                  <ArrowRight
+                    size={15}
+                    className="text-[#D6A84F]"
+                  />
+                </div>
+              </div>
+
+              {/* Progress */}
+
+              <div className="mt-6">
+                <div className="mb-2 flex items-center justify-between text-[10px] font-bold">
+                  <span className="text-[#777780]">
+                    Teslimat ilerlemesi
+                  </span>
+
+                  <span className="text-[#D6A84F]">
+                    {getStatusProgress(
+                      activeOrder
+                    )}
+                    %
                   </span>
                 </div>
-                <p className="text-sm font-semibold text-white mt-0.5">
-                  Durum: <span className="text-emerald-400">{activeOrder.status}</span>
-                </p>
-                <p className="text-xs text-[#999999] truncate max-w-xs sm:max-w-md">
-                  {activeOrder.deliveryAddress}
-                </p>
+
+                <div className="h-2 overflow-hidden rounded-full bg-[#28282F]">
+                  <div
+                    className="h-full rounded-full bg-[#D6A84F] transition-all duration-700"
+                    style={{
+                      width: `${getStatusProgress(
+                        activeOrder
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Addresses */}
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-[#292930] bg-[#101014] p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-lg bg-emerald-500/10 p-2">
+                      <MapPin
+                        size={15}
+                        className="text-emerald-400"
+                      />
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[#66666F]">
+                        Alış adresi
+                      </p>
+
+                      <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-[#C4C4CB]">
+                        {
+                          activeOrder.pickupAddress
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-[#292930] bg-[#101014] p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-lg bg-[#D6A84F]/10 p-2">
+                      <MapPin
+                        size={15}
+                        className="text-[#D6A84F]"
+                      />
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[#66666F]">
+                        Teslimat adresi
+                      </p>
+
+                      <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-[#C4C4CB]">
+                        {
+                          activeOrder.deliveryAddress
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            <button className="shrink-0 p-2 rounded-xl bg-[#222229] border border-[#303036] text-[#D6A84F] group-hover:bg-[#D6A84F] group-hover:text-[#0B0B0D] transition-colors">
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+          </button>
+        </section>
       )}
 
-      {/* Main Hero Header */}
-      <div className="relative rounded-3xl bg-[#19191E] border border-[#303036] p-6 sm:p-8 overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-radial from-[#D6A84F]/15 via-transparent to-transparent rounded-full blur-3xl pointer-events-none" />
+      {/* ==========================================
+          QUICK STATS
+      ========================================== */}
 
-        <div className="max-w-2xl relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#222229] border border-[#303036] text-[#D6A84F] text-xs font-semibold mb-4">
-            <Sparkles className="w-3.5 h-3.5 text-[#D6A84F]" />
-            <span>İstanbul Geneli VIP & Ekspres Teslimat</span>
+      <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-2xl border border-[#292930] bg-[#15151A] p-4">
+          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-[#D6A84F]/10">
+            <Clock3
+              size={17}
+              className="text-[#D6A84F]"
+            />
           </div>
 
-          <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight font-['Space_Grotesk']">
-            Kurye hizmetinde güvenin yeni adresi.
-          </h1>
-
-          <p className="text-sm sm:text-base text-[#999999] mt-3 leading-relaxed">
-            Şehir içi ve şehirler arası hızlı, güvenilir ve profesyonel kurye hizmeti.
-            Otomatik mesafe ve adil fiyatlandırma garantisiyle dakikalar içinde kapınızda.
+          <p className="text-lg font-black text-white">
+            30-45
           </p>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mt-6">
-            <button
-              onClick={() => onOpenNewOrder()}
-              className="flex items-center justify-center gap-2 bg-[#D6A84F] hover:bg-[#c49740] active:scale-[0.98] text-[#0B0B0D] font-bold px-6 py-3.5 rounded-xl shadow-lg shadow-[#D6A84F]/20 transition-all cursor-pointer text-sm"
-            >
-              <Truck className="w-4 h-4" />
-              <span>Kurye Çağır</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={onOpenAI}
-              className="flex items-center justify-center gap-2 bg-[#222229] hover:bg-[#2c2c36] active:scale-[0.98] text-white border border-[#303036] hover:border-[#D6A84F]/60 font-semibold px-6 py-3.5 rounded-xl transition-all cursor-pointer text-sm group"
-            >
-              <Bot className="w-4 h-4 text-[#D6A84F] group-hover:scale-110 transition-transform" />
-              <span>Trustline AI</span>
-              <span className="text-[10px] bg-[#D6A84F]/20 text-[#D6A84F] px-1.5 py-0.5 rounded font-mono">
-                Akıllı Asistan
-              </span>
-            </button>
-          </div>
+          <p className="mt-1 text-[10px] font-bold text-[#6E6E77]">
+            dk teslimat
+          </p>
         </div>
 
-        {/* Feature quick badges */}
-        <div className="grid grid-cols-3 gap-2 mt-8 pt-6 border-t border-[#303036]/60 text-center">
+        <div className="rounded-2xl border border-[#292930] bg-[#15151A] p-4">
+          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10">
+            <CheckCircle2
+              size={17}
+              className="text-emerald-400"
+            />
+          </div>
+
+          <p className="text-lg font-black text-white">
+            %100
+          </p>
+
+          <p className="mt-1 text-[10px] font-bold text-[#6E6E77]">
+            güvenli teslimat
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-[#292930] bg-[#15151A] p-4">
+          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10">
+            <Truck
+              size={17}
+              className="text-blue-400"
+            />
+          </div>
+
+          <p className="text-lg font-black text-white">
+            7/24
+          </p>
+
+          <p className="mt-1 text-[10px] font-bold text-[#6E6E77]">
+            kurye hizmeti
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-[#292930] bg-[#15151A] p-4">
+          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-purple-500/10">
+            <Sparkles
+              size={17}
+              className="text-purple-400"
+            />
+          </div>
+
+          <p className="text-lg font-black text-white">
+            AI
+          </p>
+
+          <p className="mt-1 text-[10px] font-bold text-[#6E6E77]">
+            akıllı destek
+          </p>
+        </div>
+      </section>
+
+      {/* ==========================================
+          SERVICES
+      ========================================== */}
+
+      <section className="mt-8">
+        <div className="mb-4 flex items-end justify-between">
           <div>
-            <div className="text-base sm:text-xl font-bold text-white font-mono">30-45 dk</div>
-            <div className="text-[11px] text-[#999999] mt-0.5">Ortalama Teslimat</div>
-          </div>
-          <div className="border-x border-[#303036]/60">
-            <div className="text-base sm:text-xl font-bold text-[#D6A84F] font-mono">%100</div>
-            <div className="text-[11px] text-[#999999] mt-0.5">Güvenli Taşıma</div>
-          </div>
-          <div>
-            <div className="text-base sm:text-xl font-bold text-white font-mono">7/24</div>
-            <div className="text-[11px] text-[#999999] mt-0.5">Aktif Filo</div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D6A84F]">
+              Hizmetler
+            </p>
+
+            <h2 className="mt-1 text-xl font-black text-white">
+              Size uygun kuryeyi seçin
+            </h2>
           </div>
         </div>
-      </div>
 
-      {/* Service Cards (STANDART, ACİL, VIP) */}
-      <div>
-        <div className="flex items-center justify-between mb-3 px-1">
-          <h2 className="text-base font-bold text-white tracking-wide">
-            Hizmet Seçenekleri
-          </h2>
-          <span className="text-xs text-[#999999]">İhtiyacınıza uygun kurye modeli</span>
-        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          {/* Standard */}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* STANDART */}
-          <div className="bg-[#19191E] border border-[#303036] hover:border-[#D6A84F]/50 transition-all rounded-2xl p-4 flex flex-col justify-between group">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-[#222229] border border-[#303036] text-[#999999] tracking-wider">
-                  STANDART
-                </span>
-                <span className="text-xs text-[#999999] font-mono">1.00×</span>
+          <button
+            type="button"
+            onClick={() =>
+              handleQuickOrder(
+                "Standart Kurye"
+              )
+            }
+            className="group relative overflow-hidden rounded-[24px] border border-[#2C2C33] bg-[#15151A] p-5 text-left transition hover:-translate-y-1 hover:border-[#D6A84F]/30 hover:bg-[#19191F]"
+          >
+            <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[#D6A84F]/5 blur-2xl transition group-hover:bg-[#D6A84F]/10" />
+
+            <div className="relative">
+              <div className="flex items-start justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#D6A84F]/10">
+                  <Truck
+                    size={22}
+                    className="text-[#D6A84F]"
+                  />
+                </div>
+
+                <ArrowRight
+                  size={17}
+                  className="text-[#55555E] transition group-hover:translate-x-1 group-hover:text-[#D6A84F]"
+                />
               </div>
-              <h3 className="text-lg font-bold text-white group-hover:text-[#D6A84F] transition-colors">
-                Standart Moto Kurye
-              </h3>
-              <p className="text-xs text-[#999999] mt-1.5 leading-relaxed">
-                Gün içi evrak, numune ve paketleriniz için en ekonomik ve güvenli taşımacılık çözümü.
-              </p>
-              <ul className="mt-4 space-y-1.5 text-xs text-slate-300">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>90-120 dakika içinde teslim</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>Ekonomik tarife (KM başı 50 TL)</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>Fotoğraflı dijital teslim onayı</span>
-                </li>
-              </ul>
-            </div>
-            <button
-              onClick={() => onOpenNewOrder({ courierType: 'Standart Kurye' })}
-              className="mt-5 w-full py-2.5 rounded-xl bg-[#222229] hover:bg-[#D6A84F] hover:text-[#0B0B0D] text-white text-xs font-bold transition-all border border-[#303036] cursor-pointer"
-            >
-              Standart Kurye Seç
-            </button>
-          </div>
 
-          {/* ACİL */}
-          <div className="bg-[#19191E] border-2 border-[#D6A84F]/60 shadow-lg shadow-[#D6A84F]/10 rounded-2xl p-4 flex flex-col justify-between relative group">
-            <div className="absolute -top-3 right-4 bg-[#D6A84F] text-[#0B0B0D] text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-              EN ÇOK TERCİH EDİLEN
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-[#D6A84F]/15 border border-[#D6A84F]/40 text-[#D6A84F] tracking-wider">
-                  ACİL KURYE
-                </span>
-                <span className="text-xs text-[#D6A84F] font-mono">1.30×</span>
-              </div>
-              <h3 className="text-lg font-bold text-white group-hover:text-[#D6A84F] transition-colors">
-                Ekspres Öncelikli
+              <h3 className="mt-5 text-base font-black text-white">
+                Standart Kurye
               </h3>
-              <p className="text-xs text-[#999999] mt-1.5 leading-relaxed">
-                Zamanla yarışan gönderileriniz için en yakın boş kurye anında adrese sevk edilir.
+
+              <p className="mt-2 text-xs leading-5 text-[#777780]">
+                Günlük gönderileriniz için
+                ekonomik ve güvenilir kurye
+                hizmeti.
               </p>
-              <ul className="mt-4 space-y-1.5 text-xs text-slate-300">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#D6A84F] shrink-0" />
-                  <span>30-60 dakika ekspres varış</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#D6A84F] shrink-0" />
-                  <span>Doğrudan rotalama & öncelikli kurye</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#D6A84F] shrink-0" />
-                  <span>Canlı takip ve SMS bilgilendirme</span>
-                </li>
-              </ul>
+
+              <div className="mt-5 flex items-center gap-2 text-[10px] font-bold text-[#D6A84F]">
+                <CheckCircle2 size={13} />
+                En çok tercih edilen
+              </div>
             </div>
-            <button
-              onClick={() => onOpenNewOrder({ courierType: 'Acil Kurye', urgency: 'Acil' })}
-              className="mt-5 w-full py-2.5 rounded-xl bg-[#D6A84F] hover:bg-[#c49740] text-[#0B0B0D] text-xs font-extrabold transition-all shadow-md shadow-[#D6A84F]/20 cursor-pointer"
-            >
-              Acil Kurye Çağır
-            </button>
-          </div>
+          </button>
+
+          {/* Urgent */}
+
+          <button
+            type="button"
+            onClick={() =>
+              handleQuickOrder(
+                "Acil Kurye"
+              )
+            }
+            className="group relative overflow-hidden rounded-[24px] border border-[#2C2C33] bg-[#15151A] p-5 text-left transition hover:-translate-y-1 hover:border-orange-400/30 hover:bg-[#19191F]"
+          >
+            <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-orange-500/5 blur-2xl" />
+
+            <div className="relative">
+              <div className="flex items-start justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500/10">
+                  <Zap
+                    size={22}
+                    className="text-orange-400"
+                  />
+                </div>
+
+                <ArrowRight
+                  size={17}
+                  className="text-[#55555E] transition group-hover:translate-x-1 group-hover:text-orange-400"
+                />
+              </div>
+
+              <h3 className="mt-5 text-base font-black text-white">
+                Acil Kurye
+              </h3>
+
+              <p className="mt-2 text-xs leading-5 text-[#777780]">
+                Zaman kritik gönderileriniz
+                için öncelikli kurye hizmeti.
+              </p>
+
+              <div className="mt-5 flex items-center gap-2 text-[10px] font-bold text-orange-400">
+                <Zap size={13} />
+                Öncelikli teslimat
+              </div>
+            </div>
+          </button>
 
           {/* VIP */}
-          <div className="bg-[#19191E] border border-[#303036] hover:border-[#D6A84F]/50 transition-all rounded-2xl p-4 flex flex-col justify-between group">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-[#222229] border border-[#303036] text-purple-300 tracking-wider">
-                  VIP KURYE
-                </span>
-                <span className="text-xs text-purple-300 font-mono">1.60×</span>
+
+          <button
+            type="button"
+            onClick={() =>
+              handleQuickOrder(
+                "VIP Kurye"
+              )
+            }
+            className="group relative overflow-hidden rounded-[24px] border border-[#D6A84F]/20 bg-gradient-to-br from-[#1A1813] to-[#15151A] p-5 text-left transition hover:-translate-y-1 hover:border-[#D6A84F]/40"
+          >
+            <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[#D6A84F]/10 blur-2xl" />
+
+            <div className="relative">
+              <div className="flex items-start justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#D6A84F]/15">
+                  <Sparkles
+                    size={22}
+                    className="text-[#D6A84F]"
+                  />
+                </div>
+
+                <ArrowRight
+                  size={17}
+                  className="text-[#55555E] transition group-hover:translate-x-1 group-hover:text-[#D6A84F]"
+                />
               </div>
-              <h3 className="text-lg font-bold text-white group-hover:text-[#D6A84F] transition-colors">
-                Özel Tahsisli VIP
+
+              <h3 className="mt-5 text-base font-black text-white">
+                VIP Kurye
               </h3>
-              <p className="text-xs text-[#999999] mt-1.5 leading-relaxed">
-                Hassas, yüksek değerli veya gizlilik gerektiren gönderiler için kurye yalnızca size tahsis edilir.
+
+              <p className="mt-2 text-xs leading-5 text-[#777780]">
+                Özel gönderileriniz için
+                maksimum öncelik ve özen.
               </p>
-              <ul className="mt-4 space-y-1.5 text-xs text-slate-300">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                  <span>Araya başka paket almadan tek yön</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                  <span>Korumalı araç veya kapalı kasa seçeneği</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                  <span>Elden ele gizlilik taahhüdü</span>
-                </li>
-              </ul>
+
+              <div className="mt-5 flex items-center gap-2 text-[10px] font-bold text-[#D6A84F]">
+                <Sparkles size={13} />
+                Premium hizmet
+              </div>
             </div>
+          </button>
+        </div>
+      </section>
+
+      {/* ==========================================
+          PRICE CALCULATOR
+      ========================================== */}
+
+      <section className="mt-8 overflow-hidden rounded-[28px] border border-[#2D2D35] bg-[#15151A]">
+        <div className="grid lg:grid-cols-[1fr_0.8fr]">
+          {/* Calculator */}
+
+          <div className="p-6 sm:p-7">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#D6A84F]/10">
+                <Calculator
+                  size={20}
+                  className="text-[#D6A84F]"
+                />
+              </div>
+
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.17em] text-[#D6A84F]">
+                  Hızlı hesaplama
+                </p>
+
+                <h2 className="mt-1 text-xl font-black text-white">
+                  Tahmini teslimat ücretini hesapla
+                </h2>
+
+                <p className="mt-1 text-xs text-[#707079]">
+                  Mesafeyi ve kurye tipini seçin.
+                </p>
+              </div>
+            </div>
+
+            {/* KM */}
+
+            <div className="mt-7">
+              <div className="mb-2 flex items-center justify-between">
+                <label
+                  htmlFor="customer-calc-km"
+                  className="text-xs font-bold text-[#B5B5BD]"
+                >
+                  Mesafe
+                </label>
+
+                <span className="text-xs font-black text-[#D6A84F]">
+                  {calcKm} km
+                </span>
+              </div>
+
+              <input
+                id="customer-calc-km"
+                type="range"
+                min="1"
+                max="100"
+                value={calcKm}
+                onChange={(event) =>
+                  setCalcKm(
+                    Number(
+                      event.target.value
+                    )
+                  )
+                }
+                className="w-full accent-[#D6A84F]"
+              />
+
+              <div className="mt-2 flex justify-between text-[9px] font-bold text-[#55555E]">
+                <span>1 km</span>
+                <span>100 km</span>
+              </div>
+            </div>
+
+            {/* Type */}
+
+            <div className="mt-6">
+              <p className="mb-2 text-xs font-bold text-[#B5B5BD]">
+                Kurye tipi
+              </p>
+
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  "Standart Kurye",
+                  "Acil Kurye",
+                  "VIP Kurye",
+                ].map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() =>
+                      setCalcType(
+                        type as
+                          | "Standart Kurye"
+                          | "Acil Kurye"
+                          | "VIP Kurye"
+                      )
+                    }
+                    className={`rounded-xl border px-2 py-3 text-[10px] font-black transition ${
+                      calcType === type
+                        ? "border-[#D6A84F] bg-[#D6A84F]/10 text-[#D6A84F]"
+                        : "border-[#303038] bg-[#101014] text-[#777780] hover:border-[#4A4A53]"
+                    }`}
+                  >
+                    {type.replace(
+                      " Kurye",
+                      ""
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Result */}
+
+          <div className="relative flex flex-col justify-between overflow-hidden border-t border-[#2D2D35] bg-gradient-to-br from-[#1C1A15] to-[#121216] p-6 lg:border-l lg:border-t-0 sm:p-7">
+            <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[#D6A84F]/10 blur-3xl" />
+
+            <div className="relative">
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#777780]">
+                <Sparkles
+                  size={13}
+                  className="text-[#D6A84F]"
+                />
+
+                Tahmini ücret
+              </div>
+
+              <div className="mt-5 flex items-end gap-2">
+                <span className="text-4xl font-black tracking-tight text-white">
+                  {Math.round(
+                    priceCalculation.finalPrice
+                  ).toLocaleString(
+                    "tr-TR"
+                  )}
+                </span>
+
+                <span className="mb-1.5 text-sm font-bold text-[#777780]">
+                  TL
+                </span>
+              </div>
+
+              {priceCalculation.minimumApplied && (
+                <p className="mt-2 text-[10px] leading-4 text-[#777780]">
+                  Minimum hizmet bedeli
+                  uygulanmıştır.
+                </p>
+              )}
+
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center justify-between border-b border-[#292930] pb-3">
+                  <span className="text-[10px] text-[#777780]">
+                    Mesafe
+                  </span>
+
+                  <span className="text-xs font-bold text-white">
+                    {calcKm} km
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between border-b border-[#292930] pb-3">
+                  <span className="text-[10px] text-[#777780]">
+                    Kurye
+                  </span>
+
+                  <span className="text-xs font-bold text-white">
+                    {calcType.replace(
+                      " Kurye",
+                      ""
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <button
-              onClick={() => onOpenNewOrder({ courierType: 'VIP Kurye', urgency: 'Çok Acil' })}
-              className="mt-5 w-full py-2.5 rounded-xl bg-[#222229] hover:bg-[#D6A84F] hover:text-[#0B0B0D] text-white text-xs font-bold transition-all border border-[#303036] cursor-pointer"
+              type="button"
+              onClick={() =>
+                onOpenNewOrder({
+                  courierType: calcType,
+                  urgency:
+                    calcType ===
+                    "VIP Kurye"
+                      ? "Çok Acil"
+                      : calcType ===
+                        "Acil Kurye"
+                      ? "Acil"
+                      : "Normal",
+                })
+              }
+              className="relative mt-7 flex min-h-[50px] items-center justify-center gap-2 rounded-2xl bg-[#D6A84F] px-5 text-xs font-black text-[#0B0B0D] transition hover:bg-[#E2B866]"
             >
-              VIP Kurye Seç
+              Bu Ayarla Sipariş Oluştur
+              <ArrowRight size={15} />
             </button>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Interactive Price Calculator Widget */}
-      <div className="bg-[#19191E] border border-[#303036] rounded-2xl p-5 shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-[#222229] border border-[#303036] text-[#D6A84F]">
-              <Calculator className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">Anlık Ücret Hesaplayıcı</h3>
-              <p className="text-[11px] text-[#999999]">Mesafe ve kurye tipine göre şeffaf fiyat</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-[#999999]">Hesaplanan Tutar</div>
-            <div className="text-xl font-extrabold text-[#D6A84F] font-mono">
-              {finalPrice} TL
-            </div>
-          </div>
-        </div>
+      {/* ==========================================
+          TRUSTLINE AI
+      ========================================== */}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-          {/* KM Slider & Input */}
-          <div className="bg-[#222229] border border-[#303036] p-3 rounded-xl">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold text-slate-300">
-                Tahmini Mesafe (KM)
-              </label>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min="1"
-                  max="150"
-                  value={calcKm}
-                  onChange={(e) => setCalcKm(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-16 bg-[#0B0B0D] border border-[#303036] rounded-lg px-2 py-1 text-right text-xs font-mono font-bold text-white focus:outline-hidden focus:border-[#D6A84F]"
+      <section className="mt-8">
+        <button
+          type="button"
+          onClick={onOpenAI}
+          className="group relative w-full overflow-hidden rounded-[28px] border border-[#303038] bg-gradient-to-r from-[#17171C] to-[#111115] p-6 text-left transition hover:border-[#D6A84F]/30"
+        >
+          <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-[#D6A84F]/10 blur-3xl" />
+
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#D6A84F]/10">
+                <Bot
+                  size={23}
+                  className="text-[#D6A84F]"
                 />
-                <span className="text-xs text-[#999999]">KM</span>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-black text-white">
+                    Trustline AI
+                  </h2>
+
+                  <span className="rounded-full bg-[#D6A84F]/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#D6A84F]">
+                    Beta
+                  </span>
+                </div>
+
+                <p className="mt-1 max-w-xl text-xs leading-5 text-[#777780]">
+                  Siparişinizi oluştururken AI
+                  asistanından yardım alın ve
+                  gönderi bilgilerinizi hızlıca
+                  hazırlayın.
+                </p>
               </div>
             </div>
-            <input
-              type="range"
-              min="1"
-              max="60"
-              value={calcKm}
-              onChange={(e) => setCalcKm(Number(e.target.value))}
-              className="w-full accent-[#D6A84F] cursor-pointer"
-            />
-            <div className="flex justify-between text-[10px] text-[#999999] mt-1">
-              <span>1 KM</span>
-              <span>20 KM</span>
-              <span>40 KM</span>
-              <span>60+ KM</span>
-            </div>
-          </div>
 
-          {/* Courier Type Picker */}
-          <div className="bg-[#222229] border border-[#303036] p-3 rounded-xl flex flex-col justify-between">
-            <label className="text-xs font-semibold text-slate-300 mb-2 block">
-              Kurye Türü
-            </label>
-            <div className="grid grid-cols-3 gap-1.5">
-              {(['Standart Kurye', 'Acil Kurye', 'VIP Kurye'] as CourierType[]).map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setCalcType(type)}
-                  className={`py-2 px-1 text-[11px] font-bold rounded-lg transition-all text-center ${
-                    calcType === type
-                      ? 'bg-[#D6A84F] text-[#0B0B0D] shadow-sm'
-                      : 'bg-[#19191E] text-[#999999] hover:text-white border border-[#303036]'
-                  }`}
-                >
-                  {type.replace(' Kurye', '')}
-                </button>
-              ))}
-            </div>
-            <div className="text-[10px] text-[#999999] mt-2 flex items-center justify-between">
-              <span>Açılış/Minimum: {pricing.minPrice} TL</span>
-              {isMinimumApplied && (
-                <span className="text-amber-400 font-medium">Minimum tutar uygulandı</span>
-              )}
+            <div className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#34343C] px-4 text-xs font-black text-white transition group-hover:border-[#D6A84F]/30 group-hover:text-[#D6A84F]">
+              AI'ı Aç
+
+              <ArrowRight size={14} />
             </div>
           </div>
+        </button>
+      </section>
+
+      {/* ==========================================
+          FOOTER INFO
+      ========================================== */}
+
+      <div className="mt-8 flex flex-col items-center justify-center gap-2 text-center">
+        <div className="flex items-center gap-2">
+          <ShieldCheck
+            size={14}
+            className="text-[#D6A84F]"
+          />
+
+          <span className="text-[10px] font-bold text-[#66666F]">
+            Trustline Express güvenli teslimat
+            altyapısı
+          </span>
         </div>
 
-        <button
-          onClick={() => onOpenNewOrder({ distanceKm: calcKm, courierType: calcType })}
-          className="mt-4 w-full py-2.5 rounded-xl bg-[#222229] hover:bg-[#D6A84F] hover:text-[#0B0B0D] text-white text-xs font-bold transition-all border border-[#303036] flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <span>Bu Fiyatla Sipariş Oluştur ({finalPrice} TL)</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+        <p className="text-[9px] text-[#4F4F57]">
+          Siparişlerinizi oluşturun, takip edin
+          ve teslimat sürecini kolayca yönetin.
+        </p>
       </div>
     </div>
   );
-};
+}
+
+export default CustomerHome;
