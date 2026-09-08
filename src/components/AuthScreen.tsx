@@ -38,7 +38,7 @@ function getAuthErrorMessage(error: unknown): string {
       return "Google giriş penceresi kapatıldı.";
 
     case "auth/popup-blocked":
-      return "Google giriş penceresi tarayıcı tarafından engellendi.";
+      return "Google giriş penceresi engellendi.";
 
     case "auth/cancelled-popup-request":
       return "Google giriş işlemi iptal edildi.";
@@ -47,16 +47,19 @@ function getAuthErrorMessage(error: unknown): string {
       return "Bu e-posta başka bir giriş yöntemiyle zaten kayıtlı.";
 
     case "auth/operation-not-allowed":
-      return "Bu giriş yöntemi Firebase Console'da etkinleştirilmemiş.";
+      return "Bu giriş yöntemi Firebase Console'da etkin değil.";
 
     case "auth/network-request-failed":
       return "İnternet bağlantınızı kontrol edin.";
 
     case "auth/too-many-requests":
-      return "Çok fazla deneme yapıldı. Bir süre sonra tekrar deneyin.";
+      return "Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.";
 
     default:
-      if (error instanceof Error && error.message) {
+      if (
+        error instanceof Error &&
+        error.message
+      ) {
         return error.message;
       }
 
@@ -64,7 +67,7 @@ function getAuthErrorMessage(error: unknown): string {
   }
 }
 
-export default function AuthScreen({
+function AuthScreen({
   onLogin,
 }: AuthScreenProps) {
   const [isRegister, setIsRegister] =
@@ -82,20 +85,25 @@ export default function AuthScreen({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const resetMessages = () => {
+  const isLoading =
+    loading || googleLoading;
+
+  const clearMessages = () => {
     setError("");
     setSuccess("");
   };
 
-  const handleEmailAuth = async (
+  const handleSubmit = async (
     event: React.FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
 
-    resetMessages();
+    clearMessages();
 
     const cleanName = name.trim();
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = email
+      .trim()
+      .toLowerCase();
     const cleanPhone = phone.trim();
 
     if (isRegister && !cleanName) {
@@ -134,8 +142,6 @@ export default function AuthScreen({
         setSuccess(
           "Hesabınız başarıyla oluşturuldu."
         );
-
-        onLogin?.();
       } else {
         await loginUser(
           cleanEmail,
@@ -143,14 +149,14 @@ export default function AuthScreen({
         );
 
         setSuccess(
-          "Giriş başarılı. Yönlendiriliyorsunuz..."
+          "Giriş başarılı."
         );
-
-        onLogin?.();
       }
+
+      onLogin?.();
     } catch (err) {
       console.error(
-        "Email authentication error:",
+        "Authentication error:",
         err
       );
 
@@ -162,8 +168,8 @@ export default function AuthScreen({
     }
   };
 
-  const handleGoogleLogin = async () => {
-    resetMessages();
+  const handleGoogle = async () => {
+    clearMessages();
     setGoogleLoading(true);
 
     try {
@@ -188,20 +194,20 @@ export default function AuthScreen({
     }
   };
 
-  const switchMode = () => {
-    resetMessages();
-    setIsRegister((current) => !current);
+  const toggleMode = () => {
+    clearMessages();
+    setIsRegister(
+      (current) => !current
+    );
     setPassword("");
   };
-
-  const isLoading =
-    loading || googleLoading;
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-          {/* Header */}
+        <div className="overflow-hidden rounded-3xl bg-white shadow-2xl">
+
+          {/* LOGO / HEADER */}
           <div className="bg-slate-900 px-6 py-8 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-2xl font-black text-slate-900">
               T
@@ -217,7 +223,8 @@ export default function AuthScreen({
           </div>
 
           <div className="p-6 sm:p-8">
-            {/* Title */}
+
+            {/* TITLE */}
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-slate-900">
                 {isRegister
@@ -232,7 +239,7 @@ export default function AuthScreen({
               </p>
             </div>
 
-            {/* Error */}
+            {/* ERROR */}
             {error && (
               <div
                 role="alert"
@@ -242,7 +249,7 @@ export default function AuthScreen({
               </div>
             )}
 
-            {/* Success */}
+            {/* SUCCESS */}
             {success && (
               <div
                 role="status"
@@ -252,10 +259,10 @@ export default function AuthScreen({
               </div>
             )}
 
-            {/* Google */}
+            {/* GOOGLE */}
             <button
               type="button"
-              onClick={handleGoogleLogin}
+              onClick={handleGoogle}
               disabled={isLoading}
               className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -266,7 +273,7 @@ export default function AuthScreen({
                 </>
               ) : (
                 <>
-                  <span className="flex h-5 w-5 items-center justify-center text-base font-bold">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 text-sm font-bold">
                     G
                   </span>
                   Google ile devam et
@@ -274,7 +281,7 @@ export default function AuthScreen({
               )}
             </button>
 
-            {/* Divider */}
+            {/* DIVIDER */}
             <div className="my-6 flex items-center gap-3">
               <div className="h-px flex-1 bg-slate-200" />
 
@@ -285,72 +292,76 @@ export default function AuthScreen({
               <div className="h-px flex-1 bg-slate-200" />
             </div>
 
-            {/* Email form */}
+            {/* FORM */}
             <form
-              onSubmit={handleEmailAuth}
+              onSubmit={handleSubmit}
               className="space-y-4"
             >
+
+              {/* NAME */}
               {isRegister && (
-                <>
-                  <div>
-                    <label
-                      htmlFor="name"
-                      className="mb-1.5 block text-sm font-medium text-slate-700"
-                    >
-                      Ad Soyad
-                    </label>
+                <div>
+                  <label
+                    htmlFor="auth-name"
+                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                  >
+                    Ad Soyad
+                  </label>
 
-                    <input
-                      id="name"
-                      type="text"
-                      value={name}
-                      onChange={(e) =>
-                        setName(e.target.value)
-                      }
-                      placeholder="Adınız Soyadınız"
-                      autoComplete="name"
-                      disabled={isLoading}
-                      className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="phone"
-                      className="mb-1.5 block text-sm font-medium text-slate-700"
-                    >
-                      Telefon
-                      <span className="ml-1 text-slate-400">
-                        (opsiyonel)
-                      </span>
-                    </label>
-
-                    <input
-                      id="phone"
-                      type="tel"
-                      value={phone}
-                      onChange={(e) =>
-                        setPhone(e.target.value)
-                      }
-                      placeholder="05XX XXX XX XX"
-                      autoComplete="tel"
-                      disabled={isLoading}
-                      className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-100"
-                    />
-                  </div>
-                </>
+                  <input
+                    id="auth-name"
+                    type="text"
+                    value={name}
+                    onChange={(e) =>
+                      setName(e.target.value)
+                    }
+                    placeholder="Adınız Soyadınız"
+                    autoComplete="name"
+                    disabled={isLoading}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-100"
+                  />
+                </div>
               )}
 
+              {/* PHONE */}
+              {isRegister && (
+                <div>
+                  <label
+                    htmlFor="auth-phone"
+                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                  >
+                    Telefon
+                    <span className="ml-1 text-slate-400">
+                      (opsiyonel)
+                    </span>
+                  </label>
+
+                  <input
+                    id="auth-phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) =>
+                      setPhone(e.target.value)
+                    }
+                    placeholder="05XX XXX XX XX"
+                    autoComplete="tel"
+                    disabled={isLoading}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:bg-slate-100"
+                  />
+                </div>
+              )}
+
+              {/* EMAIL */}
               <div>
                 <label
-                  htmlFor="email"
+                  htmlFor="auth-email"
                   className="mb-1.5 block text-sm font-medium text-slate-700"
                 >
                   E-posta
                 </label>
 
                 <input
-                  id="email"
+                  id="auth-email"
                   type="email"
                   value={email}
                   onChange={(e) =>
@@ -363,16 +374,17 @@ export default function AuthScreen({
                 />
               </div>
 
+              {/* PASSWORD */}
               <div>
                 <label
-                  htmlFor="password"
+                  htmlFor="auth-password"
                   className="mb-1.5 block text-sm font-medium text-slate-700"
                 >
                   Şifre
                 </label>
 
                 <input
-                  id="password"
+                  id="auth-password"
                   type="password"
                   value={password}
                   onChange={(e) =>
@@ -389,6 +401,7 @@ export default function AuthScreen({
                 />
               </div>
 
+              {/* SUBMIT */}
               <button
                 type="submit"
                 disabled={isLoading}
@@ -407,7 +420,7 @@ export default function AuthScreen({
               </button>
             </form>
 
-            {/* Switch */}
+            {/* SWITCH */}
             <div className="mt-6 text-center text-sm text-slate-500">
               {isRegister
                 ? "Zaten hesabınız var mı?"
@@ -415,7 +428,7 @@ export default function AuthScreen({
 
               <button
                 type="button"
-                onClick={switchMode}
+                onClick={toggleMode}
                 disabled={isLoading}
                 className="ml-1 font-bold text-slate-900 hover:underline disabled:opacity-50"
               >
@@ -425,7 +438,7 @@ export default function AuthScreen({
               </button>
             </div>
 
-            {/* Info */}
+            {/* INFO */}
             <div className="mt-6 rounded-xl bg-slate-50 p-4 text-xs leading-5 text-slate-500">
               Hesap bilgileriniz güvenli şekilde
               Firebase Authentication ve Firestore
@@ -441,3 +454,17 @@ export default function AuthScreen({
     </div>
   );
 }
+
+/*
+ * İKİSİNİ DE EXPORT EDİYORUZ.
+ *
+ * App.tsx:
+ * import { AuthScreen } from "./components/AuthScreen";
+ *
+ * veya:
+ * import AuthScreen from "./components/AuthScreen";
+ *
+ * ikisi de çalışır.
+ */
+export { AuthScreen };
+export default AuthScreen;
