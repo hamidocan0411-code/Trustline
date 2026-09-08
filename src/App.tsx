@@ -4,7 +4,6 @@ import { storage } from "./services/storage";
 
 import {
   subscribeToAuth,
-  handleGoogleRedirectResult,
 } from "./services/auth";
 
 import type {
@@ -30,24 +29,22 @@ export function App() {
   const [currentUser, setCurrentUser] =
     useState<UserProfile | null>(null);
 
-  const [orders, setOrders] = useState<Order[]>(
-    () => {
-      try {
-        const savedOrders = storage.getOrders();
+  const [orders, setOrders] = useState<Order[]>(() => {
+    try {
+      const savedOrders = storage.getOrders();
 
-        return Array.isArray(savedOrders)
-          ? savedOrders
-          : [];
-      } catch (error) {
-        console.error(
-          "Orders yüklenemedi:",
-          error
-        );
+      return Array.isArray(savedOrders)
+        ? savedOrders
+        : [];
+    } catch (error) {
+      console.error(
+        "Orders yüklenemedi:",
+        error
+      );
 
-        return [];
-      }
+      return [];
     }
-  );
+  });
 
   const [pricing, setPricing] =
     useState<PricingConfig>(() => {
@@ -65,8 +62,7 @@ export function App() {
           urgentMultiplier: 1.5,
           vipMultiplier: 2,
           requireDeliveryPhoto: false,
-          updatedAt:
-            new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
       }
     });
@@ -105,312 +101,139 @@ export function App() {
    * ==========================================
    * FIREBASE AUTH
    * ==========================================
-   *
-   * ÖNEMLİ:
-   *
-   * Google redirect sonucunu burada bir kez
-   * karşılıyoruz.
-   *
-   * AuthScreen artık redirect sonucunu
-   * kendisi tüketmiyor.
-   *
-   * Böylece:
-   *
-   * Google
-   *   ↓
-   * Firebase
-   *   ↓
-   * App
-   *   ↓
-   * Profile
-   *   ↓
-   * Dashboard
-   *
-   * şeklinde tek bir akış oluşuyor.
    */
 
   useEffect(() => {
     let mounted = true;
 
-    let unsubscribe:
-      | (() => void)
-      | undefined;
-
-    const startAuth = async () => {
-      /*
-       * Önce Google redirect dönüşünü kontrol et.
-       *
-       * Eğer normal giriş ise null döner ve
-       * aşağıdaki auth listener çalışmaya devam eder.
-       */
-      try {
-        const redirectProfile =
-          await handleGoogleRedirectResult();
-
-        if (
-          mounted &&
-          redirectProfile
-        ) {
-          console.log(
-            "Google redirect profili alındı:",
-            redirectProfile.id
-          );
-
-          storage.setCurrentUser(
-            redirectProfile
-          );
-
-          setCurrentUser(
-            redirectProfile
-          );
-
-          setProfileLoading(false);
-          setAuthLoading(false);
-
-          /*
-           * Kullanıcı rolüne göre başlangıç sayfası.
-           */
-          if (
-            redirectProfile.role ===
-            "customer"
-          ) {
-            setActiveTab("home");
-          } else if (
-            redirectProfile.role ===
-            "courier"
-          ) {
-            setActiveTab(
-              "courier_panel"
-            );
-          } else if (
-            redirectProfile.role ===
-            "admin"
-          ) {
-            setActiveTab(
-              "admin_panel"
-            );
-          }
-
-          /*
-           * Bildirimleri de hemen yükle.
-           */
-          try {
-            const redirectNotifications =
-              storage.getNotifications(
-                redirectProfile.id
-              );
-
-            setNotifications(
-              Array.isArray(
-                redirectNotifications
-              )
-                ? redirectNotifications
-                : []
-            );
-          } catch (notificationError) {
-            console.error(
-              "Google sonrası bildirimler yüklenemedi:",
-              notificationError
-            );
-
-            setNotifications([]);
-          }
+    const unsubscribe = subscribeToAuth(
+      async (firebaseUser, profile) => {
+        if (!mounted) {
+          return;
         }
-      } catch (error) {
+
+        console.log(
+          "Firebase Auth:",
+          firebaseUser?.uid ?? "YOK"
+        );
+
+        console.log(
+          "Firebase Profile:",
+          profile
+        );
+
+        setAppError(null);
+
         /*
-         * Redirect sonucu hata verse bile
-         * normal Firebase auth listener'ı
-         * çalışmaya devam edecek.
-         *
-         * Burada hemen AuthScreen'e atmayacağız.
+         * ==================================
+         * FIREBASE KULLANICISI YOK
+         * ==================================
          */
-        console.error(
-          "Google redirect kontrolü:",
-          error
-        );
-      }
 
-      if (!mounted) {
-        return;
-      }
+        if (!firebaseUser) {
+          storage.setCurrentUser(null);
 
-      /*
-       * Firebase Auth state listener.
-       */
-      try {
-        unsubscribe =
-          subscribeToAuth(
-            async (
-              firebaseUser,
-              profile
-            ) => {
-              if (!mounted) {
-                return;
-              }
-
-              try {
-                setAppError(null);
-
-                /*
-                 * ==================================
-                 * ÇIKIŞ
-                 * ==================================
-                 */
-                if (!firebaseUser) {
-                  storage.setCurrentUser(
-                    null
-                  );
-
-                  setCurrentUser(null);
-                  setNotifications([]);
-                  setProfileLoading(false);
-                  setAuthLoading(false);
-
-                  return;
-                }
-
-                /*
-                 * ==================================
-                 * FIREBASE VAR
-                 * PROFİL BEKLENİYOR
-                 * ==================================
-                 */
-                if (!profile) {
-                  setProfileLoading(true);
-
-                  /*
-                   * Burada authLoading'i kapatıyoruz.
-                   * Profil ekranını App'in kendi
-                   * loading ekranı gösterecek.
-                   */
-                  setAuthLoading(false);
-
-                  return;
-                }
-
-                /*
-                 * ==================================
-                 * PROFİL HAZIR
-                 * ==================================
-                 */
-
-                storage.setCurrentUser(
-                  profile
-                );
-
-                setCurrentUser(
-                  profile
-                );
-
-                /*
-                 * Bildirimler
-                 */
-                try {
-                  const userNotifications =
-                    storage.getNotifications(
-                      profile.id
-                    );
-
-                  setNotifications(
-                    Array.isArray(
-                      userNotifications
-                    )
-                      ? userNotifications
-                      : []
-                  );
-                } catch (
-                  notificationError
-                ) {
-                  console.error(
-                    "Bildirimler yüklenemedi:",
-                    notificationError
-                  );
-
-                  setNotifications([]);
-                }
-
-                /*
-                 * ==================================
-                 * ROLE
-                 * ==================================
-                 */
-
-                if (
-                  profile.role ===
-                  "customer"
-                ) {
-                  setActiveTab(
-                    "home"
-                  );
-                } else if (
-                  profile.role ===
-                  "courier"
-                ) {
-                  setActiveTab(
-                    "courier_panel"
-                  );
-                } else if (
-                  profile.role ===
-                  "admin"
-                ) {
-                  setActiveTab(
-                    "admin_panel"
-                  );
-                }
-
-                /*
-                 * ==================================
-                 * LOGIN TAMAMLANDI
-                 * ==================================
-                 */
-
-                setProfileLoading(false);
-                setAuthLoading(false);
-              } catch (error) {
-                console.error(
-                  "Trustline auth/profile error:",
-                  error
-                );
-
-                if (!mounted) {
-                  return;
-                }
-
-                setAppError(
-                  "Hesap bilgileri yüklenirken bir hata oluştu."
-                );
-
-                setCurrentUser(null);
-                setNotifications([]);
-                setProfileLoading(false);
-                setAuthLoading(false);
-              }
-            }
-          );
-      } catch (error) {
-        console.error(
-          "Auth listener başlatılamadı:",
-          error
-        );
-
-        if (mounted) {
-          setAppError(
-            "Firebase bağlantısı kurulamadı."
-          );
-
-          setAuthLoading(false);
+          setCurrentUser(null);
+          setNotifications([]);
           setProfileLoading(false);
-        }
-      }
-    };
+          setAuthLoading(false);
 
-    startAuth();
+          return;
+        }
+
+        /*
+         * ==================================
+         * FIREBASE VAR
+         * PROFİL BEKLENİYOR
+         * ==================================
+         */
+
+        if (!profile) {
+          console.error(
+            "Firebase kullanıcısı bulundu fakat profil alınamadı."
+          );
+
+          setProfileLoading(true);
+          setAuthLoading(false);
+
+          return;
+        }
+
+        /*
+         * ==================================
+         * PROFİL BAŞARILI
+         * ==================================
+         */
+
+        console.log(
+          "Trustline giriş başarılı:",
+          profile.email
+        );
+
+        storage.setCurrentUser(profile);
+
+        setCurrentUser(profile);
+
+        /*
+         * ==================================
+         * BİLDİRİMLER
+         * ==================================
+         */
+
+        try {
+          const userNotifications =
+            storage.getNotifications(
+              profile.id
+            );
+
+          setNotifications(
+            Array.isArray(userNotifications)
+              ? userNotifications
+              : []
+          );
+        } catch (error) {
+          console.error(
+            "Bildirimler yüklenemedi:",
+            error
+          );
+
+          setNotifications([]);
+        }
+
+        /*
+         * ==================================
+         * ROLE
+         * ==================================
+         */
+
+        if (profile.role === "customer") {
+          setActiveTab("home");
+        } else if (
+          profile.role === "courier"
+        ) {
+          setActiveTab("courier_panel");
+        } else if (
+          profile.role === "admin"
+        ) {
+          setActiveTab("admin_panel");
+        }
+
+        /*
+         * ==================================
+         * LOGIN TAMAMLANDI
+         * ==================================
+         */
+
+        setProfileLoading(false);
+        setAuthLoading(false);
+      }
+    );
 
     return () => {
       mounted = false;
 
       try {
-        unsubscribe?.();
+        unsubscribe();
       } catch (error) {
         console.warn(
           "Auth listener kapatılamadı:",
@@ -434,67 +257,63 @@ export function App() {
       | undefined;
 
     try {
-      unsubscribe = storage.subscribe(
-        () => {
-          if (!mounted) {
-            return;
+      unsubscribe = storage.subscribe(() => {
+        if (!mounted) {
+          return;
+        }
+
+        try {
+          const nextOrders =
+            storage.getOrders();
+
+          setOrders(
+            Array.isArray(nextOrders)
+              ? nextOrders
+              : []
+          );
+        } catch (error) {
+          console.error(
+            "Orders listener hatası:",
+            error
+          );
+        }
+
+        try {
+          const nextPricing =
+            storage.getPricing();
+
+          if (nextPricing) {
+            setPricing(nextPricing);
           }
+        } catch (error) {
+          console.error(
+            "Pricing listener hatası:",
+            error
+          );
+        }
 
+        if (currentUser) {
           try {
-            const nextOrders =
-              storage.getOrders();
+            const nextNotifications =
+              storage.getNotifications(
+                currentUser.id
+              );
 
-            setOrders(
-              Array.isArray(nextOrders)
-                ? nextOrders
+            setNotifications(
+              Array.isArray(
+                nextNotifications
+              )
+                ? nextNotifications
                 : []
             );
           } catch (error) {
             console.error(
-              "Orders listener hatası:",
+              "Notification listener hatası:",
               error
             );
-          }
-
-          try {
-            const nextPricing =
-              storage.getPricing();
-
-            if (nextPricing) {
-              setPricing(
-                nextPricing
-              );
-            }
-          } catch (error) {
-            console.error(
-              "Pricing listener hatası:",
-              error
-            );
-          }
-
-          if (currentUser) {
-            try {
-              const nextNotifications =
-                storage.getNotifications(
-                  currentUser.id
-                );
-
-              setNotifications(
-                Array.isArray(
-                  nextNotifications
-                )
-                  ? nextNotifications
-                  : []
-              );
-            } catch (error) {
-              console.error(
-                "Notification listener hatası:",
-                error
-              );
-            }
           }
         }
-      );
+      });
     } catch (error) {
       console.error(
         "Storage listener başlatılamadı:",
@@ -664,15 +483,13 @@ export function App() {
       : [];
 
   const myOrders =
-    currentUser.role ===
-    "customer"
+    currentUser.role === "customer"
       ? safeOrders.filter(
           (order) =>
             order.customerId ===
             currentUser.id
         )
-      : currentUser.role ===
-        "courier"
+      : currentUser.role === "courier"
       ? safeOrders.filter(
           (order) =>
             order.courierId ===
@@ -748,10 +565,6 @@ export function App() {
               : ""
           }`}
         >
-          {/* ==========================================
-              CUSTOMER
-          ========================================== */}
-
           {currentUser.role ===
             "customer" && (
             <>
@@ -762,30 +575,22 @@ export function App() {
                     handleOpenNewOrder
                   }
                   onOpenAI={() =>
-                    setActiveTab(
-                      "ai"
-                    )
+                    setActiveTab("ai")
                   }
                   onGoToOrders={() =>
-                    setActiveTab(
-                      "orders"
-                    )
+                    setActiveTab("orders")
                   }
                   activeOrders={
                     activeOrders
                   }
-                  pricing={
-                    pricing
-                  }
+                  pricing={pricing}
                 />
               )}
 
               {activeTab ===
                 "orders" && (
                 <CustomerOrders
-                  orders={
-                    myOrders
-                  }
+                  orders={myOrders}
                   onOpenNewOrder={
                     handleOpenNewOrder
                   }
@@ -801,9 +606,7 @@ export function App() {
                   onTransferToOrder={
                     handleTransferFromAI
                   }
-                  orders={
-                    myOrders
-                  }
+                  orders={myOrders}
                 />
               )}
 
@@ -817,10 +620,6 @@ export function App() {
               )}
             </>
           )}
-
-          {/* ==========================================
-              COURIER
-          ========================================== */}
 
           {currentUser.role ===
             "courier" && (
@@ -831,9 +630,7 @@ export function App() {
                   currentCourier={
                     currentUser
                   }
-                  orders={
-                    safeOrders
-                  }
+                  orders={safeOrders}
                 />
               )}
 
@@ -848,22 +645,14 @@ export function App() {
             </>
           )}
 
-          {/* ==========================================
-              ADMIN
-          ========================================== */}
-
           {currentUser.role ===
             "admin" && (
             <>
               {activeTab ===
                 "admin_panel" && (
                 <AdminPanel
-                  orders={
-                    safeOrders
-                  }
-                  pricing={
-                    pricing
-                  }
+                  orders={safeOrders}
+                  pricing={pricing}
                 />
               )}
 
@@ -880,19 +669,11 @@ export function App() {
         </main>
 
         <BottomNavigation
-          role={
-            currentUser.role
-          }
-          activeTab={
-            activeTab
-          }
-          onTabChange={(
-            tab
-          ) => {
+          role={currentUser.role}
+          activeTab={activeTab}
+          onTabChange={(tab) => {
             setActiveTab(tab);
-            setSelectedOrderId(
-              null
-            );
+            setSelectedOrderId(null);
           }}
           onOpenNewOrder={() =>
             handleOpenNewOrder()
@@ -903,70 +684,30 @@ export function App() {
         />
       </div>
 
-      {/* ==========================================
-          NEW ORDER
-      ========================================== */}
-
       <NewOrderModal
-        isOpen={
-          isNewOrderOpen
-        }
+        isOpen={isNewOrderOpen}
         onClose={() => {
-          setIsNewOrderOpen(
-            false
-          );
-
-          setNewOrderPrefill(
-            undefined
-          );
+          setIsNewOrderOpen(false);
+          setNewOrderPrefill(undefined);
         }}
-        currentUser={
-          currentUser
-        }
-        pricing={
-          pricing
-        }
-        prefillData={
-          newOrderPrefill
-        }
-        onOrderCreated={(
-          order
-        ) => {
-          setActiveTab(
-            "orders"
-          );
-
-          setSelectedOrderId(
-            order.id
-          );
+        currentUser={currentUser}
+        pricing={pricing}
+        prefillData={newOrderPrefill}
+        onOrderCreated={(order) => {
+          setActiveTab("orders");
+          setSelectedOrderId(order.id);
         }}
       />
 
-      {/* ==========================================
-          NOTIFICATIONS
-      ========================================== */}
-
       <NotificationDrawer
-        isOpen={
-          isNotificationsOpen
-        }
+        isOpen={isNotificationsOpen}
         onClose={() =>
-          setIsNotificationsOpen(
-            false
-          )
+          setIsNotificationsOpen(false)
         }
-        notifications={
-          notifications
-        }
-        userId={
-          currentUser.id
-        }
-        onSelectOrder={(
-          orderId
-        ) => {
-          setSelectedOrderId(
-            orderId
-          );
+        notifications={notifications}
+        userId={currentUser.id}
+        onSelectOrder={(orderId) => {
+          setSelectedOrderId(orderId);
 
           if (
             currentUser.role ===
@@ -976,9 +717,7 @@ export function App() {
               "courier_panel"
             );
           } else {
-            setActiveTab(
-              "orders"
-            );
+            setActiveTab("orders");
           }
         }}
       />
