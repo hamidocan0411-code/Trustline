@@ -33,12 +33,11 @@ import { DeliveryProofCard } from "./DeliveryProofCard";
 
 import {
   collection,
-  deleteDoc,
   doc,
   getDocs,
   query,
-  setDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 
 import {
@@ -145,9 +144,6 @@ export const AdminPanel: React.FC<Props> = ({
   const [vipMultiplier, setVipMultiplier] =
     useState(pricing?.vipMultiplier ?? 1.6);
 
-  /*
-   * YÖNETİCİ YÖNETİMİ
-   */
   const [admins, setAdmins] =
     useState<UserProfile[]>([]);
 
@@ -219,8 +215,11 @@ export const AdminPanel: React.FC<Props> = ({
   /*
    * FIRESTORE'DAN YÖNETİCİLERİ GETİR
    *
-   * admins koleksiyonundaki UID'ler ile
-   * users koleksiyonundaki profilleri eşleştiriyoruz.
+   * users/{UID} dokümanının ID'sini
+   * doğrudan Firebase doküman ID'sinden alıyoruz.
+   *
+   * Böylece users dokümanının içinde
+   * ayrıca "id" alanı olmasa bile çalışır.
    */
   const loadAdmins = async () => {
     try {
@@ -229,32 +228,95 @@ export const AdminPanel: React.FC<Props> = ({
           collection(db, "admins")
         );
 
-      if (adminsSnapshot.empty) {
-        setAdmins([]);
-        return;
-      }
-
       const adminIds =
         adminsSnapshot.docs.map(
           (item) => item.id
         );
 
+      /*
+       * Ana yöneticiyi her durumda listeye ekliyoruz.
+       */
       const usersSnapshot =
         await getDocs(
           collection(db, "users")
         );
 
-      const users =
-        usersSnapshot.docs
-          .map(
-            (item) =>
-              item.data() as UserProfile
-          )
-          .filter((user) =>
-            adminIds.includes(user.id)
-          );
+      const allUsers: UserProfile[] =
+        usersSnapshot.docs.map(
+          (item) => {
+            const data =
+              item.data() as Partial<UserProfile>;
 
-      setAdmins(users);
+            return {
+              ...data,
+              id: item.id,
+              name:
+                data.name || "",
+              email:
+                data.email || "",
+              phone:
+                data.phone || "",
+              role:
+                data.role || "customer",
+              createdAt:
+                data.createdAt ||
+                new Date().toISOString(),
+            } as UserProfile;
+          }
+        );
+
+      /*
+       * Hem admins/{uid} koleksiyonunu
+       * hem de users/{uid}.role alanını kontrol ediyoruz.
+       *
+       * Bu, daha önce admin yapılmış fakat
+       * users profilinde ID alanı olmayan kullanıcıların
+       * görünmesini sağlar.
+       */
+      const nextAdmins =
+        allUsers.filter(
+          (user) =>
+            user.role === "admin" ||
+            adminIds.includes(user.id) ||
+            user.email?.toLowerCase() ===
+              PRIMARY_ADMIN_EMAIL
+        );
+
+      /*
+       * Ana yöneticiyi yoksa bile garantiye al.
+       */
+      const primaryAdmin =
+        allUsers.find(
+          (user) =>
+            user.email?.toLowerCase() ===
+            PRIMARY_ADMIN_EMAIL
+        );
+
+      if (
+        primaryAdmin &&
+        !nextAdmins.some(
+          (admin) =>
+            admin.id === primaryAdmin.id
+        )
+      ) {
+        nextAdmins.unshift(
+          primaryAdmin
+        );
+      }
+
+      /*
+       * Aynı kullanıcı iki kere gelmesin.
+       */
+      const uniqueAdmins =
+        nextAdmins.filter(
+          (admin, index, array) =>
+            array.findIndex(
+              (item) =>
+                item.id === admin.id
+            ) === index
+        );
+
+      setAdmins(uniqueAdmins);
     } catch (error) {
       console.error(
         "Yöneticiler alınamadı:",
@@ -287,6 +349,17 @@ export const AdminPanel: React.FC<Props> = ({
     return () => {
       unsubscribe?.();
     };
+  }, []);
+
+  useEffect(() => {
+    /*
+     * Admin paneli açılır açılmaz
+     * yöneticileri yükle.
+     *
+     * Sadece admins sekmesine geçildiğinde değil,
+     * panelin ilk açılışında da yüklenir.
+     */
+    void loadAdmins();
   }, []);
 
   useEffect(() => {
@@ -341,9 +414,29 @@ export const AdminPanel: React.FC<Props> = ({
           return;
         }
 
-        const user =
-          snapshot.docs[0]
-            .data() as UserProfile;
+        const document =
+          snapshot.docs[0];
+
+        const data =
+          document.data() as Partial<UserProfile>;
+
+        const user: UserProfile =
+          {
+            ...data,
+            id: document.id,
+            name:
+              data.name || "",
+            email:
+              data.email || email,
+            phone:
+              data.phone || "",
+            role:
+              data.role ||
+              "customer",
+            createdAt:
+              data.createdAt ||
+              new Date().toISOString(),
+          } as UserProfile;
 
         setAdminSearchResult(
           user
@@ -368,7 +461,9 @@ export const AdminPanel: React.FC<Props> = ({
    *
    * admins/{UID} oluşturulur.
    *
-   * Ayrıca users/{UID}.role = admin yapılır.
+   * users/{UID}.role = admin yapılır.
+   *
+   * İki işlem writeBatch ile birlikte yapılır.
    */
   const makeAdmin =
     async (
@@ -381,8 +476,13 @@ export const AdminPanel: React.FC<Props> = ({
         return;
       }
 
+      const email =
+        (
+          user.email || ""
+        ).trim().toLowerCase();
+
       if (
-        user.email?.toLowerCase() ===
+        email ===
         PRIMARY_ADMIN_EMAIL
       ) {
         alert(
@@ -391,31 +491,40 @@ export const AdminPanel: React.FC<Props> = ({
         return;
       }
 
-      if (
-        user.role === "admin"
-      ) {
-        /*
-         * users profili admin ama admins dokümanı
-         * eksik olabilir. Yine de dokümanı garantiye alıyoruz.
-         */
-      }
-
       setAdminSaving(true);
 
       try {
-        await setDoc(
+        const batch =
+          writeBatch(db);
+
+        const adminRef =
           doc(
             db,
             "admins",
             user.id
-          ),
+          );
+
+        const userRef =
+          doc(
+            db,
+            "users",
+            user.id
+          );
+
+        const now =
+          new Date().toISOString();
+
+        batch.set(
+          adminRef,
           {
             uid: user.id,
-            email: user.email || "",
-            name: user.name || "",
+            email:
+              user.email || "",
+            name:
+              user.name || "",
             role: "admin",
             createdAt:
-              new Date().toISOString(),
+              now,
             createdBy:
               auth.currentUser?.uid ||
               null,
@@ -425,19 +534,18 @@ export const AdminPanel: React.FC<Props> = ({
           }
         );
 
-        await setDoc(
-          doc(
-            db,
-            "users",
-            user.id
-          ),
+        batch.set(
+          userRef,
           {
             role: "admin",
+            updatedAt: now,
           },
           {
             merge: true,
           }
         );
+
+        await batch.commit();
 
         alert(
           `${user.name || user.email} artık yönetici.`
@@ -489,6 +597,13 @@ export const AdminPanel: React.FC<Props> = ({
         return;
       }
 
+      if (!user.id) {
+        alert(
+          "Kullanıcının Firebase UID bilgisi bulunamadı."
+        );
+        return;
+      }
+
       const confirmed =
         window.confirm(
           `${user.name || user.email} adlı kullanıcının yönetici yetkisi kaldırılsın mı?`
@@ -501,27 +616,40 @@ export const AdminPanel: React.FC<Props> = ({
       setAdminSaving(true);
 
       try {
-        await deleteDoc(
+        const batch =
+          writeBatch(db);
+
+        const adminRef =
           doc(
             db,
             "admins",
             user.id
-          )
-        );
+          );
 
-        await setDoc(
+        const userRef =
           doc(
             db,
             "users",
             user.id
-          ),
+          );
+
+        batch.delete(
+          adminRef
+        );
+
+        batch.set(
+          userRef,
           {
             role: "customer",
+            updatedAt:
+              new Date().toISOString(),
           },
           {
             merge: true,
           }
         );
+
+        await batch.commit();
 
         alert(
           "Yönetici yetkisi kaldırıldı."
@@ -697,9 +825,7 @@ export const AdminPanel: React.FC<Props> = ({
   const refresh = () => {
     loadUsers();
 
-    if (activeTab === "admins") {
-      void loadAdmins();
-    }
+    void loadAdmins();
 
     try {
       onRefreshData?.();
@@ -1628,6 +1754,27 @@ export const AdminPanel: React.FC<Props> = ({
                         </p>
                       </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void makeAdmin(
+                          customer
+                        )
+                      }
+                      disabled={
+                        adminSaving ||
+                        customer.email
+                          ?.toLowerCase() ===
+                          PRIMARY_ADMIN_EMAIL
+                      }
+                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#D6A84F]/20 bg-[#D6A84F]/10 px-4 py-3 text-sm font-bold text-[#D6A84F] transition hover:bg-[#D6A84F]/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <UserPlus
+                        size={16}
+                      />
+                      Yönetici Yap
+                    </button>
                   </div>
                 )
               )}
@@ -1836,7 +1983,7 @@ export const AdminPanel: React.FC<Props> = ({
                           }
                         </p>
 
-                        <p className="mt-1 text-xs text-[#666666]">
+                        <p className="mt-1 break-all text-xs text-[#666666]">
                           UID:{" "}
                           {
                             adminSearchResult.id
@@ -1966,7 +2113,7 @@ export const AdminPanel: React.FC<Props> = ({
                                 }
                               </p>
 
-                              <p className="mt-1 text-xs text-[#666666]">
+                              <p className="mt-1 break-all text-xs text-[#666666]">
                                 UID:{" "}
                                 {
                                   admin.id
@@ -2595,4 +2742,4 @@ const InfoItem: React.FC<{
       {value || "—"}
     </p>
   </div>
-); 
+);
