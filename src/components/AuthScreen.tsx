@@ -1,6 +1,10 @@
-import React, { useState } from "react";
+import React, {
+  useEffect,
+  useState,
+} from "react";
 
 import {
+  handleGoogleRedirectResult,
   loginUser,
   loginWithGoogle,
   registerUser,
@@ -13,7 +17,9 @@ interface AuthScreenProps {
 const TRUSTLINE_LOGO =
   "https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png";
 
-function getAuthErrorMessage(error: unknown): string {
+function getAuthErrorMessage(
+  error: unknown
+): string {
   const code =
     typeof error === "object" &&
     error !== null &&
@@ -23,7 +29,7 @@ function getAuthErrorMessage(error: unknown): string {
             error as {
               code?: unknown;
             }
-          ).code ?? ""
+          }).code ?? ""
         )
       : "";
 
@@ -52,10 +58,10 @@ function getAuthErrorMessage(error: unknown): string {
       return "Google giriş penceresi kapatıldı.";
 
     case "auth/popup-blocked":
-      return "Google giriş penceresi engellendi.";
+      return "Google giriş penceresi tarayıcı tarafından engellendi. Tekrar deneyin.";
 
     case "auth/cancelled-popup-request":
-      return "Google giriş işlemi iptal edildi.";
+      return "Google giriş işlemi iptal edildi. Lütfen tekrar deneyin.";
 
     case "auth/account-exists-with-different-credential":
       return "Bu e-posta başka bir giriş yöntemiyle zaten kayıtlı.";
@@ -63,14 +69,29 @@ function getAuthErrorMessage(error: unknown): string {
     case "auth/operation-not-allowed":
       return "Bu giriş yöntemi Firebase Console'da etkin değil.";
 
+    case "auth/operation-not-supported-in-this-environment":
+      return "Bu tarayıcıda Google popup kullanılamıyor. Güvenli giriş sayfasına yönlendiriliyorsunuz.";
+
     case "auth/network-request-failed":
-      return "İnternet bağlantınızı kontrol edin.";
+      return "Google bağlantısı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.";
+
+    case "auth/unauthorized-domain":
+      return "Bu site Firebase tarafından Google girişi için yetkilendirilmemiş.";
+
+    case "auth/internal-error":
+      return "Google girişinde geçici bir hata oluştu. Lütfen tekrar deneyin.";
 
     case "auth/too-many-requests":
       return "Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.";
 
+    case "auth/google-redirect-started":
+      return "Google giriş sayfasına yönlendiriliyorsunuz...";
+
     default:
-      if (error instanceof Error && error.message) {
+      if (
+        error instanceof Error &&
+        error.message
+      ) {
         return error.message;
       }
 
@@ -78,21 +99,99 @@ function getAuthErrorMessage(error: unknown): string {
   }
 }
 
-function AuthScreen({ onLogin }: AuthScreenProps) {
-  const [isRegister, setIsRegister] = useState(false);
+function AuthScreen({
+  onLogin,
+}: AuthScreenProps) {
+  const [isRegister, setIsRegister] =
+    useState(false);
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [name, setName] =
+    useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
+  const [phone, setPhone] =
+    useState("");
 
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [email, setEmail] =
+    useState("");
 
-  const isLoading = loading || googleLoading;
+  const [password, setPassword] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [googleLoading, setGoogleLoading] =
+    useState(false);
+
+  const [redirectChecking, setRedirectChecking] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
+
+  const [success, setSuccess] =
+    useState("");
+
+  const isLoading =
+    loading ||
+    googleLoading ||
+    redirectChecking;
+
+  /*
+   * Google redirect dönüşünü kontrol et.
+   *
+   * Normal açılışta sonuç null gelir.
+   * Google'dan geri dönüldüyse kullanıcı
+   * burada işlenir.
+   */
+  useEffect(() => {
+    let mounted = true;
+
+    const checkGoogleRedirect =
+      async () => {
+        try {
+          const profile =
+            await handleGoogleRedirectResult();
+
+          if (!mounted) {
+            return;
+          }
+
+          if (profile) {
+            setSuccess(
+              "Google hesabınızla giriş başarılı."
+            );
+
+            onLogin?.();
+          }
+        } catch (err) {
+          if (!mounted) {
+            return;
+          }
+
+          console.error(
+            "Google redirect authentication error:",
+            err
+          );
+
+          setError(
+            getAuthErrorMessage(err)
+          );
+        } finally {
+          if (mounted) {
+            setRedirectChecking(
+              false
+            );
+          }
+        }
+      };
+
+    checkGoogleRedirect();
+
+    return () => {
+      mounted = false;
+    };
+  }, [onLogin]);
 
   const clearMessages = () => {
     setError("");
@@ -106,27 +205,43 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
 
     clearMessages();
 
-    const cleanName = name.trim();
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPhone = phone.trim();
+    const cleanName =
+      name.trim();
 
-    if (isRegister && !cleanName) {
-      setError("Ad soyad alanını doldurun.");
+    const cleanEmail =
+      email.trim().toLowerCase();
+
+    const cleanPhone =
+      phone.trim();
+
+    if (
+      isRegister &&
+      !cleanName
+    ) {
+      setError(
+        "Ad soyad alanını doldurun."
+      );
       return;
     }
 
     if (!cleanEmail) {
-      setError("E-posta adresinizi girin.");
+      setError(
+        "E-posta adresinizi girin."
+      );
       return;
     }
 
     if (!password) {
-      setError("Şifrenizi girin.");
+      setError(
+        "Şifrenizi girin."
+      );
       return;
     }
 
     if (password.length < 6) {
-      setError("Şifre en az 6 karakter olmalıdır.");
+      setError(
+        "Şifre en az 6 karakter olmalıdır."
+      );
       return;
     }
 
@@ -148,13 +263,21 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
         return;
       }
 
-      await loginUser(cleanEmail, password);
+      await loginUser(
+        cleanEmail,
+        password
+      );
 
-      setSuccess("Giriş başarılı.");
+      setSuccess(
+        "Giriş başarılı."
+      );
 
       onLogin?.();
     } catch (err) {
-      console.error("Authentication error:", err);
+      console.error(
+        "Authentication error:",
+        err
+      );
 
       const code =
         typeof err === "object" &&
@@ -169,9 +292,16 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
             )
           : "";
 
-      if (code === "auth/email-verification-required") {
+      if (
+        code ===
+        "auth/email-verification-required"
+      ) {
         setIsRegister(false);
-        setEmail(cleanEmail);
+
+        setEmail(
+          cleanEmail
+        );
+
         setPassword("");
 
         setSuccess(
@@ -181,36 +311,89 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
         return;
       }
 
-      setError(getAuthErrorMessage(err));
+      setError(
+        getAuthErrorMessage(err)
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogle = async () => {
-    clearMessages();
+  const handleGoogle =
+    async () => {
+      clearMessages();
 
-    setGoogleLoading(true);
+      setGoogleLoading(true);
 
-    try {
-      await loginWithGoogle();
+      try {
+        const profile =
+          await loginWithGoogle();
 
-      setSuccess("Google hesabınızla giriş başarılı.");
+        /*
+         * Popup başarılıysa buraya gelir.
+         *
+         * Redirect senaryosunda sayfa yeniden
+         * yükleneceği için bu bölüm çalışmadan
+         * uygulama yeniden açılır.
+         */
+        if (profile) {
+          setSuccess(
+            "Google hesabınızla giriş başarılı."
+          );
 
-      onLogin?.();
-    } catch (err) {
-      console.error("Google authentication error:", err);
+          onLogin?.();
+        }
+      } catch (err) {
+        console.error(
+          "Google authentication error:",
+          err
+        );
 
-      setError(getAuthErrorMessage(err));
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
+        const code =
+          typeof err === "object" &&
+          err !== null &&
+          "code" in err
+            ? String(
+                (
+                  err as {
+                    code?: unknown;
+                  }
+                ).code ?? ""
+              )
+            : "";
+
+        /*
+         * Redirect başlatıldıysa bunu
+         * gerçek hata gibi göstermiyoruz.
+         */
+        if (
+          code ===
+          "auth/google-redirect-started"
+        ) {
+          setSuccess(
+            "Google giriş sayfasına yönlendiriliyorsunuz..."
+          );
+
+          return;
+        }
+
+        setError(
+          getAuthErrorMessage(err)
+        );
+      } finally {
+        setGoogleLoading(
+          false
+        );
+      }
+    };
 
   const toggleMode = () => {
     clearMessages();
 
-    setIsRegister((current) => !current);
+    setIsRegister(
+      (current) =>
+        !current
+    );
 
     setPassword("");
   };
@@ -222,36 +405,32 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
       ========================================================== */}
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {/* Ambient lights */}
         <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-amber-500/10 blur-[120px]" />
 
         <div className="absolute -bottom-48 -right-40 h-[600px] w-[600px] rounded-full bg-amber-400/10 blur-[140px]" />
 
         <div className="absolute left-1/2 top-1/2 h-[450px] w-[450px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-500/5 blur-[100px]" />
 
-        {/* Grid */}
         <div
           className="absolute inset-0 opacity-[0.08]"
           style={{
             backgroundImage:
               "linear-gradient(rgba(255,255,255,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.18) 1px, transparent 1px)",
-            backgroundSize: "70px 70px",
+            backgroundSize:
+              "70px 70px",
           }}
         />
 
-        {/* Road / route lines */}
         <div className="absolute left-[-10%] top-[24%] h-px w-[120%] rotate-[8deg] bg-gradient-to-r from-transparent via-amber-400/20 to-transparent" />
 
         <div className="absolute left-[-10%] top-[65%] h-px w-[120%] rotate-[-7deg] bg-gradient-to-r from-transparent via-amber-400/10 to-transparent" />
 
         <div className="absolute left-[10%] top-[40%] h-[1px] w-[80%] rotate-[25deg] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-        {/* Moving route */}
         <div className="absolute left-[-20%] top-[28%] h-[2px] w-[35%] rotate-[8deg] bg-gradient-to-r from-transparent via-amber-400 to-transparent opacity-70 blur-[1px] animate-[routeMove_6s_linear_infinite]" />
 
         <div className="absolute right-[-20%] top-[67%] h-[2px] w-[35%] rotate-[-7deg] bg-gradient-to-r from-transparent via-amber-400 to-transparent opacity-60 blur-[1px] animate-[routeMoveReverse_8s_linear_infinite]" />
 
-        {/* Location points */}
         <div className="absolute left-[9%] top-[23%] h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.8)] animate-pulse" />
 
         <div className="absolute right-[14%] top-[31%] h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.8)] animate-pulse [animation-delay:1s]" />
@@ -260,7 +439,6 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
 
         <div className="absolute right-[8%] bottom-[20%] h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.8)] animate-pulse [animation-delay:3s]" />
 
-        {/* Floating delivery symbols */}
         <div className="absolute left-[7%] top-[48%] text-4xl opacity-[0.08] animate-bounce">
           📦
         </div>
@@ -273,7 +451,6 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
           🛵
         </div>
 
-        {/* Cinematic gradient */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(5,7,10,0.35)_45%,rgba(5,7,10,0.95)_100%)]" />
       </div>
 
@@ -283,13 +460,11 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
 
       <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
         <div className="w-full max-w-[470px]">
-          {/* =====================================================
-              BRAND
-          ====================================================== */}
+
+          {/* BRAND */}
 
           <div className="mb-6 text-center">
             <div className="relative mx-auto mb-5 h-24 w-24">
-              {/* Logo glow */}
               <div className="absolute inset-[-15px] rounded-[35px] bg-amber-400/10 blur-2xl" />
 
               <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-[28px] border border-white/15 bg-white p-2 shadow-[0_0_50px_rgba(245,158,11,0.18)]">
@@ -300,13 +475,16 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                   loading="eager"
                   draggable={false}
                   onError={(event) => {
-                    event.currentTarget.style.display = "none";
+                    event.currentTarget.style.display =
+                      "none";
 
                     const fallback =
-                      event.currentTarget.nextElementSibling as HTMLElement | null;
+                      event.currentTarget
+                        .nextElementSibling as HTMLElement | null;
 
                     if (fallback) {
-                      fallback.style.display = "flex";
+                      fallback.style.display =
+                        "flex";
                     }
                   }}
                 />
@@ -332,9 +510,7 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
             </p>
           </div>
 
-          {/* =====================================================
-              TRUST BADGE
-          ====================================================== */}
+          {/* TRUST BADGE */}
 
           <div className="mb-4 flex justify-center">
             <div className="flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/[0.06] px-4 py-2 text-xs font-semibold text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.05)] backdrop-blur">
@@ -348,19 +524,17 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
             </div>
           </div>
 
-          {/* =====================================================
-              LOGIN CARD
-          ====================================================== */}
+          {/* CARD */}
 
           <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.97] shadow-[0_35px_100px_rgba(0,0,0,0.55)] backdrop-blur-xl">
-            {/* Gold top line */}
             <div className="h-1 w-full bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
 
-            {/* Card glow */}
             <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-amber-400/10 blur-3xl" />
 
             <div className="relative p-6 sm:p-9">
-              {/* Header */}
+
+              {/* HEADER */}
+
               <div className="mb-7">
                 <div className="mb-2 flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
@@ -385,9 +559,7 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                 </p>
               </div>
 
-              {/* =================================================
-                  MESSAGES
-              ================================================== */}
+              {/* MESSAGES */}
 
               {error && (
                 <div
@@ -399,7 +571,9 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                       !
                     </span>
 
-                    <span>{error}</span>
+                    <span>
+                      {error}
+                    </span>
                   </div>
                 </div>
               )}
@@ -414,26 +588,33 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                       ✓
                     </span>
 
-                    <span>{success}</span>
+                    <span>
+                      {success}
+                    </span>
                   </div>
                 </div>
               )}
 
-              {/* =================================================
-                  GOOGLE
-              ================================================== */}
+              {/* GOOGLE */}
 
               <button
                 type="button"
-                onClick={handleGoogle}
-                disabled={isLoading}
+                onClick={
+                  handleGoogle
+                }
+                disabled={
+                  isLoading
+                }
                 className="group flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               >
-                {googleLoading ? (
+                {googleLoading ||
+                redirectChecking ? (
                   <>
                     <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-800" />
 
-                    Google ile bağlanılıyor...
+                    {redirectChecking
+                      ? "Giriş kontrol ediliyor..."
+                      : "Google ile bağlanılıyor..."}
                   </>
                 ) : (
                   <>
@@ -446,7 +627,8 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                 )}
               </button>
 
-              {/* Divider */}
+              {/* DIVIDER */}
+
               <div className="my-6 flex items-center gap-3">
                 <div className="h-px flex-1 bg-slate-200" />
 
@@ -457,15 +639,14 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                 <div className="h-px flex-1 bg-slate-200" />
               </div>
 
-              {/* =================================================
-                  FORM
-              ================================================== */}
+              {/* FORM */}
 
               <form
-                onSubmit={handleSubmit}
+                onSubmit={
+                  handleSubmit
+                }
                 className="space-y-4"
               >
-                {/* Name */}
                 {isRegister && (
                   <div>
                     <label
@@ -480,17 +661,20 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                       type="text"
                       value={name}
                       onChange={(e) =>
-                        setName(e.target.value)
+                        setName(
+                          e.target.value
+                        )
                       }
                       placeholder="Adınız Soyadınız"
                       autoComplete="name"
-                      disabled={isLoading}
+                      disabled={
+                        isLoading
+                      }
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                     />
                   </div>
                 )}
 
-                {/* Phone */}
                 {isRegister && (
                   <div>
                     <label
@@ -508,17 +692,20 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                       type="tel"
                       value={phone}
                       onChange={(e) =>
-                        setPhone(e.target.value)
+                        setPhone(
+                          e.target.value
+                        )
                       }
                       placeholder="05XX XXX XX XX"
                       autoComplete="tel"
-                      disabled={isLoading}
+                      disabled={
+                        isLoading
+                      }
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                     />
                   </div>
                 )}
 
-                {/* Email */}
                 <div>
                   <label
                     htmlFor="auth-email"
@@ -532,16 +719,19 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                     type="email"
                     value={email}
                     onChange={(e) =>
-                      setEmail(e.target.value)
+                      setEmail(
+                        e.target.value
+                      )
                     }
                     placeholder="ornek@email.com"
                     autoComplete="email"
-                    disabled={isLoading}
+                    disabled={
+                      isLoading
+                    }
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                   />
                 </div>
 
-                {/* Password */}
                 <div>
                   <label
                     htmlFor="auth-password"
@@ -555,7 +745,9 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                     type="password"
                     value={password}
                     onChange={(e) =>
-                      setPassword(e.target.value)
+                      setPassword(
+                        e.target.value
+                      )
                     }
                     placeholder="En az 6 karakter"
                     autoComplete={
@@ -563,21 +755,22 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                         ? "new-password"
                         : "current-password"
                     }
-                    disabled={isLoading}
+                    disabled={
+                      isLoading
+                    }
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                   />
                 </div>
 
-                {/* Submit */}
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={
+                    isLoading
+                  }
                   className="group relative mt-2 w-full overflow-hidden rounded-2xl bg-slate-950 px-4 py-4 text-sm font-black text-white shadow-[0_12px_30px_rgba(2,6,23,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_35px_rgba(2,6,23,0.35)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 >
-                  {/* Shine */}
                   <span className="absolute inset-0 -translate-x-full skew-x-[-20deg] bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-[150%]" />
 
-                  {/* Gold glow */}
                   <span className="absolute inset-x-10 bottom-0 h-1 bg-amber-400/70 blur-md" />
 
                   <span className="relative flex items-center justify-center gap-2">
@@ -589,7 +782,9 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                       </>
                     ) : isRegister ? (
                       <>
-                        <span>Hesap Oluştur</span>
+                        <span>
+                          Hesap Oluştur
+                        </span>
 
                         <span className="text-lg text-amber-400 transition-transform group-hover:translate-x-1">
                           →
@@ -597,7 +792,9 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                       </>
                     ) : (
                       <>
-                        <span>Giriş Yap</span>
+                        <span>
+                          Giriş Yap
+                        </span>
 
                         <span className="text-lg text-amber-400 transition-transform group-hover:translate-x-1">
                           →
@@ -608,9 +805,7 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                 </button>
               </form>
 
-              {/* =================================================
-                  MODE SWITCH
-              ================================================== */}
+              {/* MODE SWITCH */}
 
               <div className="mt-6 text-center text-sm text-slate-500">
                 {isRegister
@@ -619,8 +814,12 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
 
                 <button
                   type="button"
-                  onClick={toggleMode}
-                  disabled={isLoading}
+                  onClick={
+                    toggleMode
+                  }
+                  disabled={
+                    isLoading
+                  }
                   className="ml-1.5 font-black text-amber-600 transition-colors hover:text-amber-700 hover:underline disabled:opacity-50"
                 >
                   {isRegister
@@ -629,9 +828,7 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                 </button>
               </div>
 
-              {/* =================================================
-                  SECURITY
-              ================================================== */}
+              {/* SECURITY */}
 
               <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-4">
                 <div className="flex items-start gap-3">
@@ -660,13 +857,13 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
             </div>
           </div>
 
-          {/* =====================================================
-              DELIVERY STATUS
-          ====================================================== */}
+          {/* DELIVERY STATUS */}
 
           <div className="mt-5 grid grid-cols-3 gap-2">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center backdrop-blur">
-              <div className="text-lg">📦</div>
+              <div className="text-lg">
+                📦
+              </div>
 
               <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
                 Sipariş
@@ -674,7 +871,9 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center backdrop-blur">
-              <div className="text-lg">🛵</div>
+              <div className="text-lg">
+                🛵
+              </div>
 
               <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
                 Kurye
@@ -682,7 +881,9 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center backdrop-blur">
-              <div className="text-lg">📍</div>
+              <div className="text-lg">
+                📍
+              </div>
 
               <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
                 Teslimat
@@ -690,10 +891,13 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
             </div>
           </div>
 
-          {/* Footer */}
+          {/* FOOTER */}
+
           <div className="mt-6 pb-2 text-center">
             <p className="text-xs text-slate-500">
-              © {new Date().getFullYear()} Trustline Express
+              ©{" "}
+              {new Date().getFullYear()}{" "}
+              Trustline Express
             </p>
 
             <p className="mt-1 text-[10px] tracking-wide text-slate-600">
@@ -703,9 +907,7 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
         </div>
       </div>
 
-      {/* =========================================================
-          CUSTOM ANIMATIONS
-      ========================================================== */}
+      {/* ANIMATIONS */}
 
       <style>{`
         @keyframes routeMove {
