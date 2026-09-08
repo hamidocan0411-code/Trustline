@@ -17,6 +17,8 @@ import {
   Truck,
   User,
   XCircle,
+  ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 
 import type {
@@ -26,6 +28,7 @@ import type {
 } from "../types";
 
 import { storage } from "../services/storage";
+
 import {
   type GeoCoordinate,
   mapService,
@@ -57,6 +60,43 @@ const STATUS_STEPS: OrderStatus[] = [
   "Teslim Edildi",
 ];
 
+const getStatusStepIndex = (
+  status: OrderStatus
+) => {
+  return STATUS_STEPS.indexOf(status);
+};
+
+const formatDate = (date: string) => {
+  try {
+    return new Date(date).toLocaleDateString(
+      "tr-TR",
+      {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      }
+    );
+  } catch {
+    return "-";
+  }
+};
+
+const formatTime = (date: string) => {
+  try {
+    return new Date(date).toLocaleTimeString(
+      "tr-TR",
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }
+    );
+  } catch {
+    return "-";
+  }
+};
+
 const OrderTrackingCard: React.FC<{
   order: Order;
 }> = ({ order }) => {
@@ -74,6 +114,9 @@ const OrderTrackingCard: React.FC<{
   const [routePoints, setRoutePoints] =
     useState<[number, number][]>([]);
 
+  const [locationLoading, setLocationLoading] =
+    useState(false);
+
   useEffect(() => {
     let mounted = true;
 
@@ -84,6 +127,8 @@ const OrderTrackingCard: React.FC<{
 
     const loadLocation = async () => {
       try {
+        setLocationLoading(true);
+
         const location =
           await Promise.resolve(
             storage.getCourierLocation(
@@ -101,6 +146,10 @@ const OrderTrackingCard: React.FC<{
           "Kurye konumu alınamadı:",
           error
         );
+      } finally {
+        if (mounted) {
+          setLocationLoading(false);
+        }
       }
     };
 
@@ -170,18 +219,34 @@ const OrderTrackingCard: React.FC<{
   const isSharing =
     !!courierLocation?.isSharing;
 
+  const hasLocation =
+    !!courierLocation &&
+    typeof courierLocation.latitude ===
+      "number" &&
+    typeof courierLocation.longitude ===
+      "number";
+
   return (
-    <div className="space-y-3 rounded-2xl border border-[#303036] bg-[#19191E] p-4">
+    <div className="space-y-3 rounded-2xl border border-[#303036] bg-[#19191E] p-4 shadow-lg">
+      {/* Tracking Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Navigation
-            size={16}
-            className="text-[#D6A84F]"
-          />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#D6A84F]/30 bg-[#D6A84F]/10">
+            <Navigation
+              size={15}
+              className="text-[#D6A84F]"
+            />
+          </div>
 
-          <h4 className="text-xs font-bold uppercase tracking-wider">
-            Kurye Takibi
-          </h4>
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider">
+              Kurye Takibi
+            </h4>
+
+            <p className="text-[9px] text-[#777777]">
+              Canlı teslimat konumu
+            </p>
+          </div>
         </div>
 
         <span
@@ -205,15 +270,16 @@ const OrderTrackingCard: React.FC<{
         </span>
       </div>
 
+      {/* Map */}
       <RouteMap
         pickupCoords={pickupCoords}
         deliveryCoords={deliveryCoords}
         routePoints={routePoints}
         courierCoords={
-          isSharing && courierLocation
+          isSharing && hasLocation
             ? {
-                lat: courierLocation.latitude,
-                lng: courierLocation.longitude,
+                lat: courierLocation!.latitude,
+                lng: courierLocation!.longitude,
                 name:
                   order.courierName ||
                   "Kurye",
@@ -225,48 +291,91 @@ const OrderTrackingCard: React.FC<{
         isAutoCalculated={true}
       />
 
+      {/* Live GPS Information */}
       {isSharing && courierLocation ? (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-300">
-          <div className="flex items-center gap-2">
-            <Radio
-              size={15}
-              className="animate-pulse text-emerald-400"
-            />
+        <div className="space-y-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-emerald-300">
+              <Radio
+                size={15}
+                className="animate-pulse text-emerald-400"
+              />
 
-            <span>
-              Kurye konumu anlık olarak
-              iletiliyor.
+              <span className="font-medium">
+                Kurye konumu anlık olarak
+                iletiliyor.
+              </span>
+            </div>
+
+            <span className="shrink-0 font-mono text-[10px] text-[#999999]">
+              {formatTime(
+                courierLocation.updatedAt
+              )}
             </span>
           </div>
 
-          <span className="shrink-0 font-mono text-[10px] text-[#999999]">
-            {new Date(
-              courierLocation.updatedAt
-            ).toLocaleTimeString(
-              "tr-TR",
-              {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              }
+          <div className="flex items-center justify-between border-t border-emerald-500/10 pt-2 text-[9px] text-[#999999]">
+            <span>
+              📡 GPS bağlantısı aktif
+            </span>
+
+            {locationLoading && (
+              <RefreshCw
+                size={11}
+                className="animate-spin text-emerald-400"
+              />
             )}
-          </span>
+          </div>
         </div>
       ) : (
         <div className="space-y-1 rounded-xl border border-[#303036] bg-[#222229] p-3 text-[11px] text-[#999999]">
           <p className="flex items-center gap-1.5 font-medium text-amber-300">
             <Info size={14} />
+
             Kurye henüz canlı konum
             paylaşımını başlatmadı.
           </p>
 
-          <p className="text-[10px]">
+          <p className="text-[10px] leading-relaxed">
             Kurye GPS paylaşımını
             başlattığında konumu burada
+            otomatik olarak
             görüntülenecektir.
           </p>
         </div>
       )}
+
+      {/* Delivery ETA */}
+      {order.estimatedDeliveryMinutes &&
+        order.status !== "Teslim Edildi" && (
+          <div className="flex items-center justify-between rounded-xl border border-[#D6A84F]/20 bg-[#D6A84F]/10 p-3">
+            <div className="flex items-center gap-2">
+              <Clock
+                size={15}
+                className="text-[#D6A84F]"
+              />
+
+              <div>
+                <span className="block text-[9px] uppercase tracking-wide text-[#999999]">
+                  Tahmini teslimat
+                </span>
+
+                <span className="text-xs font-bold text-[#D6A84F]">
+                  Yaklaşık{" "}
+                  {
+                    order.estimatedDeliveryMinutes
+                  }{" "}
+                  dakika
+                </span>
+              </div>
+            </div>
+
+            <Truck
+              size={20}
+              className="text-[#D6A84F]"
+            />
+          </div>
+        )}
     </div>
   );
 };
@@ -302,6 +411,25 @@ export const CustomerOrders: React.FC<Props> = ({
   )
     ? orders
     : [];
+
+  const activeOrderCount = useMemo(
+    () =>
+      safeOrders.filter((order) =>
+        ACTIVE_STATUSES.includes(
+          order.status
+        )
+      ).length,
+    [safeOrders]
+  );
+
+  const completedOrderCount = useMemo(
+    () =>
+      safeOrders.filter(
+        (order) =>
+          order.status === "Teslim Edildi"
+      ).length,
+    [safeOrders]
+  );
 
   const filteredOrders = useMemo(() => {
     const term =
@@ -448,8 +576,7 @@ export const CustomerOrders: React.FC<Props> = ({
       await Promise.resolve(
         storage.updateOrderStatus(
           orderId,
-          "İptal Edildi",
-          "Müşteri tarafından iptal edildi."
+          "İptal Edildi"
         )
       );
     } catch (error) {
@@ -466,27 +593,82 @@ export const CustomerOrders: React.FC<Props> = ({
 
   return (
     <div className="space-y-4 pb-20">
-      <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[#303036] bg-[#19191E] p-4 sm:flex-row sm:items-center">
-        <div>
-          <h2 className="font-['Space_Grotesk'] text-lg font-bold">
-            Siparişlerim ({safeOrders.length})
-          </h2>
+      {/* Header */}
+      <div className="overflow-hidden rounded-2xl border border-[#303036] bg-[#19191E]">
+        <div className="relative p-4 sm:p-5">
+          <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-[#D6A84F]/5 blur-3xl" />
 
-          <p className="text-xs text-[#999999]">
-            Kurye gönderilerinizin anlık
-            durumunu takip edin.
-          </p>
+          <div className="relative flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div>
+              <div className="mb-1 flex items-center gap-2">
+                <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+
+                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-400">
+                  Sistem Aktif
+                </span>
+              </div>
+
+              <h2 className="font-['Space_Grotesk'] text-xl font-bold">
+                Siparişlerim
+                <span className="ml-2 text-[#D6A84F]">
+                  ({safeOrders.length})
+                </span>
+              </h2>
+
+              <p className="mt-1 text-xs text-[#999999]">
+                Kurye gönderilerinizin
+                durumunu ve canlı konumunu
+                takip edin.
+              </p>
+            </div>
+
+            <button
+              onClick={onOpenNewOrder}
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#D6A84F] px-4 py-2.5 text-xs font-bold text-[#0B0B0D] shadow-lg shadow-[#D6A84F]/10 transition hover:bg-[#c49740] active:scale-[0.98]"
+            >
+              <Truck size={16} />
+              Yeni Kurye Çağır
+            </button>
+          </div>
+
+          {/* Quick Stats */}
+          {safeOrders.length > 0 && (
+            <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="rounded-xl border border-[#303036] bg-[#0B0B0D]/50 p-3">
+                <span className="block text-[9px] uppercase tracking-wide text-[#777777]">
+                  Toplam
+                </span>
+
+                <span className="mt-1 block text-lg font-extrabold text-white">
+                  {safeOrders.length}
+                </span>
+              </div>
+
+              <div className="rounded-xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-3">
+                <span className="block text-[9px] uppercase tracking-wide text-[#777777]">
+                  Aktif
+                </span>
+
+                <span className="mt-1 block text-lg font-extrabold text-[#D6A84F]">
+                  {activeOrderCount}
+                </span>
+              </div>
+
+              <div className="col-span-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 sm:col-span-1">
+                <span className="block text-[9px] uppercase tracking-wide text-[#777777]">
+                  Teslim Edildi
+                </span>
+
+                <span className="mt-1 block text-lg font-extrabold text-emerald-400">
+                  {completedOrderCount}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
-
-        <button
-          onClick={onOpenNewOrder}
-          className="flex items-center justify-center gap-2 self-start rounded-xl bg-[#D6A84F] px-4 py-2.5 text-xs font-bold text-[#0B0B0D] transition hover:bg-[#c49740] sm:self-auto"
-        >
-          <Truck size={16} />
-          Yeni Kurye Çağır
-        </button>
       </div>
 
+      {/* Search & Filters */}
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
           <Search
@@ -503,7 +685,7 @@ export const CustomerOrders: React.FC<Props> = ({
               )
             }
             placeholder="Sipariş no, adres veya kurye ara..."
-            className="w-full rounded-xl border border-[#303036] bg-[#19191E] py-2.5 pl-9 pr-3 text-xs text-white outline-none transition focus:border-[#D6A84F]"
+            className="w-full rounded-xl border border-[#303036] bg-[#19191E] py-2.5 pl-9 pr-3 text-xs text-white outline-none transition placeholder:text-[#666666] focus:border-[#D6A84F]"
           />
         </div>
 
@@ -512,14 +694,17 @@ export const CustomerOrders: React.FC<Props> = ({
             {
               key: "all" as const,
               label: "Tümü",
+              count: safeOrders.length,
             },
             {
               key: "active" as const,
               label: "Aktif",
+              count: activeOrderCount,
             },
             {
               key: "completed" as const,
               label: "Tamamlanan",
+              count: completedOrderCount,
             },
           ].map((tab) => (
             <button
@@ -527,30 +712,43 @@ export const CustomerOrders: React.FC<Props> = ({
               onClick={() =>
                 setFilter(tab.key)
               }
-              className={`whitespace-nowrap rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+              className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl border px-3 py-2 text-xs font-semibold transition ${
                 filter === tab.key
                   ? "border-[#D6A84F]/40 bg-[#D6A84F]/15 text-[#D6A84F]"
                   : "border-[#303036] bg-[#19191E] text-[#999999] hover:text-white"
               }`}
             >
               {tab.label}
+
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[9px] ${
+                  filter === tab.key
+                    ? "bg-[#D6A84F]/20"
+                    : "bg-[#222229]"
+                }`}
+              >
+                {tab.count}
+              </span>
             </button>
           ))}
         </div>
       </div>
 
+      {/* Empty State */}
       {filteredOrders.length === 0 ? (
         <div className="rounded-2xl border border-[#303036] bg-[#19191E] p-10 text-center">
-          <Package
-            size={44}
-            className="mx-auto text-[#999999]/40"
-          />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-[#303036] bg-[#0B0B0D]">
+            <Package
+              size={36}
+              className="text-[#999999]/40"
+            />
+          </div>
 
-          <h3 className="mt-3 font-bold">
+          <h3 className="mt-4 font-bold">
             Sipariş Bulunamadı
           </h3>
 
-          <p className="mx-auto mt-1 max-w-sm text-xs text-[#999999]">
+          <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-[#999999]">
             {searchTerm ||
             filter !== "all"
               ? "Arama veya filtre kriterlerinize uygun sipariş bulunamadı."
@@ -561,7 +759,7 @@ export const CustomerOrders: React.FC<Props> = ({
             filter === "all" && (
               <button
                 onClick={onOpenNewOrder}
-                className="mt-4 rounded-xl bg-[#D6A84F] px-4 py-2 text-xs font-bold text-[#0B0B0D]"
+                className="mt-4 rounded-xl bg-[#D6A84F] px-4 py-2 text-xs font-bold text-[#0B0B0D] transition hover:bg-[#c49740]"
               >
                 İlk Siparişi Oluştur
               </button>
@@ -575,15 +773,25 @@ export const CustomerOrders: React.FC<Props> = ({
               order.id;
 
             const currentStep =
-              STATUS_STEPS.indexOf(
+              getStatusStepIndex(
+                order.status
+              );
+
+            const isActive =
+              ACTIVE_STATUSES.includes(
                 order.status
               );
 
             return (
               <div
                 key={order.id}
-                className="overflow-hidden rounded-2xl border border-[#303036] bg-[#19191E] transition hover:border-[#D6A84F]/40"
+                className={`overflow-hidden rounded-2xl border bg-[#19191E] transition ${
+                  expanded
+                    ? "border-[#D6A84F]/40 shadow-lg shadow-black/20"
+                    : "border-[#303036] hover:border-[#D6A84F]/30"
+                }`}
               >
+                {/* Order Summary */}
                 <button
                   type="button"
                   onClick={() =>
@@ -602,26 +810,29 @@ export const CustomerOrders: React.FC<Props> = ({
                       </span>
 
                       <span className="truncate text-[10px] text-[#999999]">
-                        {new Date(
+                        {formatDate(
                           order.createdAt
-                        ).toLocaleDateString(
-                          "tr-TR",
-                          {
-                            day: "numeric",
-                            month: "short",
-                            hour: "2-digit",
-                            minute:
-                              "2-digit",
-                          }
                         )}
                       </span>
                     </div>
 
-                    {getStatusBadge(
-                      order.status
-                    )}
+                    <div className="flex shrink-0 items-center gap-2">
+                      {getStatusBadge(
+                        order.status
+                      )}
+
+                      <ChevronDown
+                        size={15}
+                        className={`text-[#777777] transition-transform ${
+                          expanded
+                            ? "rotate-180"
+                            : ""
+                        }`}
+                      />
+                    </div>
                   </div>
 
+                  {/* Addresses */}
                   <div className="mt-4 space-y-2 text-xs">
                     <div className="flex items-start gap-2">
                       <MapPin
@@ -662,6 +873,7 @@ export const CustomerOrders: React.FC<Props> = ({
                     </div>
                   </div>
 
+                  {/* Order Footer */}
                   <div className="mt-4 flex items-center justify-between border-t border-[#303036]/60 pt-3">
                     <div className="flex min-w-0 items-center gap-2 text-[10px] text-[#999999]">
                       <span className="rounded bg-[#222229] px-2 py-1">
@@ -686,85 +898,169 @@ export const CustomerOrders: React.FC<Props> = ({
                       TL
                     </span>
                   </div>
+
+                  {/* Active mini indicator */}
+                  {isActive && (
+                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-500/10 bg-emerald-500/5 px-2.5 py-2 text-[9px] text-emerald-400">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                      Siparişiniz aktif olarak
+                      takip ediliyor
+                    </div>
+                  )}
                 </button>
 
+                {/* Expanded Content */}
                 {expanded && (
                   <div className="space-y-4 border-t border-[#303036] bg-[#222229] p-4">
+                    {/* Status Timeline */}
                     {order.status !==
                       "İptal Edildi" && (
                       <div>
-                        <span className="mb-3 block text-[10px] font-bold uppercase tracking-wider text-[#999999]">
-                          Teslimat Süreci
-                        </span>
+                        <div className="mb-3 flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#999999]">
+                            Teslimat Süreci
+                          </span>
 
-                        <div className="grid grid-cols-6 gap-1">
-                          {STATUS_STEPS.map(
-                            (
-                              step,
-                              index
-                            ) => {
-                              const done =
-                                currentStep >=
-                                index;
+                          <span className="text-[9px] font-medium text-[#D6A84F]">
+                            {currentStep >=
+                            0
+                              ? `${Math.min(
+                                  currentStep +
+                                    1,
+                                  STATUS_STEPS.length
+                                )}/${STATUS_STEPS.length}`
+                              : ""}
+                          </span>
+                        </div>
 
-                              const current =
-                                currentStep ===
-                                index;
+                        <div className="overflow-x-auto pb-1">
+                          <div className="grid min-w-[420px] grid-cols-6 gap-1">
+                            {STATUS_STEPS.map(
+                              (
+                                step,
+                                index
+                              ) => {
+                                const done =
+                                  currentStep >=
+                                  index;
 
-                              return (
-                                <div
-                                  key={
-                                    step
-                                  }
-                                  className="flex min-w-0 flex-col items-center text-center"
-                                >
+                                const current =
+                                  currentStep ===
+                                  index;
+
+                                return (
                                   <div
-                                    className={`flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-bold ${
-                                      current
-                                        ? "bg-[#D6A84F] text-[#0B0B0D] ring-4 ring-[#D6A84F]/20"
-                                        : done
-                                        ? "bg-emerald-500 text-white"
-                                        : "border border-[#303036] bg-[#19191E] text-[#777777]"
-                                    }`}
+                                    key={
+                                      step
+                                    }
+                                    className="relative flex min-w-0 flex-col items-center text-center"
                                   >
-                                    {done
-                                      ? "✓"
-                                      : index +
-                                        1}
-                                  </div>
+                                    {index <
+                                      STATUS_STEPS.length -
+                                        1 && (
+                                      <div
+                                        className={`absolute left-1/2 top-3 h-px w-full ${
+                                          currentStep >
+                                          index
+                                            ? "bg-emerald-500"
+                                            : "bg-[#303036]"
+                                        }`}
+                                      />
+                                    )}
 
-                                  <span
-                                    className={`mt-1 text-[8px] leading-tight ${
-                                      current
-                                        ? "font-bold text-[#D6A84F]"
-                                        : done
-                                        ? "text-white"
-                                        : "text-[#777777]"
-                                    }`}
-                                  >
-                                    {step
-                                      .replace(
-                                        "Kurye ",
-                                        ""
-                                      )
-                                      .replace(
-                                        "Paket ",
-                                        ""
-                                      )}
-                                  </span>
-                                </div>
-                              );
-                            }
-                          )}
+                                    <div
+                                      className={`relative z-10 flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-bold ${
+                                        current
+                                          ? "bg-[#D6A84F] text-[#0B0B0D] ring-4 ring-[#D6A84F]/20"
+                                          : done
+                                          ? "bg-emerald-500 text-white"
+                                          : "border border-[#303036] bg-[#19191E] text-[#777777]"
+                                      }`}
+                                    >
+                                      {done
+                                        ? "✓"
+                                        : index +
+                                          1}
+                                    </div>
+
+                                    <span
+                                      className={`mt-1.5 text-[8px] leading-tight ${
+                                        current
+                                          ? "font-bold text-[#D6A84F]"
+                                          : done
+                                          ? "text-white"
+                                          : "text-[#777777]"
+                                      }`}
+                                    >
+                                      {step
+                                        .replace(
+                                          "Kurye ",
+                                          ""
+                                        )
+                                        .replace(
+                                          "Paket ",
+                                          ""
+                                        )}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
 
+                    {/* Current Status Highlight */}
+                    {order.status !==
+                      "İptal Edildi" && (
+                      <div className="flex items-center gap-3 rounded-xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#D6A84F]/15">
+                          <Truck
+                            size={18}
+                            className="text-[#D6A84F]"
+                          />
+                        </div>
+
+                        <div className="min-w-0">
+                          <span className="block text-[9px] uppercase tracking-wide text-[#999999]">
+                            Güncel Durum
+                          </span>
+
+                          <span className="text-xs font-bold text-[#D6A84F]">
+                            {order.status}
+                          </span>
+                        </div>
+
+                        {order.estimatedDeliveryMinutes &&
+                          order.status !==
+                            "Teslim Edildi" && (
+                            <div className="ml-auto shrink-0 text-right">
+                              <span className="block text-[9px] text-[#999999]">
+                                Tahmini
+                              </span>
+
+                              <span className="font-mono text-xs font-bold text-white">
+                                {
+                                  order.estimatedDeliveryMinutes
+                                }{" "}
+                                dk
+                              </span>
+                            </div>
+                          )}
+                      </div>
+                    )}
+
+                    {/* Courier */}
                     {order.courierName ? (
                       <div className="flex items-center justify-between gap-3 rounded-xl border border-[#303036] bg-[#19191E] p-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/20 text-emerald-400">
+                          <div className="relative flex h-10 w-10 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/20 text-emerald-400">
                             <Truck size={18} />
+
+                            {isActive && (
+                              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full border-2 border-[#19191E] bg-emerald-400" />
+                            )}
                           </div>
 
                           <div>
@@ -794,7 +1090,7 @@ export const CustomerOrders: React.FC<Props> = ({
                             onClick={(event) =>
                               event.stopPropagation()
                             }
-                            className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2 text-emerald-400 transition hover:bg-emerald-500 hover:text-white"
+                            className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2 text-emerald-400 transition hover:bg-emerald-500 hover:text-white active:scale-95"
                             title="Kuryeyi Ara"
                           >
                             <Phone size={16} />
@@ -815,6 +1111,7 @@ export const CustomerOrders: React.FC<Props> = ({
                       </div>
                     )}
 
+                    {/* Live Tracking */}
                     {order.courierId &&
                       order.status !==
                         "İptal Edildi" &&
@@ -825,6 +1122,7 @@ export const CustomerOrders: React.FC<Props> = ({
                         />
                       )}
 
+                    {/* Delivery Proof */}
                     {(order.status ===
                       "Teslim Edildi" ||
                       order.deliveryProof ||
@@ -834,18 +1132,20 @@ export const CustomerOrders: React.FC<Props> = ({
                       />
                     )}
 
+                    {/* Order Note */}
                     {order.note && (
                       <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3">
                         <span className="mb-1 block text-[10px] font-semibold text-[#999999]">
                           Sipariş Notu
                         </span>
 
-                        <p className="text-xs italic text-slate-300">
+                        <p className="text-xs italic leading-relaxed text-slate-300">
                           {order.note}
                         </p>
                       </div>
                     )}
 
+                    {/* Cancel */}
                     {order.status ===
                       "Kurye Bekleniyor" && (
                       <button
@@ -855,10 +1155,23 @@ export const CustomerOrders: React.FC<Props> = ({
                             order.id
                           )
                         }
-                        className="w-full rounded-xl border border-red-500/30 bg-red-500/10 py-2.5 text-xs font-bold text-red-400 transition hover:bg-red-500 hover:text-white"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 py-2.5 text-xs font-bold text-red-400 transition hover:bg-red-500 hover:text-white active:scale-[0.99]"
                       >
+                        <XCircle size={15} />
                         Siparişi İptal Et
                       </button>
+                    )}
+
+                    {/* Completed */}
+                    {order.status ===
+                      "Teslim Edildi" && (
+                      <div className="flex items-center justify-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs font-semibold text-emerald-400">
+                        <CheckCircle2
+                          size={16}
+                        />
+                        Sipariş başarıyla
+                        teslim edildi.
+                      </div>
                     )}
                   </div>
                 )}
