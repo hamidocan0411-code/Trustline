@@ -17,21 +17,29 @@ interface AuthScreenProps {
 const TRUSTLINE_LOGO =
   "https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png";
 
-function getAuthErrorMessage(
-  error: unknown
-): string {
-  const code =
+function getErrorCode(error: unknown): string {
+  if (
     typeof error === "object" &&
     error !== null &&
     "code" in error
-      ? String(
-          (
-            error as {
-              code?: unknown;
-            }
-          }).code ?? ""
-        )
+  ) {
+    const value = Reflect.get(
+      error,
+      "code"
+    );
+
+    return typeof value === "string"
+      ? value
       : "";
+  }
+
+  return "";
+}
+
+function getAuthErrorMessage(
+  error: unknown
+): string {
+  const code = getErrorCode(error);
 
   switch (code) {
     case "auth/email-verification-required":
@@ -137,13 +145,6 @@ function AuthScreen({
     googleLoading ||
     redirectChecking;
 
-  /*
-   * Google redirect dönüşünü kontrol et.
-   *
-   * Normal açılışta sonuç null gelir.
-   * Google'dan geri dönüldüyse kullanıcı
-   * burada işlenir.
-   */
   useEffect(() => {
     let mounted = true;
 
@@ -179,9 +180,7 @@ function AuthScreen({
           );
         } finally {
           if (mounted) {
-            setRedirectChecking(
-              false
-            );
+            setRedirectChecking(false);
           }
         }
       };
@@ -280,17 +279,7 @@ function AuthScreen({
       );
 
       const code =
-        typeof err === "object" &&
-        err !== null &&
-        "code" in err
-          ? String(
-              (
-                err as {
-                  code?: unknown;
-                }
-              ).code ?? ""
-            )
-          : "";
+        getErrorCode(err);
 
       if (
         code ===
@@ -329,13 +318,6 @@ function AuthScreen({
         const profile =
           await loginWithGoogle();
 
-        /*
-         * Popup başarılıysa buraya gelir.
-         *
-         * Redirect senaryosunda sayfa yeniden
-         * yükleneceği için bu bölüm çalışmadan
-         * uygulama yeniden açılır.
-         */
         if (profile) {
           setSuccess(
             "Google hesabınızla giriş başarılı."
@@ -350,22 +332,8 @@ function AuthScreen({
         );
 
         const code =
-          typeof err === "object" &&
-          err !== null &&
-          "code" in err
-            ? String(
-                (
-                  err as {
-                    code?: unknown;
-                  }
-                ).code ?? ""
-              )
-            : "";
+          getErrorCode(err);
 
-        /*
-         * Redirect başlatıldıysa bunu
-         * gerçek hata gibi göstermiyoruz.
-         */
         if (
           code ===
           "auth/google-redirect-started"
@@ -381,9 +349,7 @@ function AuthScreen({
           getAuthErrorMessage(err)
         );
       } finally {
-        setGoogleLoading(
-          false
-        );
+        setGoogleLoading(false);
       }
     };
 
@@ -391,8 +357,7 @@ function AuthScreen({
     clearMessages();
 
     setIsRegister(
-      (current) =>
-        !current
+      (current) => !current
     );
 
     setPassword("");
@@ -400,10 +365,6 @@ function AuthScreen({
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#05070a] text-white">
-      {/* =========================================================
-          PREMIUM BACKGROUND
-      ========================================================== */}
-
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-amber-500/10 blur-[120px]" />
 
@@ -454,14 +415,8 @@ function AuthScreen({
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(5,7,10,0.35)_45%,rgba(5,7,10,0.95)_100%)]" />
       </div>
 
-      {/* =========================================================
-          MAIN
-      ========================================================== */}
-
       <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
         <div className="w-full max-w-[470px]">
-
-          {/* BRAND */}
 
           <div className="mb-6 text-center">
             <div className="relative mx-auto mb-5 h-24 w-24">
@@ -510,8 +465,6 @@ function AuthScreen({
             </p>
           </div>
 
-          {/* TRUST BADGE */}
-
           <div className="mb-4 flex justify-center">
             <div className="flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/[0.06] px-4 py-2 text-xs font-semibold text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.05)] backdrop-blur">
               <span className="relative flex h-2.5 w-2.5">
@@ -524,16 +477,12 @@ function AuthScreen({
             </div>
           </div>
 
-          {/* CARD */}
-
           <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.97] shadow-[0_35px_100px_rgba(0,0,0,0.55)] backdrop-blur-xl">
             <div className="h-1 w-full bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
 
             <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-amber-400/10 blur-3xl" />
 
             <div className="relative p-6 sm:p-9">
-
-              {/* HEADER */}
 
               <div className="mb-7">
                 <div className="mb-2 flex items-center gap-2">
@@ -558,8 +507,6 @@ function AuthScreen({
                     : "Teslimat yönetimine devam etmek için giriş yap."}
                 </p>
               </div>
-
-              {/* MESSAGES */}
 
               {error && (
                 <div
@@ -595,16 +542,10 @@ function AuthScreen({
                 </div>
               )}
 
-              {/* GOOGLE */}
-
               <button
                 type="button"
-                onClick={
-                  handleGoogle
-                }
-                disabled={
-                  isLoading
-                }
+                onClick={handleGoogle}
+                disabled={isLoading}
                 className="group flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               >
                 {googleLoading ||
@@ -627,8 +568,6 @@ function AuthScreen({
                 )}
               </button>
 
-              {/* DIVIDER */}
-
               <div className="my-6 flex items-center gap-3">
                 <div className="h-px flex-1 bg-slate-200" />
 
@@ -639,12 +578,8 @@ function AuthScreen({
                 <div className="h-px flex-1 bg-slate-200" />
               </div>
 
-              {/* FORM */}
-
               <form
-                onSubmit={
-                  handleSubmit
-                }
+                onSubmit={handleSubmit}
                 className="space-y-4"
               >
                 {isRegister && (
@@ -667,9 +602,7 @@ function AuthScreen({
                       }
                       placeholder="Adınız Soyadınız"
                       autoComplete="name"
-                      disabled={
-                        isLoading
-                      }
+                      disabled={isLoading}
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                     />
                   </div>
@@ -698,9 +631,7 @@ function AuthScreen({
                       }
                       placeholder="05XX XXX XX XX"
                       autoComplete="tel"
-                      disabled={
-                        isLoading
-                      }
+                      disabled={isLoading}
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                     />
                   </div>
@@ -725,9 +656,7 @@ function AuthScreen({
                     }
                     placeholder="ornek@email.com"
                     autoComplete="email"
-                    disabled={
-                      isLoading
-                    }
+                    disabled={isLoading}
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                   />
                 </div>
@@ -755,18 +684,14 @@ function AuthScreen({
                         ? "new-password"
                         : "current-password"
                     }
-                    disabled={
-                      isLoading
-                    }
+                    disabled={isLoading}
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  disabled={
-                    isLoading
-                  }
+                  disabled={isLoading}
                   className="group relative mt-2 w-full overflow-hidden rounded-2xl bg-slate-950 px-4 py-4 text-sm font-black text-white shadow-[0_12px_30px_rgba(2,6,23,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_35px_rgba(2,6,23,0.35)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 >
                   <span className="absolute inset-0 -translate-x-full skew-x-[-20deg] bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-[150%]" />
@@ -805,8 +730,6 @@ function AuthScreen({
                 </button>
               </form>
 
-              {/* MODE SWITCH */}
-
               <div className="mt-6 text-center text-sm text-slate-500">
                 {isRegister
                   ? "Zaten hesabınız var mı?"
@@ -814,12 +737,8 @@ function AuthScreen({
 
                 <button
                   type="button"
-                  onClick={
-                    toggleMode
-                  }
-                  disabled={
-                    isLoading
-                  }
+                  onClick={toggleMode}
+                  disabled={isLoading}
                   className="ml-1.5 font-black text-amber-600 transition-colors hover:text-amber-700 hover:underline disabled:opacity-50"
                 >
                   {isRegister
@@ -827,8 +746,6 @@ function AuthScreen({
                     : "Kayıt Ol"}
                 </button>
               </div>
-
-              {/* SECURITY */}
 
               <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-4">
                 <div className="flex items-start gap-3">
@@ -856,8 +773,6 @@ function AuthScreen({
               </div>
             </div>
           </div>
-
-          {/* DELIVERY STATUS */}
 
           <div className="mt-5 grid grid-cols-3 gap-2">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center backdrop-blur">
@@ -891,13 +806,9 @@ function AuthScreen({
             </div>
           </div>
 
-          {/* FOOTER */}
-
           <div className="mt-6 pb-2 text-center">
             <p className="text-xs text-slate-500">
-              ©{" "}
-              {new Date().getFullYear()}{" "}
-              Trustline Express
+              © {new Date().getFullYear()} Trustline Express
             </p>
 
             <p className="mt-1 text-[10px] tracking-wide text-slate-600">
@@ -906,8 +817,6 @@ function AuthScreen({
           </div>
         </div>
       </div>
-
-      {/* ANIMATIONS */}
 
       <style>{`
         @keyframes routeMove {
