@@ -93,6 +93,9 @@ export const NewOrderModal: React.FC<Props> = ({
   const [isSubmitting, setIsSubmitting] =
     useState(false);
 
+  const [showPaymentNotice, setShowPaymentNotice] =
+    useState(false);
+
   const [errorMsg, setErrorMsg] =
     useState('');
 
@@ -166,6 +169,7 @@ export const NewOrderModal: React.FC<Props> = ({
 
       setSuccessOrder(null);
       setErrorMsg('');
+      setShowPaymentNotice(false);
 
       return;
     }
@@ -190,6 +194,7 @@ export const NewOrderModal: React.FC<Props> = ({
 
     setSuccessOrder(null);
     setErrorMsg('');
+    setShowPaymentNotice(false);
   }, [currentUser.id]);
 
   /*
@@ -449,66 +454,19 @@ export const NewOrderModal: React.FC<Props> = ({
 
   /*
    * ============================================================
-   * SİPARİŞ OLUŞTUR
+   * SİPARİŞİ FIREBASE'E KAYDET
+   *
+   * Bu fonksiyon yalnızca müşteri ödeme bilgilendirmesini
+   * onayladıktan sonra çalışır.
    * ============================================================
    */
-  const handleSubmit = async (
-    e: React.FormEvent
-  ) => {
-    e.preventDefault();
-
+  const createOrder = async () => {
     if (isSubmitting) {
       return;
     }
 
-    setErrorMsg('');
-
-    if (!currentUser.id) {
-      setErrorMsg(
-        'Kullanıcı oturumu bulunamadı. Lütfen tekrar giriş yapın.'
-      );
-      return;
-    }
-
-    if (currentUser.role !== 'customer') {
-      setErrorMsg(
-        'Bu işlem yalnızca müşteri hesabıyla yapılabilir.'
-      );
-      return;
-    }
-
-    if (!pickupAddress.trim()) {
-      setErrorMsg(
-        'Lütfen paketin alınacağı adresi giriniz.'
-      );
-      return;
-    }
-
-    if (!deliveryAddress.trim()) {
-      setErrorMsg(
-        'Lütfen paketin teslim edileceği adresi giriniz.'
-      );
-      return;
-    }
-
-    if (
-      !Number.isFinite(distanceKm) ||
-      distanceKm <= 0
-    ) {
-      setErrorMsg(
-        'Lütfen geçerli bir mesafe belirtiniz.'
-      );
-      return;
-    }
-
-    if (packageCount < 1) {
-      setErrorMsg(
-        'Paket adedi en az 1 olmalıdır.'
-      );
-      return;
-    }
-
     setIsSubmitting(true);
+    setErrorMsg('');
 
     try {
       /*
@@ -526,20 +484,7 @@ export const NewOrderModal: React.FC<Props> = ({
 
       /*
        * ========================================================
-       * ÖNEMLİ DÜZELTME:
-       *
-       * Firebase'e gönderilen Order nesnesine ID ekliyoruz.
-       *
-       * Önceden order.id olmadığı için storage.ts içindeki:
-       *
-       * doc(db, "orders", order.id)
-       *
-       * çağrısında order.id = undefined oluyordu.
-       *
-       * Bu da:
-       * "undefined is not an object (evaluating 'n.indexOf')"
-       *
-       * hatasına sebep oluyordu.
+       * SİPARİŞ ID
        * ========================================================
        */
       const generatedOrderId =
@@ -619,6 +564,7 @@ export const NewOrderModal: React.FC<Props> = ({
        * ========================================================
        */
       setErrorMsg('');
+      setShowPaymentNotice(false);
       setSuccessOrder(newOrder);
 
       /*
@@ -652,6 +598,80 @@ export const NewOrderModal: React.FC<Props> = ({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  /*
+   * ============================================================
+   * FORMU GÖNDER
+   *
+   * Burada artık doğrudan Firebase'e kayıt yapılmaz.
+   * Önce ödeme bilgilendirme ekranı açılır.
+   * ============================================================
+   */
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
+    e.preventDefault();
+
+    if (isSubmitting) {
+      return;
+    }
+
+    setErrorMsg('');
+
+    if (!currentUser.id) {
+      setErrorMsg(
+        'Kullanıcı oturumu bulunamadı. Lütfen tekrar giriş yapın.'
+      );
+      return;
+    }
+
+    if (currentUser.role !== 'customer') {
+      setErrorMsg(
+        'Bu işlem yalnızca müşteri hesabıyla yapılabilir.'
+      );
+      return;
+    }
+
+    if (!pickupAddress.trim()) {
+      setErrorMsg(
+        'Lütfen paketin alınacağı adresi giriniz.'
+      );
+      return;
+    }
+
+    if (!deliveryAddress.trim()) {
+      setErrorMsg(
+        'Lütfen paketin teslim edileceği adresi giriniz.'
+      );
+      return;
+    }
+
+    if (
+      !Number.isFinite(distanceKm) ||
+      distanceKm <= 0
+    ) {
+      setErrorMsg(
+        'Lütfen geçerli bir mesafe belirtiniz.'
+      );
+      return;
+    }
+
+    if (packageCount < 1) {
+      setErrorMsg(
+        'Paket adedi en az 1 olmalıdır.'
+      );
+      return;
+    }
+
+    /*
+     * ========================================================
+     * ÖDEME BİLGİLENDİRMESİ
+     *
+     * Müşteri onay vermeden createOrder() çalışmaz.
+     * ========================================================
+     */
+    setShowPaymentNotice(true);
   };
 
   /*
@@ -723,7 +743,134 @@ export const NewOrderModal: React.FC<Props> = ({
 
         {/* BODY */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-          {successOrder ? (
+          {showPaymentNotice ? (
+            /*
+             * ====================================================
+             * ÖDEME BİLGİLENDİRME EKRANI
+             * ====================================================
+             */
+            <div className="p-1 sm:p-2 space-y-5">
+              <div className="text-center pt-2">
+                <div className="w-16 h-16 rounded-full bg-[#D6A84F]/20 border-2 border-[#D6A84F] flex items-center justify-center mx-auto text-[#D6A84F]">
+                  <Check className="w-8 h-8" />
+                </div>
+
+                <h3 className="text-xl font-extrabold text-white mt-4">
+                  💳 Ödeme Bilgilendirmesi
+                </h3>
+
+                <p className="text-xs text-[#999999] mt-2 leading-relaxed">
+                  Siparişinizi tamamlamadan önce ödeme yöntemleri
+                  hakkında bilgilendirmenizi rica ederiz.
+                </p>
+              </div>
+
+              <div className="bg-[#222229] border border-[#303036] rounded-2xl p-4 space-y-4 text-xs sm:text-sm text-[#CCCCCC] leading-relaxed">
+                <p>
+                  Trustline Express olarak ödeme deneyiminizi daha
+                  kolay ve esnek hale getirmek için sistemimizi
+                  geliştirmeye devam ediyoruz.
+                </p>
+
+                <p>
+                  <strong className="text-white">
+                    Şu anda siparişlerde nakit ödeme seçeneği aktiftir.
+                  </strong>
+                </p>
+
+                <p>
+                  Yakın zamanda yapılacak geliştirmelerle birlikte{' '}
+                  <strong className="text-white">
+                    kredi kartı ve banka kartı ile ödeme
+                    seçeneklerinin de
+                  </strong>{' '}
+                  kullanıma sunulması planlanmaktadır.
+                </p>
+
+                <p>
+                  Bu geliştirme tamamlandığında siparişinizi
+                  oluştururken{' '}
+                  <strong className="text-white">
+                    nakit veya kart ile ödeme
+                  </strong>{' '}
+                  seçeneklerinden size uygun olanı tercih
+                  edebileceksiniz.
+                </p>
+
+                <p>
+                  Amacımız, ödeme sürecini sizin için{' '}
+                  <strong className="text-white">
+                    kolay, hızlı ve güvenli
+                  </strong>{' '}
+                  hale getirmektir.
+                </p>
+
+                <div className="border-t border-[#303036] pt-3 text-[#D6A84F]">
+                  <strong>Not:</strong> Kart ile ödeme özelliği
+                  şu anda aktif değildir. Kullanıma sunulduğunda
+                  ayrıca bilgilendirme yapılacaktır.
+                </div>
+              </div>
+
+              <div className="bg-[#D6A84F]/10 border border-[#D6A84F]/30 rounded-xl p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-[#999999]">
+                    Sipariş Tutarı
+                  </span>
+
+                  <span className="text-lg font-black text-[#D6A84F]">
+                    {finalPrice} TL
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-xs text-[#999999]">
+                    Aktif Ödeme Yöntemi
+                  </span>
+
+                  <span className="text-xs font-bold text-white">
+                    Nakit
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={createOrder}
+                  disabled={isSubmitting}
+                  className="w-full py-3.5 rounded-xl bg-[#D6A84F] text-[#0B0B0D] font-black text-sm hover:brightness-105 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Sipariş oluşturuluyor...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Okudum, Onaylıyorum — Nakit Ödeme
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowPaymentNotice(false)
+                  }
+                  disabled={isSubmitting}
+                  className="w-full py-3 rounded-xl bg-[#222229] border border-[#303036] text-[#999999] font-bold text-sm hover:text-white hover:border-[#44444C] transition disabled:opacity-50"
+                >
+                  Onaylamıyorum — Geri Dön
+                </button>
+              </div>
+
+              <p className="text-center text-[9px] text-[#555555] leading-relaxed">
+                Onay vermeden siparişiniz oluşturulmaz.
+              </p>
+            </div>
+          ) : successOrder ? (
             <div className="text-center py-6 space-y-4">
               <div className="w-16 h-16 rounded-full bg-[#D6A84F]/20 border-2 border-[#D6A84F] flex items-center justify-center mx-auto text-[#D6A84F]">
                 <Check className="w-8 h-8" />
@@ -782,6 +929,16 @@ export const NewOrderModal: React.FC<Props> = ({
 
                   <span className="font-semibold text-white">
                     {successOrder.packageType}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-[#999999]">
+                    Ödeme:
+                  </span>
+
+                  <span className="font-semibold text-white">
+                    Nakit
                   </span>
                 </div>
 
