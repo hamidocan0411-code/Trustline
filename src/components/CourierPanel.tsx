@@ -332,14 +332,15 @@ export const CourierPanel: React.FC<Props> = ({
           } = position.coords;
 
           const updated =
-            storage.updateCourierLocation({
-              courierId,
-              latitude,
-              longitude,
-              updatedAt:
-                new Date().toISOString(),
-              isSharing: true,
-            });
+  await storage.updateCourierLocation({
+    courierId: currentCourier.id,
+    latitude,
+    longitude,
+    updatedAt: new Date().toISOString(),
+    isSharing: true,
+  });
+
+setCourierLoc(updated);
 
           setCourierLoc(updated);
           setIsSharingLocation(true);
