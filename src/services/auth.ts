@@ -162,9 +162,6 @@ function normalizeProfile(
 /**
  * Firebase Auth kullanıcısının
  * Firestore profilini getirir.
- *
- * Google ile ilk giriş yapan kullanıcı dahil,
- * eksik profil varsa customer olarak oluşturur.
  */
 export async function ensureUserProfile(
   user: User
@@ -322,8 +319,10 @@ export async function registerUser({
       typeof error === "object" &&
       error !== null &&
       "code" in error &&
-      (error as { code?: unknown })
-        .code ===
+      Reflect.get(
+        error,
+        "code"
+      ) ===
         "auth/email-verification-required"
     ) {
       throw error;
@@ -386,7 +385,7 @@ export async function loginUser(
 }
 
 /**
- * Google provider.
+ * Google provider oluşturur.
  */
 function createGoogleProvider(): GoogleAuthProvider {
   const provider =
@@ -408,16 +407,86 @@ function createGoogleProvider(): GoogleAuthProvider {
 }
 
 /**
+ * Mobil cihaz kontrolü.
+ *
+ * iPhone / iPad / Android cihazlarda
+ * Google popup yerine redirect kullanılır.
+ */
+function isMobileDevice(): boolean {
+  if (
+    typeof window ===
+    "undefined"
+  ) {
+    return false;
+  }
+
+  const userAgent =
+    navigator.userAgent ||
+    navigator.vendor ||
+    "";
+
+  const mobileRegex =
+    /Android|iPhone|iPad|iPod|IEMobile|Opera Mini|Mobile/i;
+
+  const isMobileUserAgent =
+    mobileRegex.test(
+      userAgent
+    );
+
+  /*
+   * iPadOS bazı sürümlerde
+   * masaüstü Safari gibi görünür.
+   *
+   * Bu nedenle touch + Mac kontrolü
+   * de yapıyoruz.
+   */
+  const isIPadOS =
+    navigator.platform ===
+      "MacIntel" &&
+    navigator.maxTouchPoints >
+      1;
+
+  return (
+    isMobileUserAgent ||
+    isIPadOS
+  );
+}
+
+/**
  * Google ile giriş.
  *
+ * MOBİL:
+ * Direkt redirect kullanılır.
+ *
+ * MASAÜSTÜ:
  * Önce popup denenir.
- * Mobil/tarayıcı popup'ı engellerse
- * redirect yöntemi kullanılır.
+ * Popup engellenirse redirect'e geçilir.
  */
 export async function loginWithGoogle(): Promise<AuthUserProfile> {
   const provider =
     createGoogleProvider();
 
+  /*
+   * iPhone / iPad / Android:
+   *
+   * Popup kullanmıyoruz.
+   * Direkt Google sayfasına yönlendiriyoruz.
+   */
+  if (isMobileDevice()) {
+    await signInWithRedirect(
+      auth,
+      provider
+    );
+
+    throw createAuthError(
+      "auth/google-redirect-started",
+      "Google giriş sayfasına yönlendiriliyorsunuz..."
+    );
+  }
+
+  /*
+   * Masaüstünde popup kullan.
+   */
   try {
     const credential =
       await signInWithPopup(
@@ -434,26 +503,24 @@ export async function loginWithGoogle(): Promise<AuthUserProfile> {
       error !== null &&
       "code" in error
         ? String(
-            (
-              error as {
-                code?: unknown;
-              }
-            ).code ?? ""
+            Reflect.get(
+              error,
+              "code"
+            ) ?? ""
           )
         : "";
 
     /*
-     * Kullanıcı popup'ı kendisi kapattıysa
-     * otomatik redirect başlatmıyoruz.
-     *
-     * Sadece gerçekten popup problemi
-     * olduğunda redirect kullanıyoruz.
+     * Popup engellendiyse
+     * redirect'e geç.
      */
     const shouldUseRedirect =
       code ===
         "auth/popup-blocked" ||
       code ===
-        "auth/operation-not-supported-in-this-environment";
+        "auth/operation-not-supported-in-this-environment" ||
+      code ===
+        "auth/popup-closed-by-user";
 
     if (shouldUseRedirect) {
       await signInWithRedirect(
@@ -461,11 +528,6 @@ export async function loginWithGoogle(): Promise<AuthUserProfile> {
         provider
       );
 
-      /*
-       * Redirect sonrası sayfa yeniden açılır.
-       * Normal akış AuthScreen tarafından
-       * handleGoogleRedirectResult() ile yakalanır.
-       */
       throw createAuthError(
         "auth/google-redirect-started",
         "Google giriş sayfasına yönlendiriliyorsunuz..."
@@ -484,7 +546,8 @@ export async function loginWithGoogle(): Promise<AuthUserProfile> {
 /**
  * Google redirect sonucunu işler.
  *
- * Google'dan geri dönüldüğünde çağrılır.
+ * Google'dan geri dönüldüğünde
+ * AuthScreen tarafından çağrılır.
  */
 export async function handleGoogleRedirectResult(): Promise<AuthUserProfile | null> {
   try {
