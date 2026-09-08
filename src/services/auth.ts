@@ -2,6 +2,7 @@ import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendEmailVerification,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -44,13 +45,29 @@ interface RegisterData {
   phone?: string;
 }
 
+function createAuthError(
+  code: string,
+  message: string
+): Error & { code: string } {
+  const error = new Error(message) as Error & {
+    code: string;
+  };
+
+  error.code = code;
+
+  return error;
+}
+
 function getDefaultRole(email: string): UserRole {
   return email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase()
     ? "admin"
     : "customer";
 }
 
-function normalizeRole(value: unknown, email: string): UserRole {
+function normalizeRole(
+  value: unknown,
+  email: string
+): UserRole {
   if (
     value === "admin" ||
     value === "courier" ||
@@ -73,9 +90,11 @@ function normalizeProfile(
       : fallbackUser?.email ?? "";
 
   const name =
-    typeof data.name === "string" && data.name.trim()
+    typeof data.name === "string" &&
+    data.name.trim()
       ? data.name
-      : fallbackUser?.displayName ?? "Trustline Kullanıcısı";
+      : fallbackUser?.displayName ??
+        "Trustline Kullanıcısı";
 
   const phone =
     typeof data.phone === "string"
@@ -92,11 +111,15 @@ function normalizeProfile(
     name,
     email,
     phone,
-    role: normalizeRole(data.role, email),
+    role: normalizeRole(
+      data.role,
+      email
+    ),
     avatar:
       typeof data.avatar === "string"
         ? data.avatar
-        : fallbackUser?.photoURL ?? undefined,
+        : fallbackUser?.photoURL ??
+          undefined,
     vehicle:
       typeof data.vehicle === "string"
         ? data.vehicle
@@ -126,18 +149,20 @@ function normalizeProfile(
 /**
  * Firebase Auth kullanıcısının Firestore profilini getirir.
  *
- * ÖNEMLİ:
- * Var olan kullanıcı için eksik profil varsa customer olarak
- * otomatik oluşturur.
- *
- * Böylece Google ile ilk giriş yapan müşteri de otomatik olarak
- * users/{uid} altında kayıt edilir.
+ * Google ile ilk giriş yapan kullanıcı dahil,
+ * eksik profil varsa customer olarak oluşturur.
  */
 export async function ensureUserProfile(
   user: User
 ): Promise<AuthUserProfile> {
-  const userRef = doc(db, "users", user.uid);
-  const snapshot = await getDoc(userRef);
+  const userRef = doc(
+    db,
+    "users",
+    user.uid
+  );
+
+  const snapshot =
+    await getDoc(userRef);
 
   if (snapshot.exists()) {
     return normalizeProfile(
@@ -147,7 +172,9 @@ export async function ensureUserProfile(
     );
   }
 
-  const role = getDefaultRole(user.email ?? "");
+  const role = getDefaultRole(
+    user.email ?? ""
+  );
 
   const profileData = {
     id: user.uid,
@@ -155,16 +182,23 @@ export async function ensureUserProfile(
       user.displayName?.trim() ||
       "Trustline Kullanıcısı",
     email: user.email ?? "",
-    phone: user.phoneNumber ?? "",
+    phone:
+      user.phoneNumber ?? "",
     role,
-    avatar: user.photoURL ?? "",
+    avatar:
+      user.photoURL ?? "",
     totalDeliveries: 0,
     rating: 5,
-    createdAt: new Date().toISOString(),
-    createdAtServer: serverTimestamp(),
+    createdAt:
+      new Date().toISOString(),
+    createdAtServer:
+      serverTimestamp(),
   };
 
-  await setDoc(userRef, profileData);
+  await setDoc(
+    userRef,
+    profileData
+  );
 
   return normalizeProfile(
     user.uid,
@@ -175,6 +209,9 @@ export async function ensureUserProfile(
 
 /**
  * Email + şifre ile yeni müşteri kaydı.
+ *
+ * Kayıttan sonra doğrulama e-postası gönderilir.
+ * Kullanıcı doğrulama yapmadan uygulamaya alınmaz.
  */
 export async function registerUser({
   name,
@@ -182,16 +219,25 @@ export async function registerUser({
   password,
   phone = "",
 }: RegisterData): Promise<AuthUserProfile> {
-  const cleanName = name.trim();
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanPhone = phone.trim();
+  const cleanName =
+    name.trim();
+
+  const cleanEmail =
+    email.trim().toLowerCase();
+
+  const cleanPhone =
+    phone.trim();
 
   if (!cleanName) {
-    throw new Error("Ad soyad gerekli.");
+    throw new Error(
+      "Ad soyad gerekli."
+    );
   }
 
   if (!cleanEmail) {
-    throw new Error("E-posta adresi gerekli.");
+    throw new Error(
+      "E-posta adresi gerekli."
+    );
   }
 
   if (password.length < 6) {
@@ -207,14 +253,22 @@ export async function registerUser({
       password
     );
 
-  const user = credential.user;
+  const user =
+    credential.user;
 
   try {
-    await updateProfile(user, {
-      displayName: cleanName,
-    });
+    await updateProfile(
+      user,
+      {
+        displayName:
+          cleanName,
+      }
+    );
 
-    const role = getDefaultRole(cleanEmail);
+    const role =
+      getDefaultRole(
+        cleanEmail
+      );
 
     const profileData = {
       id: user.uid,
@@ -225,27 +279,70 @@ export async function registerUser({
       avatar: "",
       totalDeliveries: 0,
       rating: 5,
-      createdAt: new Date().toISOString(),
-      createdAtServer: serverTimestamp(),
+      createdAt:
+        new Date().toISOString(),
+      createdAtServer:
+        serverTimestamp(),
     };
 
     await setDoc(
-      doc(db, "users", user.uid),
+      doc(
+        db,
+        "users",
+        user.uid
+      ),
       profileData
     );
 
-    return normalizeProfile(
-      user.uid,
-      profileData,
+    /*
+     * Gerçek e-posta adresine doğrulama bağlantısı gönder.
+     */
+    await sendEmailVerification(
       user
+    );
+
+    const profile =
+      normalizeProfile(
+        user.uid,
+        profileData,
+        user
+      );
+
+    /*
+     * Doğrulama yapılmadan aktif oturum bırakmıyoruz.
+     */
+    await signOut(auth);
+
+    /*
+     * AuthScreen bu özel kodu yakalayarak
+     * kullanıcıya doğrulama gerektiğini gösterecek.
+     */
+    throw createAuthError(
+      "auth/email-verification-required",
+      "Hesabınız oluşturuldu. E-posta adresinizi doğrulamanız gerekiyor. E-postanıza gönderilen bağlantıya tıklayın."
     );
   } catch (error) {
     /*
-     * Auth hesabı oluşturuldu ama Firestore profili
-     * oluşturulamadıysa kullanıcı yine de giriş yapmış
-     * durumda kalmasın.
+     * Özel doğrulama hatasını değiştirme.
      */
-    await signOut(auth).catch(() => undefined);
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: unknown }).code ===
+        "auth/email-verification-required"
+    ) {
+      throw error;
+    }
+
+    /*
+     * Auth hesabı oluşturuldu ama profil veya
+     * doğrulama e-postası işlemi başarısız olduysa
+     * kullanıcı oturumda kalmasın.
+     */
+    await signOut(auth).catch(
+      () => undefined
+    );
 
     throw error;
   }
@@ -253,19 +350,26 @@ export async function registerUser({
 
 /**
  * Email + şifre ile giriş.
+ *
+ * E-posta doğrulanmamışsa uygulamaya girişe izin verilmez.
  */
 export async function loginUser(
   email: string,
   password: string
 ): Promise<AuthUserProfile> {
-  const cleanEmail = email.trim().toLowerCase();
+  const cleanEmail =
+    email.trim().toLowerCase();
 
   if (!cleanEmail) {
-    throw new Error("E-posta adresi gerekli.");
+    throw new Error(
+      "E-posta adresi gerekli."
+    );
   }
 
   if (!password) {
-    throw new Error("Şifre gerekli.");
+    throw new Error(
+      "Şifre gerekli."
+    );
   }
 
   const credential =
@@ -275,17 +379,34 @@ export async function loginUser(
       password
     );
 
+  const user =
+    credential.user;
+
+  /*
+   * Email + şifre kullanıcıları için
+   * doğrulama zorunludur.
+   */
+  if (!user.emailVerified) {
+    await signOut(auth).catch(
+      () => undefined
+    );
+
+    throw createAuthError(
+      "auth/email-not-verified",
+      "E-posta adresiniz henüz doğrulanmamış. E-postanıza gönderilen doğrulama bağlantısına tıklayın."
+    );
+  }
+
   return ensureUserProfile(
-    credential.user
+    user
   );
 }
 
 /**
  * Google ile giriş/kayıt.
  *
- * Kullanıcı daha önce kayıt olmadıysa Firebase Auth
- * hesabını oluşturur ve users/{uid} profiline otomatik
- * olarak customer kaydı açılır.
+ * Google hesabı sağlayıcı tarafından doğrulandığı için
+ * ayrıca Firebase e-posta doğrulaması istenmez.
  */
 export async function loginWithGoogle(): Promise<AuthUserProfile> {
   const provider =
@@ -317,14 +438,39 @@ export async function logoutUser(): Promise<void> {
  * Mevcut Firebase kullanıcısının Firestore profilini getirir.
  */
 export async function getCurrentUserProfile(): Promise<AuthUserProfile | null> {
-  const user = auth.currentUser;
+  const user =
+    auth.currentUser;
 
   if (!user) {
     return null;
   }
 
+  /*
+   * E-posta + şifre hesabı doğrulanmamışsa
+   * profil uygulamaya aktarılmaz.
+   *
+   * Google gibi sağlayıcılarda emailVerified
+   * normalde true olur.
+   */
+  if (
+    user.providerData.some(
+      (provider) =>
+        provider.providerId ===
+        "password"
+    ) &&
+    !user.emailVerified
+  ) {
+    await signOut(auth).catch(
+      () => undefined
+    );
+
+    return null;
+  }
+
   try {
-    return await ensureUserProfile(user);
+    return await ensureUserProfile(
+      user
+    );
   } catch {
     return null;
   }
@@ -343,22 +489,59 @@ export function subscribeToAuth(
     auth,
     async (user) => {
       if (!user) {
-        callback(null, null);
+        callback(
+          null,
+          null
+        );
+        return;
+      }
+
+      /*
+       * E-posta + şifre hesabı doğrulanmamışsa
+       * uygulamaya giriş yaptırma.
+       */
+      if (
+        user.providerData.some(
+          (provider) =>
+            provider.providerId ===
+            "password"
+        ) &&
+        !user.emailVerified
+      ) {
+        await signOut(
+          auth
+        ).catch(
+          () => undefined
+        );
+
+        callback(
+          null,
+          null
+        );
+
         return;
       }
 
       try {
         const profile =
-          await ensureUserProfile(user);
+          await ensureUserProfile(
+            user
+          );
 
-        callback(user, profile);
+        callback(
+          user,
+          profile
+        );
       } catch (error) {
         console.error(
           "Kullanıcı profili alınamadı:",
           error
         );
 
-        callback(user, null);
+        callback(
+          user,
+          null
+        );
       }
     }
   );
@@ -375,7 +558,8 @@ export function isAdminUser(
   }
 
   return (
-    profile.role === "admin" ||
+    profile.role ===
+      "admin" ||
     profile.email.toLowerCase() ===
       ADMIN_EMAIL.toLowerCase()
   );
@@ -387,7 +571,10 @@ export function isAdminUser(
 export function isCourierUser(
   profile: AuthUserProfile | null
 ): boolean {
-  return profile?.role === "courier";
+  return (
+    profile?.role ===
+    "courier"
+  );
 }
 
 /**
@@ -396,7 +583,10 @@ export function isCourierUser(
 export function isCustomerUser(
   profile: AuthUserProfile | null
 ): boolean {
-  return profile?.role === "customer";
+  return (
+    profile?.role ===
+    "customer"
+  );
 }
 
 /**
