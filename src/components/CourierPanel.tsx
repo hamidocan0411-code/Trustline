@@ -227,11 +227,23 @@ export const CourierPanel: React.FC<Props> = ({
     try {
       setErrorMessage(null);
 
-      const updated =
-        await storage.updateCourierStatus(
-          courierId,
-          status
-        );
+      const handleCourierStatus = async (
+  status: CourierAvailability
+) => {
+  try {
+    await storage.updateCourierStatus(
+      currentCourier.id,
+      status
+    );
+
+    setCourierStatus(status);
+  } catch (error) {
+    console.error(
+      "Kurye durumu değiştirilemedi:",
+      error
+    );
+  }
+};
 
       if (updated) {
         setCourierStatus(
