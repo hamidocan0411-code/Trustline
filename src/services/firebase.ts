@@ -1,7 +1,8 @@
 import {
-  initializeApp,
-  getApps,
   getApp,
+  getApps,
+  initializeApp,
+  type FirebaseApp,
 } from "firebase/app";
 
 import {
@@ -19,106 +20,157 @@ import {
 import firebaseConfig from "../../firebase-applet-config.json";
 
 /**
- * Firebase App
+ * =========================================================
+ * FIREBASE APP
+ * =========================================================
  *
- * Uygulama daha önce başlatılmışsa mevcut instance kullanılır.
- * Böylece Vite/React geliştirme ortamında duplicate app hatası oluşmaz.
+ * Vite Hot Reload / React Strict Mode nedeniyle uygulama
+ * birden fazla kez initialize edilmesin.
  */
-const app =
+const app: FirebaseApp =
   getApps().length > 0
     ? getApp()
     : initializeApp(firebaseConfig);
 
 /**
- * Firebase Authentication
+ * =========================================================
+ * FIREBASE AUTH
+ * =========================================================
  */
 export const auth: Auth = getAuth(app);
 
 /**
- * Firebase Firestore
+ * =========================================================
+ * FIRESTORE
+ * =========================================================
  */
 export const db: Firestore = getFirestore(app);
 
 /**
- * Auth durumunun ilk kez belirlenmesini beklemek için
- * tek bir Promise kullanıyoruz.
+ * =========================================================
+ * AUTH READY STATE
+ * =========================================================
  *
- * Böylece birden fazla component aynı anda çağırsa bile
- * birden fazla listener oluşturulmaz.
+ * Firebase Auth ilk kullanıcı durumunu async olarak yükler.
+ *
+ * Bu Promise uygulama genelinde TEK bir kez oluşturulur.
+ * Böylece Storage, App ve diğer componentler farklı farklı
+ * Auth listener oluşturmaz.
  */
-let authReadyPromise: Promise<User | null> | null = null;
+let authReadyPromise: Promise<User | null> | null =
+  null;
 
+/**
+ * Firebase Auth ilk state yüklenmesini bekler.
+ */
 export function waitForAuthState(): Promise<User | null> {
-  /**
-   * Firebase zaten kullanıcıyı biliyorsa beklemeye gerek yok.
-   */
-  if (auth.currentUser) {
-    return Promise.resolve(auth.currentUser);
-  }
-
-  /**
-   * Daha önce başlatılmış bir bekleme varsa onu kullan.
-   */
   if (authReadyPromise) {
     return authReadyPromise;
   }
 
-  /**
-   * Firebase Auth'un ilk durumunu bekle.
-   */
-  authReadyPromise = new Promise<User | null>((resolve) => {
-    let resolved = false;
+  authReadyPromise =
+    new Promise<User | null>((resolve) => {
+      let resolved = false;
 
-    const finish = (user: User | null) => {
-      if (resolved) return;
+      let unsubscribe:
+        | (() => void)
+        | null = null;
 
-      resolved = true;
-      unsubscribe();
-      resolve(user);
-    };
+      const finish = (
+        user: User | null
+      ) => {
+        if (resolved) {
+          return;
+        }
 
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (user) => {
-        finish(user);
-      },
-      () => {
-        /**
-         * Auth durumunda hata oluşursa uygulamanın
-         * sonsuza kadar "bağlanıyor" ekranında kalmasını önle.
-         */
-        finish(null);
-      }
-    );
-  });
+        resolved = true;
+
+        resolve(user);
+
+        if (unsubscribe) {
+          unsubscribe();
+          unsubscribe = null;
+        }
+      };
+
+      unsubscribe = onAuthStateChanged(
+        auth,
+        (user) => {
+          finish(user);
+        },
+        (error) => {
+          console.error(
+            "Firebase Auth initial state hatası:",
+            error
+          );
+
+          finish(null);
+        }
+      );
+    });
 
   return authReadyPromise;
 }
 
 /**
- * Firebase'deki mevcut kullanıcıyı döndürür.
+ * =========================================================
+ * AUTH STATE SUBSCRIPTION
+ * =========================================================
+ *
+ * Uygulama genelinde güvenli Auth listener kullanımı.
+ *
+ * StorageService bunu kullanarak login/logout değişimlerini
+ * otomatik takip eder.
  */
-export function getFirebaseUser(): User | null {
-  return auth.currentUser;
+export function subscribeToAuthState(
+  callback: (user: User | null) => void
+): () => void {
+  return onAuthStateChanged(
+    auth,
+    callback,
+    (error) => {
+      console.error(
+        "Firebase Auth listener hatası:",
+        error
+      );
+
+      callback(null);
+    }
+  );
 }
 
 /**
- * Kullanıcı Firebase'e giriş yapmış mı?
+ * =========================================================
+ * HELPERS
+ * =========================================================
  */
+
+export function getFirebaseUser():
+  | User
+  | null {
+  return auth.currentUser;
+}
+
 export function isFirebaseAuthenticated(): boolean {
   return !!auth.currentUser;
 }
 
-/**
- * Firebase bağlantı / Auth durumunu kontrol etmek için
- * yardımcı bilgi döndürür.
- */
 export function getFirebaseStatus() {
   return {
-    appInitialized: getApps().length > 0,
-    authenticated: !!auth.currentUser,
-    userId: auth.currentUser?.uid || null,
-    hasFirestore: !!db,
+    appInitialized:
+      getApps().length > 0,
+
+    authenticated:
+      !!auth.currentUser,
+
+    userId:
+      auth.currentUser?.uid || null,
+
+    email:
+      auth.currentUser?.email || null,
+
+    hasFirestore:
+      !!db,
   };
 }
 
