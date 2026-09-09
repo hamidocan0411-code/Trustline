@@ -37,10 +37,8 @@ const EXPECTED_PROJECT_ID = "trustline-8729d";
  * =========================================================
  * FIREBASE DEBUG
  * =========================================================
- *
- * Şifre veya API key yazdırılmaz.
- * Sadece hangi Firebase projesine bağlandığımızı kontrol eder.
  */
+
 function logFirebaseConnection() {
   const projectId = auth.app.options.projectId;
   const authDomain = auth.app.options.authDomain;
@@ -83,7 +81,7 @@ export interface UserProfile {
 
 /**
  * =========================================================
- * ERROR HELPER
+ * ERROR HELPERS
  * =========================================================
  */
 
@@ -119,6 +117,14 @@ function getFirebaseErrorMessage(error: unknown): string {
  * =========================================================
  * REGISTER
  * =========================================================
+ *
+ * ÖNEMLİ:
+ *
+ * Firebase Authentication hesabı kayıt sırasında oluşturulur.
+ * Ancak kullanıcı e-postasını doğrulamadan Firestore profili
+ * oluşturulmaz.
+ *
+ * Doğrulama maili gönderilir ve oturum kapatılır.
  */
 
 export async function registerUser(
@@ -129,9 +135,9 @@ export async function registerUser(
 ): Promise<UserProfile> {
   logFirebaseConnection();
 
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanName = name.trim();
-  const cleanPhone = phone?.trim() || "";
+  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanName = String(name).trim();
+  const cleanPhone = String(phone ?? "").trim();
 
   try {
     console.log("📝 Yeni kullanıcı kaydı başlıyor:", {
@@ -147,40 +153,30 @@ export async function registerUser(
 
     const user = credential.user;
 
-    console.log("✅ Firebase Authentication kullanıcı oluşturdu:", {
-      uid: user.uid,
-      email: user.email,
-      provider: user.providerData.map(
-        (provider) => provider.providerId
-      ),
-    });
+    console.log(
+      "✅ Firebase Authentication kullanıcı oluşturdu:",
+      {
+        uid: user.uid,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        provider: user.providerData.map(
+          (provider) => provider.providerId
+        ),
+      }
+    );
 
+    /**
+     * Kullanıcı adını Firebase Auth profilinde tut.
+     */
     await updateProfile(user, {
       displayName: cleanName,
     });
 
-    const userProfile: UserProfile = {
-      id: user.uid,
-      uid: user.uid,
-      email: cleanEmail,
-      name: cleanName,
-      phone: cleanPhone,
-      role: "customer",
-      photoURL: user.photoURL ?? "",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-
-    console.log("📝 Firestore kullanıcı profili oluşturuluyor:", {
-      path: `users/${user.uid}`,
-    });
-
-    await setDoc(
-      doc(db, "users", user.uid),
-      userProfile
-    );
-
-    console.log("✅ Firestore kullanıcı profili oluşturuldu.");
+    /**
+     * =====================================================
+     * DOĞRULAMA MAİLİ
+     * =====================================================
+     */
 
     try {
       await sendEmailVerification(user);
@@ -189,11 +185,30 @@ export async function registerUser(
         "📧 E-posta doğrulama bağlantısı gönderildi."
       );
     } catch (verificationError) {
-      console.warn(
-        "⚠️ E-posta doğrulama gönderilemedi:",
+      console.error(
+        "❌ E-posta doğrulama maili gönderilemedi:",
         verificationError
       );
+
+      await signOut(auth);
+
+      throw verificationError;
     }
+
+    /**
+     * =====================================================
+     * ÖNEMLİ
+     * =====================================================
+     *
+     * Burada Firestore profili OLUŞTURMUYORUZ.
+     *
+     * Kullanıcı mailini doğruladıktan sonra ilk başarılı
+     * girişte ensureUserProfile() profili oluşturacak.
+     */
+
+    console.log(
+      "⏳ Kullanıcı e-posta doğrulamasını bekliyor."
+    );
 
     await signOut(auth);
 
@@ -202,7 +217,7 @@ export async function registerUser(
     );
 
     const verificationError = new Error(
-      "E-posta adresinizi doğrulamanız gerekiyor."
+      "Kayıt başarılı. E-posta adresinize gönderilen doğrulama bağlantısına tıklayın."
     );
 
     (
@@ -211,7 +226,10 @@ export async function registerUser(
       }
     ).code = "auth/email-verification-required";
 
-    throw verificationError;
+    /**
+     * Kullanıcı profilini henüz oluşturmuyoruz.
+     */
+    return Promise.reject(verificationError);
   } catch (error) {
     const code = getFirebaseErrorCode(error);
     const message = getFirebaseErrorMessage(error);
@@ -239,7 +257,7 @@ export async function loginUser(
 ): Promise<UserProfile> {
   logFirebaseConnection();
 
-  const cleanEmail = email.trim().toLowerCase();
+  const cleanEmail = String(email).trim().toLowerCase();
 
   console.log("🔐 LOGIN BAŞLIYOR:", {
     email: cleanEmail,
@@ -248,9 +266,6 @@ export async function loginUser(
   });
 
   try {
-    /**
-     * Firebase Auth persistence
-     */
     await setPersistence(
       auth,
       browserLocalPersistence
@@ -270,19 +285,25 @@ export async function loginUser(
 
     const user = credential.user;
 
-    console.log("✅ FIREBASE AUTH GİRİŞ BAŞARILI:", {
-      uid: user.uid,
-      email: user.email,
-      emailVerified: user.emailVerified,
-      providers: user.providerData.map(
-        (provider) => provider.providerId
-      ),
-      projectId: auth.app.options.projectId,
-    });
+    console.log(
+      "✅ FIREBASE AUTH GİRİŞ BAŞARILI:",
+      {
+        uid: user.uid,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        providers: user.providerData.map(
+          (provider) => provider.providerId
+        ),
+        projectId: auth.app.options.projectId,
+      }
+    );
 
     /**
-     * Password provider kontrolü
+     * =====================================================
+     * PASSWORD PROVIDER
+     * =====================================================
      */
+
     const hasPasswordProvider =
       user.providerData.some(
         (provider) =>
@@ -311,8 +332,11 @@ export async function loginUser(
     }
 
     /**
-     * Email doğrulama kontrolü
+     * =====================================================
+     * EMAIL VERIFICATION
+     * =====================================================
      */
+
     if (!user.emailVerified) {
       console.warn(
         "⚠️ Kullanıcının e-posta adresi doğrulanmamış."
@@ -321,7 +345,7 @@ export async function loginUser(
       await signOut(auth);
 
       const verificationError = new Error(
-        "E-posta adresinizi doğrulamanız gerekiyor."
+        "E-posta adresinizi doğrulamanız gerekiyor. E-posta kutunuzu kontrol edin ve doğrulama bağlantısına tıklayın."
       );
 
       (
@@ -334,8 +358,13 @@ export async function loginUser(
     }
 
     /**
-     * Firestore profilini getir
+     * =====================================================
+     * FIRESTORE PROFILE
+     * =====================================================
+     *
+     * Buraya sadece doğrulanmış kullanıcı gelir.
      */
+
     const profile = await ensureUserProfile(user);
 
     console.log("✅ LOGIN TAMAMLANDI:", {
@@ -359,7 +388,7 @@ export async function loginUser(
 
     /**
      * =====================================================
-     * INVALID CREDENTIAL ÖZEL TEŞHİS
+     * INVALID CREDENTIAL
      * =====================================================
      */
 
@@ -426,87 +455,151 @@ export async function ensureUserProfile(
 ): Promise<UserProfile> {
   console.log("👤 Firestore profil kontrolü:", {
     uid: user.uid,
+    email: user.email,
+    emailVerified: user.emailVerified,
     path: `users/${user.uid}`,
   });
 
-  const userRef = doc(db, "users", user.uid);
+  /**
+   * =====================================================
+   * EN ÖNEMLİ KONTROL
+   * =====================================================
+   *
+   * Doğrulanmamış kullanıcı Firestore'a hiç dokunamaz.
+   */
 
-  const snapshot = await getDoc(userRef);
+  if (!user.emailVerified) {
+    console.warn(
+      "⚠️ Firestore profil işlemi engellendi: e-posta doğrulanmamış."
+    );
 
-  if (snapshot.exists()) {
-    const data = snapshot.data();
+    const verificationError = new Error(
+      "E-posta adresinizi doğrulamanız gerekiyor."
+    );
 
-    console.log("✅ Firestore profili bulundu:", {
-      uid: user.uid,
-      email: data.email,
-      role: data.role,
-    });
+    (
+      verificationError as Error & {
+        code?: string;
+      }
+    ).code = "auth/email-not-verified";
 
-    return {
-      id: user.uid,
-      uid: user.uid,
-      email:
-        typeof data.email === "string"
-          ? data.email
-          : user.email ?? "",
-      name:
-        typeof data.name === "string"
-          ? data.name
-          : user.displayName ?? "",
-      phone:
-        typeof data.phone === "string"
-          ? data.phone
-          : "",
-      role:
-        typeof data.role === "string"
-          ? data.role
-          : "customer",
-      photoURL:
-        typeof data.photoURL === "string"
-          ? data.photoURL
-          : user.photoURL ?? "",
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
-    };
+    throw verificationError;
   }
 
-  /**
-   * Profil yoksa oluştur.
-   */
-  console.warn(
-    "⚠️ Firestore kullanıcı profili bulunamadı. Oluşturuluyor."
+  const userRef = doc(
+    db,
+    "users",
+    user.uid
   );
 
-  const role =
-    user.email?.toLowerCase() ===
-    ADMIN_EMAIL.toLowerCase()
+  try {
+    const snapshot = await getDoc(userRef);
+
+    if (snapshot.exists()) {
+      const data = snapshot.data();
+
+      console.log(
+        "✅ Firestore profili bulundu:",
+        {
+          uid: user.uid,
+          email: data.email,
+          role: data.role,
+        }
+      );
+
+      return {
+        id: user.uid,
+        uid: user.uid,
+
+        email:
+          typeof data.email === "string"
+            ? data.email
+            : user.email ?? "",
+
+        name:
+          typeof data.name === "string"
+            ? data.name
+            : user.displayName ?? "",
+
+        phone:
+          typeof data.phone === "string"
+            ? data.phone
+            : "",
+
+        role:
+          typeof data.role === "string"
+            ? data.role
+            : isAdminEmail(user.email)
+            ? "admin"
+            : "customer",
+
+        photoURL:
+          typeof data.photoURL === "string"
+            ? data.photoURL
+            : user.photoURL ?? "",
+
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+      };
+    }
+
+    /**
+     * =====================================================
+     * PROFİL YOKSA OLUŞTUR
+     * =====================================================
+     */
+
+    console.warn(
+      "⚠️ Firestore kullanıcı profili bulunamadı. Oluşturuluyor."
+    );
+
+    const role = isAdminEmail(user.email)
       ? "admin"
       : "customer";
 
-  const newProfile: UserProfile = {
-    id: user.uid,
-    uid: user.uid,
-    email: user.email ?? "",
-    name: user.displayName ?? "",
-    phone: "",
-    role,
-    photoURL: user.photoURL ?? "",
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
+    const newProfile: UserProfile = {
+      id: user.uid,
+      uid: user.uid,
+      email: user.email ?? "",
+      name: user.displayName ?? "",
+      phone: "",
+      role,
+      photoURL: user.photoURL ?? "",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
 
-  await setDoc(userRef, newProfile);
+    await setDoc(
+      userRef,
+      newProfile
+    );
 
-  console.log("✅ Eksik Firestore profili oluşturuldu:", {
-    uid: user.uid,
-    role,
-  });
+    console.log(
+      "✅ Eksik Firestore profili oluşturuldu:",
+      {
+        uid: user.uid,
+        role,
+      }
+    );
 
-  return {
-    ...newProfile,
-    createdAt: undefined,
-    updatedAt: undefined,
-  };
+    return {
+      ...newProfile,
+      createdAt: undefined,
+      updatedAt: undefined,
+    };
+  } catch (error) {
+    console.error(
+      "❌ FIRESTORE PROFİL HATASI:",
+      {
+        uid: user.uid,
+        path: `users/${user.uid}`,
+        code: getFirebaseErrorCode(error),
+        message: getFirebaseErrorMessage(error),
+      }
+    );
+
+    throw error;
+  }
 }
 
 /**
@@ -530,9 +623,6 @@ export async function loginWithGoogle(): Promise<void> {
       browserLocalPersistence
     );
 
-    /**
-     * Mobil cihazlarda redirect kullan.
-     */
     if (
       typeof window !== "undefined" &&
       /iPhone|iPad|iPod|Android/i.test(
@@ -543,25 +633,32 @@ export async function loginWithGoogle(): Promise<void> {
         "📱 Mobil cihaz algılandı. Google redirect başlıyor."
       );
 
-      await signInWithRedirect(auth, provider);
+      await signInWithRedirect(
+        auth,
+        provider
+      );
+
       return;
     }
 
-    /**
-     * Masaüstünde popup kullan.
-     */
     console.log(
       "🖥️ Masaüstü cihaz. Google popup başlıyor."
     );
 
-    await signInWithPopup(auth, provider);
+    await signInWithPopup(
+      auth,
+      provider
+    );
   } catch (error) {
-    console.error("❌ GOOGLE LOGIN HATASI:", {
-      code: getFirebaseErrorCode(error),
-      message: getFirebaseErrorMessage(error),
-      projectId: auth.app.options.projectId,
-      authDomain: auth.app.options.authDomain,
-    });
+    console.error(
+      "❌ GOOGLE LOGIN HATASI:",
+      {
+        code: getFirebaseErrorCode(error),
+        message: getFirebaseErrorMessage(error),
+        projectId: auth.app.options.projectId,
+        authDomain: auth.app.options.authDomain,
+      }
+    );
 
     throw error;
   }
@@ -579,7 +676,8 @@ export async function handleGoogleRedirectResult(): Promise<
   logFirebaseConnection();
 
   try {
-    const result = await getRedirectResult(auth);
+    const result =
+      await getRedirectResult(auth);
 
     if (!result) {
       return null;
@@ -590,12 +688,15 @@ export async function handleGoogleRedirectResult(): Promise<
       {
         uid: result.user.uid,
         email: result.user.email,
+        emailVerified:
+          result.user.emailVerified,
       }
     );
 
-    const profile = await ensureUserProfile(
-      result.user
-    );
+    const profile =
+      await ensureUserProfile(
+        result.user
+      );
 
     return profile;
   } catch (error) {
@@ -623,9 +724,15 @@ export async function logoutUser(): Promise<void> {
   try {
     await signOut(auth);
 
-    console.log("🚪 Firebase logout başarılı.");
+    console.log(
+      "🚪 Firebase logout başarılı."
+    );
   } catch (error) {
-    console.error("❌ LOGOUT HATASI:", error);
+    console.error(
+      "❌ LOGOUT HATASI:",
+      error
+    );
+
     throw error;
   }
 }
@@ -654,7 +761,11 @@ export function subscribeToAuth(
     (user) => {
       console.log(
         "🔄 Firebase Auth state:",
-        user?.email ?? "YOK"
+        user?.email ?? "YOK",
+        {
+          emailVerified:
+            user?.emailVerified ?? false,
+        }
       );
 
       callback(user);
@@ -680,7 +791,9 @@ export function isAdminEmail(
   email: string | null | undefined
 ): boolean {
   return (
-    email?.trim().toLowerCase() ===
+    String(email ?? "")
+      .trim()
+      .toLowerCase() ===
     ADMIN_EMAIL.toLowerCase()
   );
 }
