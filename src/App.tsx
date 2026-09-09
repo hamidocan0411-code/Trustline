@@ -7,6 +7,7 @@ import { storage } from "./services/storage";
 
 import {
   subscribeToAuth,
+  handleGoogleRedirectResult,
 } from "./services/auth";
 
 import type {
@@ -32,130 +33,102 @@ export function App() {
   const [
     currentUser,
     setCurrentUser,
-  ] =
-    useState<UserProfile | null>(
-      null
-    );
+  ] = useState<UserProfile | null>(null);
 
   const [
     orders,
     setOrders,
-  ] =
-    useState<Order[]>(() => {
-      try {
-        const savedOrders =
-          storage.getOrders();
+  ] = useState<Order[]>(() => {
+    try {
+      const savedOrders = storage.getOrders();
 
-        return Array.isArray(
-          savedOrders
-        )
-          ? savedOrders
-          : [];
-      } catch (error) {
-        console.error(
-          "Orders yüklenemedi:",
-          error
-        );
+      return Array.isArray(savedOrders)
+        ? savedOrders
+        : [];
+    } catch (error) {
+      console.error(
+        "Orders yüklenemedi:",
+        error
+      );
 
-        return [];
-      }
-    });
+      return [];
+    }
+  });
 
   const [
     pricing,
     setPricing,
-  ] =
-    useState<PricingConfig>(
-      () => {
-        try {
-          return storage.getPricing();
-        } catch (error) {
-          console.error(
-            "Pricing yüklenemedi:",
-            error
-          );
+  ] = useState<PricingConfig>(() => {
+    try {
+      return storage.getPricing();
+    } catch (error) {
+      console.error(
+        "Pricing yüklenemedi:",
+        error
+      );
 
-          return {
-            perKmPrice: 20,
-            minPrice: 100,
-            urgentMultiplier: 1.5,
-            vipMultiplier: 2,
-            requireDeliveryPhoto:
-              false,
-            updatedAt:
-              new Date().toISOString(),
-          };
-        }
-      }
-    );
+      return {
+        perKmPrice: 20,
+        minPrice: 100,
+        urgentMultiplier: 1.5,
+        vipMultiplier: 2,
+        requireDeliveryPhoto: false,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+  });
 
   const [
     notifications,
     setNotifications,
-  ] =
-    useState<
-      NotificationItem[]
-    >([]);
+  ] = useState<NotificationItem[]>([]);
 
   const [
     authLoading,
     setAuthLoading,
-  ] =
-    useState(true);
+  ] = useState(true);
 
   const [
     profileLoading,
     setProfileLoading,
-  ] =
-    useState(false);
+  ] = useState(false);
 
   const [
     activeTab,
     setActiveTab,
-  ] =
-    useState("home");
+  ] = useState("home");
 
   const [
     isNewOrderOpen,
     setIsNewOrderOpen,
-  ] =
-    useState(false);
+  ] = useState(false);
 
   const [
     newOrderPrefill,
     setNewOrderPrefill,
-  ] =
-    useState<
-      Partial<Order> | undefined
-    >();
+  ] = useState<
+    Partial<Order> | undefined
+  >();
 
   const [
     isNotificationsOpen,
     setIsNotificationsOpen,
-  ] =
-    useState(false);
+  ] = useState(false);
 
   const [
     selectedOrderId,
     setSelectedOrderId,
-  ] =
-    useState<string | null>(
-      null
-    );
+  ] = useState<string | null>(null);
 
   const [
     isIPhoneMode,
     setIsIPhoneMode,
-  ] =
-    useState(false);
+  ] = useState(false);
 
   const [
     appError,
     setAppError,
-  ] =
-    useState<string | null>(
-      null
-    );
+  ] = useState<string | null>(null);
 
   /* ==========================================================
      FIREBASE AUTH
@@ -169,30 +142,69 @@ export function App() {
     );
 
     /*
-     * ========================================================
-     * TEK AUTH AKIŞI
-     * ========================================================
+     * --------------------------------------------------------
+     * GOOGLE REDIRECT SONUCUNU İLK OLARAK İŞLE
+     * --------------------------------------------------------
      *
-     * Google popup veya Google redirect sonrasında
-     * Firebase Auth state'i burada yakalanır.
+     * Özellikle iPhone / iPad üzerinde:
      *
-     * Artık App.tsx içerisinde ayrıca
-     * getRedirectResult() çağırmıyoruz.
-     *
-     * Böylece:
-     *
+     * Login
+     *   ↓
      * Google
-     *    ↓
-     * Firebase Auth
-     *    ↓
-     * subscribeToAuth()
-     *    ↓
-     * Firestore profile
-     *    ↓
-     * Dashboard
+     *   ↓
+     * trustlineexpress.com.tr
      *
-     * şeklinde tek bir akış kullanılır.
+     * dönüşünde getRedirectResult() sonucu
+     * burada yakalanır.
+     *
+     * Böylece Google hesabı Firebase Auth'a
+     * eklenmiş olmasına rağmen uygulamanın
+     * Login ekranında kalması engellenir.
      */
+
+    void handleGoogleRedirectResult()
+      .then((profile) => {
+        if (!mounted) {
+          return;
+        }
+
+        if (profile) {
+          console.log(
+            "🟢 Google redirect profili App tarafından alındı:",
+            {
+              email: profile.email,
+              role: profile.role,
+              uid: profile.id,
+            }
+          );
+        } else {
+          console.log(
+            "ℹ️ Google redirect sonucu bulunamadı. Normal Auth state bekleniyor."
+          );
+        }
+      })
+      .catch((error) => {
+        /*
+         * Redirect sonucu yoksa bu normal olabilir.
+         *
+         * Burada kullanıcıyı Login ekranına
+         * zorlamıyoruz.
+         *
+         * Firebase Auth state listener aşağıda
+         * yine çalışmaya devam edecek.
+         */
+        console.warn(
+          "⚠️ Google redirect sonucu alınamadı:",
+          error
+        );
+      });
+
+    /*
+     * --------------------------------------------------------
+     * TEK AUTH STATE LISTENER
+     * --------------------------------------------------------
+     */
+
     const unsubscribe =
       subscribeToAuth(
         async (
@@ -205,8 +217,16 @@ export function App() {
 
           console.log(
             "🔄 App Auth callback:",
-            firebaseUser?.uid ??
-              "YOK"
+            {
+              uid:
+                firebaseUser?.uid ??
+                "YOK",
+              email:
+                firebaseUser?.email ??
+                "YOK",
+              hasProfile:
+                !!profile,
+            }
           );
 
           /*
@@ -220,29 +240,17 @@ export function App() {
               "🔒 Firebase'de aktif kullanıcı yok."
             );
 
-            storage.setCurrentUser(
-              null
-            );
+            storage.setCurrentUser(null);
 
-            setCurrentUser(
-              null
-            );
+            setCurrentUser(null);
 
-            setNotifications(
-              []
-            );
+            setNotifications([]);
 
-            setProfileLoading(
-              false
-            );
+            setProfileLoading(false);
 
-            setAppError(
-              null
-            );
+            setAppError(null);
 
-            setAuthLoading(
-              false
-            );
+            setAuthLoading(false);
 
             return;
           }
@@ -254,47 +262,40 @@ export function App() {
            */
 
           console.log(
-            "🟢 Firebase kullanıcı canlı:",
+            "🟢 Firebase Auth kullanıcısı bulundu:",
             firebaseUser.email
           );
 
-          setAppError(
-            null
-          );
-
           /*
-           * Auth artık hazır.
+           * Çok önemli:
            *
-           * Ancak Firestore profilinin hazırlanması
-           * devam ediyor olabilir.
+           * Firebase Auth kullanıcısı bulunduğu anda
+           * AuthLoading kapanıyor.
+           *
+           * Profil hazırlanırken Login ekranı
+           * gösterilmeyecek.
            */
-          setAuthLoading(
-            false
-          );
+          setAuthLoading(false);
+
+          setAppError(null);
 
           /*
            * ==================================================
-           * PROFILE HAZIRLANIYOR
+           * PROFILE YOKSA
            * ==================================================
            */
 
           if (!profile) {
             console.log(
-              "⏳ Firebase Auth hazır, Firestore profili bekleniyor..."
+              "⏳ Firebase Auth hazır fakat profil henüz hazır değil."
             );
 
-            setProfileLoading(
-              true
-            );
+            setProfileLoading(true);
 
             /*
-             * ÖNEMLİ:
+             * currentUser'ı null'a çekmiyoruz.
              *
-             * Burada currentUser = null yapılmıyor.
-             *
-             * Firebase kullanıcısı gerçekten giriş yapmış
-             * durumda. Profil hazırlanırken Login ekranına
-             * yönlendirme yapılmamalı.
+             * Auth kullanıcısı mevcut.
              */
             return;
           }
@@ -307,8 +308,11 @@ export function App() {
 
           console.log(
             "🟢 Trustline kullanıcı profili hazır:",
-            profile.email,
-            profile.role
+            {
+              uid: profile.id,
+              email: profile.email,
+              role: profile.role,
+            }
           );
 
           const appProfile =
@@ -320,9 +324,16 @@ export function App() {
            * ==================================================
            */
 
-          storage.setCurrentUser(
-            appProfile
-          );
+          try {
+            storage.setCurrentUser(
+              appProfile
+            );
+          } catch (error) {
+            console.error(
+              "⚠️ Storage kullanıcı ayarlanamadı:",
+              error
+            );
+          }
 
           /*
            * ==================================================
@@ -354,19 +365,21 @@ export function App() {
                 : []
             );
           } catch (error) {
-            console.error(
-              "Bildirimler yüklenemedi:",
+            console.warn(
+              "⚠️ Bildirimler yüklenemedi:",
               error
             );
 
-            setNotifications(
-              []
-            );
+            /*
+             * Bildirim hatası login'i
+             * bozmasın.
+             */
+            setNotifications([]);
           }
 
           /*
            * ==================================================
-           * ROLE / ACTIVE TAB
+           * ROLE
            * ==================================================
            */
 
@@ -374,9 +387,7 @@ export function App() {
             appProfile.role ===
             "customer"
           ) {
-            setActiveTab(
-              "home"
-            );
+            setActiveTab("home");
           } else if (
             appProfile.role ===
             "courier"
@@ -399,17 +410,11 @@ export function App() {
            * ==================================================
            */
 
-          setProfileLoading(
-            false
-          );
+          setProfileLoading(false);
 
-          setAuthLoading(
-            false
-          );
+          setAuthLoading(false);
 
-          setAppError(
-            null
-          );
+          setAppError(null);
 
           console.log(
             "🚀 TRUSTLINE DASHBOARD HAZIR."
@@ -444,73 +449,79 @@ export function App() {
 
     try {
       unsubscribe =
-        storage.subscribe(
-          () => {
-            if (!mounted) {
-              return;
+        storage.subscribe(() => {
+          if (!mounted) {
+            return;
+          }
+
+          /*
+           * ORDERS
+           */
+
+          try {
+            const nextOrders =
+              storage.getOrders();
+
+            setOrders(
+              Array.isArray(
+                nextOrders
+              )
+                ? nextOrders
+                : []
+            );
+          } catch (error) {
+            console.error(
+              "Orders listener hatası:",
+              error
+            );
+          }
+
+          /*
+           * PRICING
+           */
+
+          try {
+            const nextPricing =
+              storage.getPricing();
+
+            if (nextPricing) {
+              setPricing(
+                nextPricing
+              );
             }
+          } catch (error) {
+            console.error(
+              "Pricing listener hatası:",
+              error
+            );
+          }
 
+          /*
+           * NOTIFICATIONS
+           */
+
+          if (currentUser) {
             try {
-              const nextOrders =
-                storage.getOrders();
+              const nextNotifications =
+                storage.getNotifications(
+                  currentUser.id
+                );
 
-              setOrders(
+              setNotifications(
                 Array.isArray(
-                  nextOrders
+                  nextNotifications
                 )
-                  ? nextOrders
+                  ? nextNotifications
                   : []
               );
             } catch (error) {
               console.error(
-                "Orders listener hatası:",
+                "Notification listener hatası:",
                 error
               );
-            }
-
-            try {
-              const nextPricing =
-                storage.getPricing();
-
-              if (
-                nextPricing
-              ) {
-                setPricing(
-                  nextPricing
-                );
-              }
-            } catch (error) {
-              console.error(
-                "Pricing listener hatası:",
-                error
-              );
-            }
-
-            if (
-              currentUser
-            ) {
-              try {
-                const nextNotifications =
-                  storage.getNotifications(
-                    currentUser.id
-                  );
-
-                setNotifications(
-                  Array.isArray(
-                    nextNotifications
-                  )
-                    ? nextNotifications
-                    : []
-                );
-              } catch (error) {
-                console.error(
-                  "Notification listener hatası:",
-                  error
-                );
-              }
             }
           }
-        );
+        });
     } catch (error) {
       console.error(
         "Storage listener başlatılamadı:",
@@ -539,25 +550,17 @@ export function App() {
   const handleOpenNewOrder = (
     prefill?: Partial<Order>
   ) => {
-    setNewOrderPrefill(
-      prefill
-    );
+    setNewOrderPrefill(prefill);
 
-    setIsNewOrderOpen(
-      true
-    );
+    setIsNewOrderOpen(true);
   };
 
   const handleTransferFromAI = (
     draft: Partial<Order>
   ) => {
-    handleOpenNewOrder(
-      draft
-    );
+    handleOpenNewOrder(draft);
 
-    setActiveTab(
-      "home"
-    );
+    setActiveTab("home");
   };
 
   /* ==========================================================
@@ -665,9 +668,7 @@ export function App() {
   ========================================================== */
 
   if (!currentUser) {
-    return (
-      <AuthScreen />
-    );
+    return <AuthScreen />;
   }
 
   /* ==========================================================
@@ -737,29 +738,20 @@ export function App() {
         )}
 
         <Navbar
-          currentUser={
-            currentUser
-          }
+          currentUser={currentUser}
           unreadNotificationsCount={
             unreadNotificationsCount
           }
           onOpenNotifications={() =>
-            setIsNotificationsOpen(
-              true
-            )
+            setIsNotificationsOpen(true)
           }
-          isIPhoneMode={
-            isIPhoneMode
-          }
+          isIPhoneMode={isIPhoneMode}
           onToggleIPhoneMode={() =>
             setIsIPhoneMode(
-              (value) =>
-                !value
+              (value) => !value
             )
           }
-          activeTab={
-            activeTab
-          }
+          activeTab={activeTab}
         />
 
         <main
@@ -779,9 +771,7 @@ export function App() {
                     handleOpenNewOrder
                   }
                   onOpenAI={() =>
-                    setActiveTab(
-                      "ai"
-                    )
+                    setActiveTab("ai")
                   }
                   onGoToOrders={() =>
                     setActiveTab(
@@ -791,18 +781,14 @@ export function App() {
                   activeOrders={
                     activeOrders
                   }
-                  pricing={
-                    pricing
-                  }
+                  pricing={pricing}
                 />
               )}
 
               {activeTab ===
                 "orders" && (
                 <CustomerOrders
-                  orders={
-                    myOrders
-                  }
+                  orders={myOrders}
                   onOpenNewOrder={
                     handleOpenNewOrder
                   }
@@ -818,9 +804,7 @@ export function App() {
                   onTransferToOrder={
                     handleTransferFromAI
                   }
-                  orders={
-                    myOrders
-                  }
+                  orders={myOrders}
                 />
               )}
 
@@ -844,9 +828,7 @@ export function App() {
                   currentCourier={
                     currentUser
                   }
-                  orders={
-                    safeOrders
-                  }
+                  orders={safeOrders}
                 />
               )}
 
@@ -867,12 +849,8 @@ export function App() {
               {activeTab ===
                 "admin_panel" && (
                 <AdminPanel
-                  orders={
-                    safeOrders
-                  }
-                  pricing={
-                    pricing
-                  }
+                  orders={safeOrders}
+                  pricing={pricing}
                 />
               )}
 
@@ -889,20 +867,11 @@ export function App() {
         </main>
 
         <BottomNavigation
-          role={
-            currentUser.role
-          }
-          activeTab={
-            activeTab
-          }
+          role={currentUser.role}
+          activeTab={activeTab}
           onTabChange={(tab) => {
-            setActiveTab(
-              tab
-            );
-
-            setSelectedOrderId(
-              null
-            );
+            setActiveTab(tab);
+            setSelectedOrderId(null);
           }}
           onOpenNewOrder={() =>
             handleOpenNewOrder()
@@ -914,34 +883,20 @@ export function App() {
       </div>
 
       <NewOrderModal
-        isOpen={
-          isNewOrderOpen
-        }
+        isOpen={isNewOrderOpen}
         onClose={() => {
-          setIsNewOrderOpen(
-            false
-          );
-
+          setIsNewOrderOpen(false);
           setNewOrderPrefill(
             undefined
           );
         }}
-        currentUser={
-          currentUser
-        }
-        pricing={
-          pricing
-        }
+        currentUser={currentUser}
+        pricing={pricing}
         prefillData={
           newOrderPrefill
         }
-        onOrderCreated={(
-          order
-        ) => {
-          setActiveTab(
-            "orders"
-          );
-
+        onOrderCreated={(order) => {
+          setActiveTab("orders");
           setSelectedOrderId(
             order.id
           );
@@ -953,19 +908,13 @@ export function App() {
           isNotificationsOpen
         }
         onClose={() =>
-          setIsNotificationsOpen(
-            false
-          )
+          setIsNotificationsOpen(false)
         }
         notifications={
           notifications
         }
-        userId={
-          currentUser.id
-        }
-        onSelectOrder={(
-          orderId
-        ) => {
+        userId={currentUser.id}
+        onSelectOrder={(orderId) => {
           setSelectedOrderId(
             orderId
           );
