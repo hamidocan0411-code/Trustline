@@ -164,26 +164,9 @@ export function App() {
   useEffect(() => {
     let mounted = true;
 
-    /*
-     * Auth listener artık tek merkez.
-     *
-     * Google popup:
-     *
-     * Google
-     *   ↓
-     * Firebase Auth
-     *   ↓
-     * subscribeToAuth()
-     *   ↓
-     * Firestore profile
-     *   ↓
-     * currentUser
-     *   ↓
-     * Dashboard
-     *
-     * Google redirect de auth.ts tarafından
-     * aynı mekanizmaya bağlanır.
-     */
+    console.log(
+      "🚀 Trustline Firebase Auth başlatılıyor..."
+    );
 
     const unsubscribe =
       subscribeToAuth(
@@ -196,29 +179,20 @@ export function App() {
           }
 
           console.log(
-            "Firebase Auth:",
+            "🔄 App Auth callback:",
             firebaseUser?.uid ??
               "YOK"
           );
 
-          console.log(
-            "Firebase Profile:",
-            profile
-          );
-
           /*
-           * Auth callback geldiyse eski
-           * uygulama hatasını temizle.
+           * ==================================================
+           * FIREBASE USER YOK
+           * ==================================================
            */
-          setAppError(null);
-
-          /* ==================================================
-             FIREBASE USER YOK
-          ================================================== */
 
           if (!firebaseUser) {
             console.log(
-              "🔒 Aktif Firebase kullanıcısı yok."
+              "🔒 Firebase'de aktif kullanıcı yok."
             );
 
             storage.setCurrentUser(
@@ -244,60 +218,79 @@ export function App() {
             return;
           }
 
-          /* ==================================================
-             FIREBASE USER VAR
-             PROFILE HAZIRLANIYOR
-          ================================================== */
+          /*
+           * ==================================================
+           * FIREBASE USER VAR
+           * ==================================================
+           */
 
+          console.log(
+            "🟢 Firebase kullanıcı canlı:",
+            firebaseUser.email
+          );
+
+          setAppError(
+            null
+          );
+
+          setAuthLoading(
+            false
+          );
+
+          /*
+           * Firestore profilinin okunmasını bekliyoruz.
+           */
           if (!profile) {
             console.warn(
-              "⚠️ Firebase kullanıcısı bulundu fakat profil henüz hazır değil."
+              "⏳ Firebase kullanıcı bulundu, Firestore profilinin gelmesi bekleniyor..."
             );
 
-            /*
-             * Kullanıcıyı login ekranına
-             * geri göndermiyoruz.
-             */
             setProfileLoading(
               true
             );
 
-            setAuthLoading(
-              false
-            );
-
+            /*
+             * BURADA LOGIN EKRANINA DÖNMÜYORUZ.
+             */
             return;
           }
 
-          /* ==================================================
-             LOGIN BAŞARILI
-          ================================================== */
+          /*
+           * ==================================================
+           * PROFİL HAZIR
+           * ==================================================
+           */
 
           console.log(
-            "🟢 Trustline giriş başarılı:",
-            profile.email
+            "🟢 Trustline kullanıcı profili hazır:",
+            profile.email,
+            profile.role
           );
 
+          const appProfile =
+            profile as UserProfile;
+
           /*
-           * Storage ile App aynı kullanıcıyı
-           * kullanacak.
+           * Storage + React aynı kullanıcıyı kullanacak.
            */
           storage.setCurrentUser(
-            profile
+            appProfile
           );
 
           setCurrentUser(
-            profile
+            appProfile
           );
 
-          /* ==================================================
-             NOTIFICATIONS
-          ================================================== */
+          /*
+           * ==================================================
+           * NOTIFICATIONS
+           * ==================================================
+           */
 
           try {
             const userNotifications =
               storage.getNotifications(
-                profile.id
+                appProfile.id
               );
 
             setNotifications(
@@ -318,26 +311,32 @@ export function App() {
             );
           }
 
-          /* ==================================================
-             ROLE
-          ================================================== */
+          /*
+           * ==================================================
+           * ROLE
+           * ==================================================
+           */
 
           if (
-            profile.role ===
+            appProfile.role ===
             "customer"
           ) {
             setActiveTab(
               "home"
             );
-          } else if (
-            profile.role ===
+          }
+
+          if (
+            appProfile.role ===
             "courier"
           ) {
             setActiveTab(
               "courier_panel"
             );
-          } else if (
-            profile.role ===
+          }
+
+          if (
+            appProfile.role ===
             "admin"
           ) {
             setActiveTab(
@@ -345,9 +344,11 @@ export function App() {
             );
           }
 
-          /* ==================================================
-             LOGIN TAMAMLANDI
-          ================================================== */
+          /*
+           * ==================================================
+           * TAMAMLANDI
+           * ==================================================
+           */
 
           setProfileLoading(
             false
@@ -358,7 +359,7 @@ export function App() {
           );
 
           console.log(
-            "🚀 Dashboard hazır."
+            "🚀 TRUSTLINE DASHBOARD HAZIR."
           );
         }
       );
@@ -396,10 +397,6 @@ export function App() {
               return;
             }
 
-            /* =================================================
-               ORDERS
-            ================================================= */
-
             try {
               const nextOrders =
                 storage.getOrders();
@@ -418,10 +415,6 @@ export function App() {
               );
             }
 
-            /* =================================================
-               PRICING
-            ================================================= */
-
             try {
               const nextPricing =
                 storage.getPricing();
@@ -439,10 +432,6 @@ export function App() {
                 error
               );
             }
-
-            /* =================================================
-               NOTIFICATIONS
-            ================================================= */
 
             if (
               currentUser
@@ -619,7 +608,7 @@ export function App() {
   }
 
   /* ==========================================================
-     LOGIN / REGISTER
+     LOGIN
   ========================================================== */
 
   if (!currentUser) {
@@ -629,7 +618,7 @@ export function App() {
   }
 
   /* ==========================================================
-     USER ORDERS
+     ORDERS
   ========================================================== */
 
   const safeOrders =
