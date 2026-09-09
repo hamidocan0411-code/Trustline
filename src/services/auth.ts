@@ -7,7 +7,6 @@ import {
   sendEmailVerification,
   setPersistence,
   signInWithEmailAndPassword,
-  signInWithPopup,
   signInWithRedirect,
   signOut,
   updateProfile,
@@ -118,13 +117,8 @@ function getFirebaseErrorMessage(error: unknown): string {
  * REGISTER
  * =========================================================
  *
- * ÖNEMLİ:
- *
- * Firebase Authentication hesabı kayıt sırasında oluşturulur.
- * Ancak kullanıcı e-postasını doğrulamadan Firestore profili
- * oluşturulmaz.
- *
- * Doğrulama maili gönderilir ve oturum kapatılır.
+ * Email/password kayıt fonksiyonu sistemde korunuyor.
+ * UI tarafında Google dışında giriş/kayıt gösterilmiyor.
  */
 
 export async function registerUser(
@@ -145,11 +139,12 @@ export async function registerUser(
       projectId: auth.app.options.projectId,
     });
 
-    const credential = await createUserWithEmailAndPassword(
-      auth,
-      cleanEmail,
-      password
-    );
+    const credential =
+      await createUserWithEmailAndPassword(
+        auth,
+        cleanEmail,
+        password
+      );
 
     const user = credential.user;
 
@@ -165,18 +160,9 @@ export async function registerUser(
       }
     );
 
-    /**
-     * Kullanıcı adını Firebase Auth profilinde tut.
-     */
     await updateProfile(user, {
       displayName: cleanName,
     });
-
-    /**
-     * =====================================================
-     * DOĞRULAMA MAİLİ
-     * =====================================================
-     */
 
     try {
       await sendEmailVerification(user);
@@ -194,17 +180,6 @@ export async function registerUser(
 
       throw verificationError;
     }
-
-    /**
-     * =====================================================
-     * ÖNEMLİ
-     * =====================================================
-     *
-     * Burada Firestore profili OLUŞTURMUYORUZ.
-     *
-     * Kullanıcı mailini doğruladıktan sonra ilk başarılı
-     * girişte ensureUserProfile() profili oluşturacak.
-     */
 
     console.log(
       "⏳ Kullanıcı e-posta doğrulamasını bekliyor."
@@ -226,9 +201,6 @@ export async function registerUser(
       }
     ).code = "auth/email-verification-required";
 
-    /**
-     * Kullanıcı profilini henüz oluşturmuyoruz.
-     */
     return Promise.reject(verificationError);
   } catch (error) {
     const code = getFirebaseErrorCode(error);
@@ -273,9 +245,6 @@ export async function loginUser(
 
     console.log("✅ Auth persistence hazır.");
 
-    /**
-     * Email / Password giriş
-     */
     const credential =
       await signInWithEmailAndPassword(
         auth,
@@ -297,12 +266,6 @@ export async function loginUser(
         projectId: auth.app.options.projectId,
       }
     );
-
-    /**
-     * =====================================================
-     * PASSWORD PROVIDER
-     * =====================================================
-     */
 
     const hasPasswordProvider =
       user.providerData.some(
@@ -331,12 +294,6 @@ export async function loginUser(
       throw providerError;
     }
 
-    /**
-     * =====================================================
-     * EMAIL VERIFICATION
-     * =====================================================
-     */
-
     if (!user.emailVerified) {
       console.warn(
         "⚠️ Kullanıcının e-posta adresi doğrulanmamış."
@@ -357,15 +314,8 @@ export async function loginUser(
       throw verificationError;
     }
 
-    /**
-     * =====================================================
-     * FIRESTORE PROFILE
-     * =====================================================
-     *
-     * Buraya sadece doğrulanmış kullanıcı gelir.
-     */
-
-    const profile = await ensureUserProfile(user);
+    const profile =
+      await ensureUserProfile(user);
 
     console.log("✅ LOGIN TAMAMLANDI:", {
       uid: profile.id,
@@ -385,12 +335,6 @@ export async function loginUser(
       projectId: auth.app.options.projectId,
       authDomain: auth.app.options.authDomain,
     });
-
-    /**
-     * =====================================================
-     * INVALID CREDENTIAL
-     * =====================================================
-     */
 
     if (code === "auth/invalid-credential") {
       const projectId =
@@ -459,14 +403,6 @@ export async function ensureUserProfile(
     emailVerified: user.emailVerified,
     path: `users/${user.uid}`,
   });
-
-  /**
-   * =====================================================
-   * EN ÖNEMLİ KONTROL
-   * =====================================================
-   *
-   * Doğrulanmamış kullanıcı Firestore'a hiç dokunamaz.
-   */
 
   if (!user.emailVerified) {
     console.warn(
@@ -543,12 +479,6 @@ export async function ensureUserProfile(
       };
     }
 
-    /**
-     * =====================================================
-     * PROFİL YOKSA OLUŞTUR
-     * =====================================================
-     */
-
     console.warn(
       "⚠️ Firestore kullanıcı profili bulunamadı. Oluşturuluyor."
     );
@@ -606,6 +536,18 @@ export async function ensureUserProfile(
  * =========================================================
  * GOOGLE LOGIN
  * =========================================================
+ *
+ * SADECE REDIRECT KULLANILIYOR.
+ *
+ * Popup tamamen kaldırıldı.
+ *
+ * Böylece:
+ * - auth/popup-closed-by-user
+ * - Cross-Origin-Opener-Policy
+ * - iPhone/iPad popup problemleri
+ * - Safari popup problemleri
+ *
+ * engellenmiş olur.
  */
 
 export async function loginWithGoogle(): Promise<void> {
@@ -623,35 +565,29 @@ export async function loginWithGoogle(): Promise<void> {
       browserLocalPersistence
     );
 
-    if (
-      typeof window !== "undefined" &&
-      /iPhone|iPad|iPod|Android/i.test(
-        window.navigator.userAgent
-      )
-    ) {
-      console.log(
-        "📱 Mobil cihaz algılandı. Google redirect başlıyor."
-      );
-
-      await signInWithRedirect(
-        auth,
-        provider
-      );
-
-      return;
-    }
-
     console.log(
-      "🖥️ Masaüstü cihaz. Google popup başlıyor."
+      "🔄 GOOGLE REDIRECT BAŞLIYOR:",
+      {
+        projectId: auth.app.options.projectId,
+        authDomain: auth.app.options.authDomain,
+      }
     );
 
-    await signInWithPopup(
+    await signInWithRedirect(
       auth,
       provider
     );
+
+    /**
+     * signInWithRedirect() sonrasında tarayıcı
+     * Google giriş sayfasına yönlendirilir.
+     *
+     * Google'dan Trustline Express'e dönüşte
+     * handleGoogleRedirectResult() sonucu alır.
+     */
   } catch (error) {
     console.error(
-      "❌ GOOGLE LOGIN HATASI:",
+      "❌ GOOGLE REDIRECT LOGIN HATASI:",
       {
         code: getFirebaseErrorCode(error),
         message: getFirebaseErrorMessage(error),
@@ -697,6 +633,15 @@ export async function handleGoogleRedirectResult(): Promise<
       await ensureUserProfile(
         result.user
       );
+
+    console.log(
+      "✅ GOOGLE GİRİŞİ TAMAMLANDI:",
+      {
+        uid: profile.id,
+        email: profile.email,
+        role: profile.role,
+      }
+    );
 
     return profile;
   } catch (error) {
