@@ -22,14 +22,31 @@ function getErrorCode(error: unknown): string {
     error !== null &&
     "code" in error
   ) {
-    const value = Reflect.get(
-      error,
-      "code"
-    );
+    const value = Reflect.get(error, "code");
 
     return typeof value === "string"
       ? value
       : "";
+  }
+
+  return "";
+}
+
+function getErrorMessage(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error
+  ) {
+    const value = Reflect.get(error, "message");
+
+    return typeof value === "string"
+      ? value
+      : "";
+  }
+
+  if (error instanceof Error) {
+    return error.message;
   }
 
   return "";
@@ -48,9 +65,13 @@ function getAuthErrorMessage(
       return "E-posta adresiniz henüz doğrulanmamış. E-postanıza gönderilen doğrulama bağlantısına tıklayın.";
 
     case "auth/invalid-credential":
+      return "Firebase giriş bilgilerini kabul etmedi.";
+
     case "auth/wrong-password":
+      return "Şifre hatalı.";
+
     case "auth/user-not-found":
-      return "E-posta veya şifre hatalı.";
+      return "Bu e-posta adresiyle kayıtlı bir kullanıcı bulunamadı.";
 
     case "auth/email-already-in-use":
       return "Bu e-posta adresi zaten kayıtlı.";
@@ -60,6 +81,9 @@ function getAuthErrorMessage(
 
     case "auth/weak-password":
       return "Şifre en az 6 karakter olmalıdır.";
+
+    case "auth/password-does-not-meet-requirements":
+      return "Şifre Firebase güvenlik gereksinimlerini karşılamıyor.";
 
     case "auth/popup-closed-by-user":
       return "Google giriş penceresi kapatıldı.";
@@ -80,13 +104,13 @@ function getAuthErrorMessage(
       return "Bu tarayıcıda Google popup kullanılamıyor. Güvenli giriş sayfasına yönlendiriliyorsunuz.";
 
     case "auth/network-request-failed":
-      return "Google bağlantısı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.";
+      return "Firebase bağlantısı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.";
 
     case "auth/unauthorized-domain":
-      return "Bu site Firebase tarafından Google girişi için yetkilendirilmemiş.";
+      return "Bu site Firebase tarafından yetkilendirilmemiş.";
 
     case "auth/internal-error":
-      return "Google girişinde geçici bir hata oluştu. Lütfen tekrar deneyin.";
+      return "Firebase'de geçici bir hata oluştu.";
 
     case "auth/too-many-requests":
       return "Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.";
@@ -94,16 +118,50 @@ function getAuthErrorMessage(
     case "auth/google-redirect-started":
       return "Google giriş sayfasına yönlendiriliyorsunuz...";
 
-    default:
-      if (
-        error instanceof Error &&
-        error.message
-      ) {
-        return error.message;
-      }
+    case "auth/invalid-api-key":
+      return "Firebase API anahtarı geçersiz.";
 
-      return "Bir hata oluştu. Lütfen tekrar deneyin.";
+    case "auth/app-not-authorized":
+      return "Bu uygulama Firebase tarafından yetkilendirilmemiş.";
+
+    case "auth/invalid-app-credential":
+      return "Firebase uygulama doğrulaması başarısız oldu.";
+
+    case "auth/quota-exceeded":
+      return "Firebase kullanım kotası aşıldı.";
+
+    case "auth/user-disabled":
+      return "Bu kullanıcı hesabı devre dışı bırakılmış.";
+
+    default:
+      return (
+        getErrorMessage(error) ||
+        "Bir hata oluştu. Lütfen tekrar deneyin."
+      );
   }
+}
+
+function getDetailedFirebaseError(
+  error: unknown
+): string {
+  const code = getErrorCode(error);
+  const message = getErrorMessage(error);
+
+  if (!code && !message) {
+    return "";
+  }
+
+  const details: string[] = [];
+
+  if (code) {
+    details.push(`Firebase hata kodu: ${code}`);
+  }
+
+  if (message && message !== code) {
+    details.push(`Firebase mesajı: ${message}`);
+  }
+
+  return details.join("\n");
 }
 
 function AuthScreen({
@@ -141,24 +199,7 @@ function AuthScreen({
     setSuccess("");
   };
 
-  /*
-   * Google redirect ile geri dönüldüğünde
-   * Firebase Auth oturumu App.tsx içerisindeki
-   * subscribeToAuth listener tarafından yakalanır.
-   *
-   * Burada getRedirectResult() çağırmıyoruz.
-   *
-   * Böylece AuthScreen ve App.tsx aynı oturumu
-   * iki farklı yerden yönetmeye çalışmıyor.
-   */
   useEffect(() => {
-    /*
-     * Sayfa Google'dan döndüğünde Firebase'in
-     * Auth state'i birkaç an içinde hazır olabilir.
-     *
-     * Kullanıcı zaten App.tsx tarafından yakalanacağı için
-     * burada sadece loading ekranını göstermiyoruz.
-     */
     setError("");
   }, []);
 
@@ -213,6 +254,14 @@ function AuthScreen({
 
     try {
       if (isRegister) {
+        console.log(
+          "🟡 KAYIT BAŞLADI",
+          {
+            email: cleanEmail,
+            name: cleanName,
+          }
+        );
+
         await registerUser({
           name: cleanName,
           email: cleanEmail,
@@ -220,16 +269,33 @@ function AuthScreen({
           phone: cleanPhone,
         });
 
+        console.log(
+          "🟢 KAYIT İŞLEMİ TAMAMLANDI"
+        );
+
         setSuccess(
           "Hesabınız oluşturuldu. E-posta adresinizi doğrulayın."
         );
 
+        setPassword("");
+
         return;
       }
+
+      console.log(
+        "🟡 GİRİŞ BAŞLADI",
+        {
+          email: cleanEmail,
+        }
+      );
 
       await loginUser(
         cleanEmail,
         password
+      );
+
+      console.log(
+        "🟢 GİRİŞ BAŞARILI"
       );
 
       setSuccess(
@@ -239,12 +305,28 @@ function AuthScreen({
       onLogin?.();
     } catch (err) {
       console.error(
-        "Authentication error:",
+        "❌ AUTHENTICATION ERROR",
         err
       );
 
       const code =
         getErrorCode(err);
+
+      const friendlyMessage =
+        getAuthErrorMessage(err);
+
+      const technicalDetails =
+        getDetailedFirebaseError(err);
+
+      console.error(
+        "❌ FIREBASE HATA KODU:",
+        code || "YOK"
+      );
+
+      console.error(
+        "❌ FIREBASE HATA MESAJI:",
+        getErrorMessage(err) || "YOK"
+      );
 
       if (
         code ===
@@ -265,8 +347,18 @@ function AuthScreen({
         return;
       }
 
+      /*
+       * ÖNEMLİ:
+       * Artık sadece "E-posta veya şifre hatalı"
+       * göstermiyoruz.
+       *
+       * Firebase'in gerçek hata kodunu da
+       * ekranda gösteriyoruz.
+       */
       setError(
-        getAuthErrorMessage(err)
+        technicalDetails
+          ? `${friendlyMessage}\n\n${technicalDetails}`
+          : friendlyMessage
       );
     } finally {
       setLoading(false);
@@ -280,29 +372,19 @@ function AuthScreen({
       setGoogleLoading(true);
 
       try {
-        /*
-         * Mobilde signInWithRedirect çalıştığında
-         * bu fonksiyon normal şekilde geri dönmez.
-         *
-         * Google'dan dönüş sonrasında App.tsx:
-         *
-         * subscribeToAuth()
-         *      ↓
-         * Firebase user
-         *      ↓
-         * Firestore profile
-         *      ↓
-         * Dashboard
-         *
-         * zincirini yönetir.
-         */
+        console.log(
+          "🟡 GOOGLE GİRİŞ BAŞLADI"
+        );
+
         const profile =
           await loginWithGoogle();
 
-        /*
-         * Desktop popup akışı buraya gelir.
-         */
         if (profile) {
+          console.log(
+            "🟢 GOOGLE GİRİŞ BAŞARILI",
+            profile
+          );
+
           setSuccess(
             "Google hesabınızla giriş başarılı."
           );
@@ -311,17 +393,29 @@ function AuthScreen({
         }
       } catch (err) {
         console.error(
-          "Google authentication error:",
+          "❌ GOOGLE AUTHENTICATION ERROR",
           err
         );
 
         const code =
           getErrorCode(err);
 
-        /*
-         * Mobil redirect başladığında
-         * bu hata aslında hata değildir.
-         */
+        const friendlyMessage =
+          getAuthErrorMessage(err);
+
+        const technicalDetails =
+          getDetailedFirebaseError(err);
+
+        console.error(
+          "❌ GOOGLE FIREBASE HATA KODU:",
+          code || "YOK"
+        );
+
+        console.error(
+          "❌ GOOGLE FIREBASE HATA MESAJI:",
+          getErrorMessage(err) || "YOK"
+        );
+
         if (
           code ===
           "auth/google-redirect-started"
@@ -334,15 +428,11 @@ function AuthScreen({
         }
 
         setError(
-          getAuthErrorMessage(err)
+          technicalDetails
+            ? `${friendlyMessage}\n\n${technicalDetails}`
+            : friendlyMessage
         );
       } finally {
-        /*
-         * Redirect başlatılmışsa sayfa zaten
-         * Google'a gidecektir.
-         *
-         * Desktop popup ise loading kapanır.
-         */
         setGoogleLoading(false);
       }
     };
@@ -505,7 +595,7 @@ function AuthScreen({
               {error && (
                 <div
                   role="alert"
-                  className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm leading-5 text-red-700 shadow-sm"
+                  className="mb-5 whitespace-pre-line rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm leading-5 text-red-700 shadow-sm"
                 >
                   <div className="flex gap-3">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100 font-black">
@@ -522,7 +612,7 @@ function AuthScreen({
               {success && (
                 <div
                   role="status"
-                  className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-sm leading-6 text-emerald-700 shadow-sm"
+                  className="mb-5 whitespace-pre-line rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-sm leading-6 text-emerald-700 shadow-sm"
                 >
                   <div className="flex gap-3">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-black">
