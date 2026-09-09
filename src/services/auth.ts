@@ -607,14 +607,16 @@ export async function loginUser(
     credential.user;
 
   console.log(
-    "🟢 Firebase Auth email giriş başarılı:",
-    {
-      uid: user.uid,
-      email: user.email,
-      verified:
-        user.emailVerified,
-    }
-  );
+  "🔐 Firebase sağlayıcıları:",
+  user.providerData.map(
+    (provider) => ({
+      providerId:
+        provider.providerId,
+      email:
+        provider.email,
+    })
+  )
+);
 
   /**
    * Email/password hesaplarında doğrulama şartı.
