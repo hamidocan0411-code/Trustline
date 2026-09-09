@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, {
+  useEffect,
+  useState,
+} from "react";
 
 import { storage } from "./services/storage";
 
 import {
   subscribeToAuth,
-  handleGoogleRedirectResult,
 } from "./services/auth";
 
 import type {
@@ -27,159 +29,160 @@ import { NotificationDrawer } from "./components/NotificationDrawer";
 import { AuthScreen } from "./components/AuthScreen";
 
 export function App() {
-  const [currentUser, setCurrentUser] =
-    useState<UserProfile | null>(null);
+  const [
+    currentUser,
+    setCurrentUser,
+  ] =
+    useState<UserProfile | null>(
+      null
+    );
 
-  const [orders, setOrders] = useState<Order[]>(() => {
-    try {
-      const savedOrders = storage.getOrders();
-
-      return Array.isArray(savedOrders)
-        ? savedOrders
-        : [];
-    } catch (error) {
-      console.error(
-        "Orders yüklenemedi:",
-        error
-      );
-
-      return [];
-    }
-  });
-
-  const [pricing, setPricing] =
-    useState<PricingConfig>(() => {
+  const [
+    orders,
+    setOrders,
+  ] =
+    useState<Order[]>(() => {
       try {
-        return storage.getPricing();
+        const savedOrders =
+          storage.getOrders();
+
+        return Array.isArray(
+          savedOrders
+        )
+          ? savedOrders
+          : [];
       } catch (error) {
         console.error(
-          "Pricing yüklenemedi:",
+          "Orders yüklenemedi:",
           error
         );
 
-        return {
-          perKmPrice: 20,
-          minPrice: 100,
-          urgentMultiplier: 1.5,
-          vipMultiplier: 2,
-          requireDeliveryPhoto: false,
-          updatedAt: new Date().toISOString(),
-        };
+        return [];
       }
     });
 
-  const [notifications, setNotifications] =
-    useState<NotificationItem[]>([]);
+  const [
+    pricing,
+    setPricing,
+  ] =
+    useState<PricingConfig>(
+      () => {
+        try {
+          return storage.getPricing();
+        } catch (error) {
+          console.error(
+            "Pricing yüklenemedi:",
+            error
+          );
 
-  const [authLoading, setAuthLoading] =
+          return {
+            perKmPrice: 20,
+            minPrice: 100,
+            urgentMultiplier: 1.5,
+            vipMultiplier: 2,
+            requireDeliveryPhoto:
+              false,
+            updatedAt:
+              new Date().toISOString(),
+          };
+        }
+      }
+    );
+
+  const [
+    notifications,
+    setNotifications,
+  ] =
+    useState<
+      NotificationItem[]
+    >([]);
+
+  const [
+    authLoading,
+    setAuthLoading,
+  ] =
     useState(true);
 
-  const [profileLoading, setProfileLoading] =
+  const [
+    profileLoading,
+    setProfileLoading,
+  ] =
     useState(false);
 
-  const [activeTab, setActiveTab] =
+  const [
+    activeTab,
+    setActiveTab,
+  ] =
     useState("home");
 
-  const [isNewOrderOpen, setIsNewOrderOpen] =
+  const [
+    isNewOrderOpen,
+    setIsNewOrderOpen,
+  ] =
     useState(false);
 
-  const [newOrderPrefill, setNewOrderPrefill] =
-    useState<Partial<Order> | undefined>();
+  const [
+    newOrderPrefill,
+    setNewOrderPrefill,
+  ] =
+    useState<
+      Partial<Order> | undefined
+    >();
 
-  const [isNotificationsOpen, setIsNotificationsOpen] =
+  const [
+    isNotificationsOpen,
+    setIsNotificationsOpen,
+  ] =
     useState(false);
 
-  const [selectedOrderId, setSelectedOrderId] =
-    useState<string | null>(null);
+  const [
+    selectedOrderId,
+    setSelectedOrderId,
+  ] =
+    useState<string | null>(
+      null
+    );
 
-  const [isIPhoneMode, setIsIPhoneMode] =
+  const [
+    isIPhoneMode,
+    setIsIPhoneMode,
+  ] =
     useState(false);
 
-  const [appError, setAppError] =
-    useState<string | null>(null);
+  const [
+    appError,
+    setAppError,
+  ] =
+    useState<string | null>(
+      null
+    );
 
-  /*
-   * ==========================================
-   * FIREBASE AUTH
-   * ==========================================
-   *
-   * Google redirect akışı:
-   *
-   * Google
-   *   ↓
-   * Firebase
-   *   ↓
-   * Render
-   *   ↓
-   * getRedirectResult()
-   *   ↓
-   * ensureUserProfile()
-   *   ↓
-   * subscribeToAuth()
-   *   ↓
-   * Dashboard
-   *
-   * Normal email/password girişleri de
-   * aynı auth listener üzerinden çalışır.
-   */
+  /* ==========================================================
+     FIREBASE AUTH
+  ========================================================== */
 
   useEffect(() => {
     let mounted = true;
 
     /*
-     * ==========================================
-     * GOOGLE REDIRECT RESULT
-     * ==========================================
-     */
-
-    const processGoogleRedirect =
-      async () => {
-        try {
-          console.log(
-            "Google redirect sonucu kontrol ediliyor..."
-          );
-
-          const redirectProfile =
-            await handleGoogleRedirectResult();
-
-          if (
-            mounted &&
-            redirectProfile
-          ) {
-            console.log(
-              "Google redirect başarılı:",
-              redirectProfile.email
-            );
-          }
-        } catch (error) {
-          console.error(
-            "Google redirect işleme hatası:",
-            error
-          );
-
-          /*
-           * Auth listener daha sonra başarılı
-           * şekilde kullanıcıyı yakalarsa bu hata
-           * listener tarafından temizlenecektir.
-           */
-          if (mounted) {
-            setAppError(
-              "Google girişi tamamlanamadı. Lütfen tekrar deneyin."
-            );
-          }
-        }
-      };
-
-    /*
-     * Google'dan dönüş varsa önce sonucu
-     * Firebase'den almaya çalış.
-     */
-    void processGoogleRedirect();
-
-    /*
-     * ==========================================
-     * NORMAL AUTH LISTENER
-     * ==========================================
+     * Auth listener artık tek merkez.
+     *
+     * Google popup:
+     *
+     * Google
+     *   ↓
+     * Firebase Auth
+     *   ↓
+     * subscribeToAuth()
+     *   ↓
+     * Firestore profile
+     *   ↓
+     * currentUser
+     *   ↓
+     * Dashboard
+     *
+     * Google redirect de auth.ts tarafından
+     * aynı mekanizmaya bağlanır.
      */
 
     const unsubscribe =
@@ -194,7 +197,8 @@ export function App() {
 
           console.log(
             "Firebase Auth:",
-            firebaseUser?.uid ?? "YOK"
+            firebaseUser?.uid ??
+              "YOK"
           );
 
           console.log(
@@ -203,61 +207,81 @@ export function App() {
           );
 
           /*
-           * Önceden oluşmuş bir uygulama hatası
-           * varsa temizle.
+           * Auth callback geldiyse eski
+           * uygulama hatasını temizle.
            */
           setAppError(null);
 
-          /*
-           * ==================================
-           * FIREBASE KULLANICISI YOK
-           * ==================================
-           */
+          /* ==================================================
+             FIREBASE USER YOK
+          ================================================== */
 
           if (!firebaseUser) {
-            storage.setCurrentUser(null);
+            console.log(
+              "🔒 Aktif Firebase kullanıcısı yok."
+            );
 
-            setCurrentUser(null);
+            storage.setCurrentUser(
+              null
+            );
 
-            setNotifications([]);
+            setCurrentUser(
+              null
+            );
 
-            setProfileLoading(false);
+            setNotifications(
+              []
+            );
 
-            setAuthLoading(false);
+            setProfileLoading(
+              false
+            );
+
+            setAuthLoading(
+              false
+            );
 
             return;
           }
 
-          /*
-           * ==================================
-           * FIREBASE VAR
-           * PROFİL BEKLENİYOR
-           * ==================================
-           */
+          /* ==================================================
+             FIREBASE USER VAR
+             PROFILE HAZIRLANIYOR
+          ================================================== */
 
           if (!profile) {
             console.warn(
-              "Firebase kullanıcısı bulundu fakat Firestore profili henüz hazır değil."
+              "⚠️ Firebase kullanıcısı bulundu fakat profil henüz hazır değil."
             );
 
-            setProfileLoading(true);
+            /*
+             * Kullanıcıyı login ekranına
+             * geri göndermiyoruz.
+             */
+            setProfileLoading(
+              true
+            );
 
-            setAuthLoading(false);
+            setAuthLoading(
+              false
+            );
 
             return;
           }
 
-          /*
-           * ==================================
-           * PROFİL BAŞARILI
-           * ==================================
-           */
+          /* ==================================================
+             LOGIN BAŞARILI
+          ================================================== */
 
           console.log(
-            "Trustline giriş başarılı:",
+            "🟢 Trustline giriş başarılı:",
             profile.email
           );
 
+          /*
+           * Storage ile App aynı kullanıcıyı
+           * kullanacak.
+           */
           storage.setCurrentUser(
             profile
           );
@@ -266,11 +290,9 @@ export function App() {
             profile
           );
 
-          /*
-           * ==================================
-           * BİLDİRİMLER
-           * ==================================
-           */
+          /* ==================================================
+             NOTIFICATIONS
+          ================================================== */
 
           try {
             const userNotifications =
@@ -291,20 +313,22 @@ export function App() {
               error
             );
 
-            setNotifications([]);
+            setNotifications(
+              []
+            );
           }
 
-          /*
-           * ==================================
-           * ROLE
-           * ==================================
-           */
+          /* ==================================================
+             ROLE
+          ================================================== */
 
           if (
             profile.role ===
             "customer"
           ) {
-            setActiveTab("home");
+            setActiveTab(
+              "home"
+            );
           } else if (
             profile.role ===
             "courier"
@@ -321,23 +345,23 @@ export function App() {
             );
           }
 
-          /*
-           * ==================================
-           * LOGIN TAMAMLANDI
-           * ==================================
-           */
+          /* ==================================================
+             LOGIN TAMAMLANDI
+          ================================================== */
 
-          setProfileLoading(false);
+          setProfileLoading(
+            false
+          );
 
-          setAuthLoading(false);
+          setAuthLoading(
+            false
+          );
+
+          console.log(
+            "🚀 Dashboard hazır."
+          );
         }
       );
-
-    /*
-     * ==========================================
-     * CLEANUP
-     * ==========================================
-     */
 
     return () => {
       mounted = false;
@@ -353,11 +377,9 @@ export function App() {
     };
   }, []);
 
-  /*
-   * ==========================================
-   * STORAGE LISTENER
-   * ==========================================
-   */
+  /* ==========================================================
+     STORAGE LISTENER
+  ========================================================== */
 
   useEffect(() => {
     let mounted = true;
@@ -367,81 +389,86 @@ export function App() {
       | undefined;
 
     try {
-      unsubscribe = storage.subscribe(
-        () => {
-          if (!mounted) {
-            return;
-          }
-
-          /*
-           * ORDERS
-           */
-
-          try {
-            const nextOrders =
-              storage.getOrders();
-
-            setOrders(
-              Array.isArray(
-                nextOrders
-              )
-                ? nextOrders
-                : []
-            );
-          } catch (error) {
-            console.error(
-              "Orders listener hatası:",
-              error
-            );
-          }
-
-          /*
-           * PRICING
-           */
-
-          try {
-            const nextPricing =
-              storage.getPricing();
-
-            if (nextPricing) {
-              setPricing(
-                nextPricing
-              );
+      unsubscribe =
+        storage.subscribe(
+          () => {
+            if (!mounted) {
+              return;
             }
-          } catch (error) {
-            console.error(
-              "Pricing listener hatası:",
-              error
-            );
-          }
 
-          /*
-           * NOTIFICATIONS
-           */
+            /* =================================================
+               ORDERS
+            ================================================= */
 
-          if (currentUser) {
             try {
-              const nextNotifications =
-                storage.getNotifications(
-                  currentUser.id
-                );
+              const nextOrders =
+                storage.getOrders();
 
-              setNotifications(
+              setOrders(
                 Array.isArray(
-                  nextNotifications
+                  nextOrders
                 )
-                  ? nextNotifications
+                  ? nextOrders
                   : []
               );
             } catch (error) {
               console.error(
-                "Notification listener hatası:",
+                "Orders listener hatası:",
                 error
               );
             }
+
+            /* =================================================
+               PRICING
+            ================================================= */
+
+            try {
+              const nextPricing =
+                storage.getPricing();
+
+              if (
+                nextPricing
+              ) {
+                setPricing(
+                  nextPricing
+                );
+              }
+            } catch (error) {
+              console.error(
+                "Pricing listener hatası:",
+                error
+              );
+            }
+
+            /* =================================================
+               NOTIFICATIONS
+            ================================================= */
+
+            if (
+              currentUser
+            ) {
+              try {
+                const nextNotifications =
+                  storage.getNotifications(
+                    currentUser.id
+                  );
+
+                setNotifications(
+                  Array.isArray(
+                    nextNotifications
+                  )
+                    ? nextNotifications
+                    : []
+                );
+              } catch (error) {
+                console.error(
+                  "Notification listener hatası:",
+                  error
+                );
+              }
+            }
           }
-        }
-      );
+        );
     } catch (error) {
       console.error(
         "Storage listener başlatılamadı:",
@@ -463,11 +490,9 @@ export function App() {
     };
   }, [currentUser?.id]);
 
-  /*
-   * ==========================================
-   * NEW ORDER
-   * ==========================================
-   */
+  /* ==========================================================
+     NEW ORDER
+  ========================================================== */
 
   const handleOpenNewOrder = (
     prefill?: Partial<Order>
@@ -488,14 +513,14 @@ export function App() {
       draft
     );
 
-    setActiveTab("home");
+    setActiveTab(
+      "home"
+    );
   };
 
-  /*
-   * ==========================================
-   * AUTH LOADING
-   * ==========================================
-   */
+  /* ==========================================================
+     AUTH LOADING
+  ========================================================== */
 
   if (authLoading) {
     return (
@@ -523,11 +548,9 @@ export function App() {
     );
   }
 
-  /*
-   * ==========================================
-   * PROFILE LOADING
-   * ==========================================
-   */
+  /* ==========================================================
+     PROFILE LOADING
+  ========================================================== */
 
   if (
     profileLoading &&
@@ -558,11 +581,9 @@ export function App() {
     );
   }
 
-  /*
-   * ==========================================
-   * ERROR
-   * ==========================================
-   */
+  /* ==========================================================
+     ERROR
+  ========================================================== */
 
   if (
     appError &&
@@ -597,11 +618,9 @@ export function App() {
     );
   }
 
-  /*
-   * ==========================================
-   * LOGIN / REGISTER
-   * ==========================================
-   */
+  /* ==========================================================
+     LOGIN / REGISTER
+  ========================================================== */
 
   if (!currentUser) {
     return (
@@ -609,11 +628,9 @@ export function App() {
     );
   }
 
-  /*
-   * ==========================================
-   * USER ORDERS
-   * ==========================================
-   */
+  /* ==========================================================
+     USER ORDERS
+  ========================================================== */
 
   const safeOrders =
     Array.isArray(orders)
@@ -652,11 +669,9 @@ export function App() {
         !notification.read
     ).length;
 
-  /*
-   * ==========================================
-   * MAIN APPLICATION
-   * ==========================================
-   */
+  /* ==========================================================
+     MAIN APPLICATION
+  ========================================================== */
 
   return (
     <div
@@ -696,7 +711,8 @@ export function App() {
           }
           onToggleIPhoneMode={() =>
             setIsIPhoneMode(
-              (value) => !value
+              (value) =>
+                !value
             )
           }
           activeTab={
