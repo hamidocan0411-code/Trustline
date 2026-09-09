@@ -8,6 +8,7 @@ import { storage } from "./services/storage";
 import {
   subscribeToAuth,
   handleGoogleRedirectResult,
+  ensureUserProfile,
 } from "./services/auth";
 
 import type {
@@ -30,15 +31,10 @@ import { NotificationDrawer } from "./components/NotificationDrawer";
 import { AuthScreen } from "./components/AuthScreen";
 
 export function App() {
-  const [
-    currentUser,
-    setCurrentUser,
-  ] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] =
+    useState<UserProfile | null>(null);
 
-  const [
-    orders,
-    setOrders,
-  ] = useState<Order[]>(() => {
+  const [orders, setOrders] = useState<Order[]>(() => {
     try {
       const savedOrders = storage.getOrders();
 
@@ -55,80 +51,59 @@ export function App() {
     }
   });
 
-  const [
-    pricing,
-    setPricing,
-  ] = useState<PricingConfig>(() => {
-    try {
-      return storage.getPricing();
-    } catch (error) {
-      console.error(
-        "Pricing yüklenemedi:",
-        error
-      );
+  const [pricing, setPricing] =
+    useState<PricingConfig>(() => {
+      try {
+        return storage.getPricing();
+      } catch (error) {
+        console.error(
+          "Pricing yüklenemedi:",
+          error
+        );
 
-      return {
-        perKmPrice: 20,
-        minPrice: 100,
-        urgentMultiplier: 1.5,
-        vipMultiplier: 2,
-        requireDeliveryPhoto: false,
-        updatedAt: new Date().toISOString(),
-      };
-    }
-  });
+        return {
+          perKmPrice: 20,
+          minPrice: 100,
+          urgentMultiplier: 1.5,
+          vipMultiplier: 2,
+          requireDeliveryPhoto: false,
+          updatedAt:
+            new Date().toISOString(),
+        };
+      }
+    });
 
-  const [
-    notifications,
-    setNotifications,
-  ] = useState<NotificationItem[]>([]);
+  const [notifications, setNotifications] =
+    useState<NotificationItem[]>([]);
 
-  const [
-    authLoading,
-    setAuthLoading,
-  ] = useState(true);
+  const [authLoading, setAuthLoading] =
+    useState(true);
 
-  const [
-    profileLoading,
-    setProfileLoading,
-  ] = useState(false);
+  const [profileLoading, setProfileLoading] =
+    useState(false);
 
-  const [
-    activeTab,
-    setActiveTab,
-  ] = useState("home");
+  const [activeTab, setActiveTab] =
+    useState("home");
 
-  const [
-    isNewOrderOpen,
-    setIsNewOrderOpen,
-  ] = useState(false);
+  const [isNewOrderOpen, setIsNewOrderOpen] =
+    useState(false);
 
-  const [
-    newOrderPrefill,
-    setNewOrderPrefill,
-  ] = useState<
-    Partial<Order> | undefined
-  >();
+  const [newOrderPrefill, setNewOrderPrefill] =
+    useState<Partial<Order> | undefined>();
 
   const [
     isNotificationsOpen,
     setIsNotificationsOpen,
   ] = useState(false);
 
-  const [
-    selectedOrderId,
-    setSelectedOrderId,
-  ] = useState<string | null>(null);
+  const [selectedOrderId, setSelectedOrderId] =
+    useState<string | null>(null);
 
-  const [
-    isIPhoneMode,
-    setIsIPhoneMode,
-  ] = useState(false);
+  const [isIPhoneMode, setIsIPhoneMode] =
+    useState(false);
 
-  const [
-    appError,
-    setAppError,
-  ] = useState<string | null>(null);
+  const [appError, setAppError] =
+    useState<string | null>(null);
 
   /* ==========================================================
      FIREBASE AUTH
@@ -141,25 +116,10 @@ export function App() {
       "🚀 Trustline Firebase Auth başlatılıyor..."
     );
 
-    /*
-     * --------------------------------------------------------
-     * GOOGLE REDIRECT SONUCUNU İLK OLARAK İŞLE
-     * --------------------------------------------------------
-     *
-     * Özellikle iPhone / iPad üzerinde:
-     *
-     * Login
-     *   ↓
-     * Google
-     *   ↓
-     * trustlineexpress.com.tr
-     *
-     * dönüşünde getRedirectResult() sonucu
-     * burada yakalanır.
-     *
-     * Böylece Google hesabı Firebase Auth'a
-     * eklenmiş olmasına rağmen uygulamanın
-     * Login ekranında kalması engellenir.
+    /**
+     * ========================================================
+     * GOOGLE REDIRECT
+     * ========================================================
      */
 
     void handleGoogleRedirectResult()
@@ -170,47 +130,31 @@ export function App() {
 
         if (profile) {
           console.log(
-            "🟢 Google redirect profili App tarafından alındı:",
+            "🟢 Google redirect profili bulundu:",
             {
+              uid: profile.id,
               email: profile.email,
               role: profile.role,
-              uid: profile.id,
             }
-          );
-        } else {
-          console.log(
-            "ℹ️ Google redirect sonucu bulunamadı. Normal Auth state bekleniyor."
           );
         }
       })
       .catch((error) => {
-        /*
-         * Redirect sonucu yoksa bu normal olabilir.
-         *
-         * Burada kullanıcıyı Login ekranına
-         * zorlamıyoruz.
-         *
-         * Firebase Auth state listener aşağıda
-         * yine çalışmaya devam edecek.
-         */
         console.warn(
           "⚠️ Google redirect sonucu alınamadı:",
           error
         );
       });
 
-    /*
-     * --------------------------------------------------------
-     * TEK AUTH STATE LISTENER
-     * --------------------------------------------------------
+    /**
+     * ========================================================
+     * AUTH STATE
+     * ========================================================
      */
 
     const unsubscribe =
       subscribeToAuth(
-        async (
-          firebaseUser,
-          profile
-        ) => {
+        async (firebaseUser) => {
           if (!mounted) {
             return;
           }
@@ -224,14 +168,12 @@ export function App() {
               email:
                 firebaseUser?.email ??
                 "YOK",
-              hasProfile:
-                !!profile,
             }
           );
 
-          /*
+          /**
            * ==================================================
-           * FIREBASE USER YOK
+           * KULLANICI YOK
            * ==================================================
            */
 
@@ -243,182 +185,214 @@ export function App() {
             storage.setCurrentUser(null);
 
             setCurrentUser(null);
-
             setNotifications([]);
-
             setProfileLoading(false);
-
+            setAuthLoading(false);
             setAppError(null);
 
-            setAuthLoading(false);
-
             return;
           }
 
-          /*
+          /**
            * ==================================================
-           * FIREBASE USER VAR
+           * AUTH BAŞARILI
            * ==================================================
            */
 
           console.log(
-            "🟢 Firebase Auth kullanıcısı bulundu:",
-            firebaseUser.email
-          );
-
-          /*
-           * Çok önemli:
-           *
-           * Firebase Auth kullanıcısı bulunduğu anda
-           * AuthLoading kapanıyor.
-           *
-           * Profil hazırlanırken Login ekranı
-           * gösterilmeyecek.
-           */
-          setAuthLoading(false);
-
-          setAppError(null);
-
-          /*
-           * ==================================================
-           * PROFILE YOKSA
-           * ==================================================
-           */
-
-          if (!profile) {
-            console.log(
-              "⏳ Firebase Auth hazır fakat profil henüz hazır değil."
-            );
-
-            setProfileLoading(true);
-
-            /*
-             * currentUser'ı null'a çekmiyoruz.
-             *
-             * Auth kullanıcısı mevcut.
-             */
-            return;
-          }
-
-          /*
-           * ==================================================
-           * PROFILE HAZIR
-           * ==================================================
-           */
-
-          console.log(
-            "🟢 Trustline kullanıcı profili hazır:",
+            "🟢 Firebase Authentication kullanıcısı bulundu:",
             {
-              uid: profile.id,
-              email: profile.email,
-              role: profile.role,
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              verified:
+                firebaseUser.emailVerified,
             }
           );
 
-          const appProfile =
-            profile as UserProfile;
-
-          /*
-           * ==================================================
-           * STORAGE
-           * ==================================================
-           */
-
-          try {
-            storage.setCurrentUser(
-              appProfile
-            );
-          } catch (error) {
-            console.error(
-              "⚠️ Storage kullanıcı ayarlanamadı:",
-              error
-            );
-          }
-
-          /*
-           * ==================================================
-           * REACT USER
-           * ==================================================
-           */
-
-          setCurrentUser(
-            appProfile
-          );
-
-          /*
-           * ==================================================
-           * NOTIFICATIONS
-           * ==================================================
-           */
-
-          try {
-            const userNotifications =
-              storage.getNotifications(
-                appProfile.id
-              );
-
-            setNotifications(
-              Array.isArray(
-                userNotifications
-              )
-                ? userNotifications
-                : []
-            );
-          } catch (error) {
-            console.warn(
-              "⚠️ Bildirimler yüklenemedi:",
-              error
-            );
-
-            /*
-             * Bildirim hatası login'i
-             * bozmasın.
-             */
-            setNotifications([]);
-          }
-
-          /*
-           * ==================================================
-           * ROLE
-           * ==================================================
-           */
-
-          if (
-            appProfile.role ===
-            "customer"
-          ) {
-            setActiveTab("home");
-          } else if (
-            appProfile.role ===
-            "courier"
-          ) {
-            setActiveTab(
-              "courier_panel"
-            );
-          } else if (
-            appProfile.role ===
-            "admin"
-          ) {
-            setActiveTab(
-              "admin_panel"
-            );
-          }
-
-          /*
-           * ==================================================
-           * TAMAMLANDI
-           * ==================================================
-           */
-
-          setProfileLoading(false);
-
           setAuthLoading(false);
-
+          setProfileLoading(true);
           setAppError(null);
 
-          console.log(
-            "🚀 TRUSTLINE DASHBOARD HAZIR."
-          );
+          /**
+           * ==================================================
+           * FIRESTORE PROFİLİNİ GETİR
+           * ==================================================
+           *
+           * Kritik düzeltme burada.
+           *
+           * Auth kullanıcısı mevcutsa users/{uid}
+           * profili ayrıca ensureUserProfile() ile
+           * alınır / gerekiyorsa oluşturulur.
+           */
+
+          try {
+            console.log(
+              "👤 Firestore kullanıcı profili hazırlanıyor:",
+              firebaseUser.uid
+            );
+
+            const profile =
+              await ensureUserProfile(
+                firebaseUser
+              );
+
+            if (!mounted) {
+              return;
+            }
+
+            console.log(
+              "✅ Firestore kullanıcı profili hazır:",
+              {
+                uid: profile.id,
+                email: profile.email,
+                role: profile.role,
+              }
+            );
+
+            const appProfile =
+              profile as UserProfile;
+
+            /**
+             * ==================================================
+             * STORAGE
+             * ==================================================
+             */
+
+            try {
+              storage.setCurrentUser(
+                appProfile
+              );
+            } catch (error) {
+              console.error(
+                "⚠️ Storage kullanıcı ayarlanamadı:",
+                error
+              );
+            }
+
+            /**
+             * ==================================================
+             * REACT USER
+             * ==================================================
+             */
+
+            setCurrentUser(
+              appProfile
+            );
+
+            /**
+             * ==================================================
+             * NOTIFICATIONS
+             * ==================================================
+             */
+
+            try {
+              const userNotifications =
+                storage.getNotifications(
+                  appProfile.id
+                );
+
+              setNotifications(
+                Array.isArray(
+                  userNotifications
+                )
+                  ? userNotifications
+                  : []
+              );
+            } catch (error) {
+              console.warn(
+                "⚠️ Bildirimler yüklenemedi:",
+                error
+              );
+
+              setNotifications([]);
+            }
+
+            /**
+             * ==================================================
+             * ROLE
+             * ==================================================
+             */
+
+            if (
+              appProfile.role ===
+              "customer"
+            ) {
+              setActiveTab("home");
+            } else if (
+              appProfile.role ===
+              "courier"
+            ) {
+              setActiveTab(
+                "courier_panel"
+              );
+            } else if (
+              appProfile.role ===
+              "admin"
+            ) {
+              setActiveTab(
+                "admin_panel"
+              );
+            }
+
+            /**
+             * ==================================================
+             * TAMAMLANDI
+             * ==================================================
+             */
+
+            setProfileLoading(false);
+            setAuthLoading(false);
+            setAppError(null);
+
+            console.log(
+              "🚀 TRUSTLINE DASHBOARD HAZIR."
+            );
+          } catch (error) {
+            if (!mounted) {
+              return;
+            }
+
+            console.error(
+              "❌ Kullanıcı profili hazırlanamadı:",
+              error
+            );
+
+            setProfileLoading(false);
+            setAuthLoading(false);
+
+            const code =
+              typeof error ===
+                "object" &&
+              error !== null &&
+              "code" in error
+                ? String(
+                    (
+                      error as {
+                        code?: unknown;
+                      }
+                    ).code
+                  )
+                : "";
+
+            /**
+             * Firestore profil hatası olduğunda
+             * artık sonsuza kadar "Hesap hazırlanıyor"
+             * ekranında kalma.
+             */
+
+            if (
+              code ===
+              "permission-denied"
+            ) {
+              setAppError(
+                "Kullanıcı hesabı bulundu ancak Firestore kullanıcı profiline erişilemiyor. Firebase Firestore Rules kontrol edilmeli."
+              );
+            } else {
+              setAppError(
+                "Kullanıcı profili hazırlanırken bir hata oluştu. Lütfen tekrar deneyin."
+              );
+            }
+          }
         }
       );
 
@@ -454,7 +428,7 @@ export function App() {
             return;
           }
 
-          /*
+          /**
            * ORDERS
            */
 
@@ -476,7 +450,7 @@ export function App() {
             );
           }
 
-          /*
+          /**
            * PRICING
            */
 
@@ -496,7 +470,7 @@ export function App() {
             );
           }
 
-          /*
+          /**
            * NOTIFICATIONS
            */
 
@@ -551,7 +525,6 @@ export function App() {
     prefill?: Partial<Order>
   ) => {
     setNewOrderPrefill(prefill);
-
     setIsNewOrderOpen(true);
   };
 
@@ -559,7 +532,6 @@ export function App() {
     draft: Partial<Order>
   ) => {
     handleOpenNewOrder(draft);
-
     setActiveTab("home");
   };
 
