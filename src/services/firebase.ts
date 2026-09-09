@@ -24,8 +24,8 @@ import firebaseConfig from "../../firebase-applet-config.json";
  * FIREBASE APP
  * =========================================================
  *
- * Vite Hot Reload / React Strict Mode nedeniyle uygulama
- * birden fazla kez initialize edilmesin.
+ * Vite Hot Reload / React Strict Mode nedeniyle Firebase
+ * uygulaması birden fazla kez initialize edilmesin.
  */
 const app: FirebaseApp =
   getApps().length > 0
@@ -51,63 +51,58 @@ export const db: Firestore = getFirestore(app);
  * AUTH READY STATE
  * =========================================================
  *
- * Firebase Auth ilk kullanıcı durumunu async olarak yükler.
+ * Firebase Auth, mevcut oturumu ilk açılışta async olarak
+ * yükler.
  *
- * Bu Promise uygulama genelinde TEK bir kez oluşturulur.
- * Böylece Storage, App ve diğer componentler farklı farklı
- * Auth listener oluşturmaz.
+ * Uygulamanın farklı bölümlerinin bu işlemi ayrı ayrı
+ * beklemesini önlemek için tek Promise kullanıyoruz.
  */
-let authReadyPromise: Promise<User | null> | null =
-  null;
+let authReadyPromise: Promise<User | null> | null = null;
 
-/**
- * Firebase Auth ilk state yüklenmesini bekler.
- */
 export function waitForAuthState(): Promise<User | null> {
   if (authReadyPromise) {
     return authReadyPromise;
   }
 
-  authReadyPromise =
-    new Promise<User | null>((resolve) => {
-      let resolved = false;
+  authReadyPromise = new Promise<User | null>((resolve) => {
+    let finished = false;
+    let unsubscribe: (() => void) | null = null;
 
-      let unsubscribe:
-        | (() => void)
-        | null = null;
+    const finish = (user: User | null) => {
+      if (finished) {
+        return;
+      }
 
-      const finish = (
-        user: User | null
-      ) => {
-        if (resolved) {
-          return;
-        }
+      finished = true;
 
-        resolved = true;
+      resolve(user);
 
-        resolve(user);
+      if (unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
+    };
 
-        if (unsubscribe) {
-          unsubscribe();
-          unsubscribe = null;
-        }
-      };
+    unsubscribe = onAuthStateChanged(
+      auth,
+      (user) => {
+        console.log(
+          "🔥 Firebase ilk Auth durumu:",
+          user?.email ?? "YOK"
+        );
 
-      unsubscribe = onAuthStateChanged(
-        auth,
-        (user) => {
-          finish(user);
-        },
-        (error) => {
-          console.error(
-            "Firebase Auth initial state hatası:",
-            error
-          );
+        finish(user);
+      },
+      (error) => {
+        console.error(
+          "❌ Firebase Auth initial state hatası:",
+          error
+        );
 
-          finish(null);
-        }
-      );
-    });
+        finish(null);
+      }
+    );
+  });
 
   return authReadyPromise;
 }
@@ -117,20 +112,29 @@ export function waitForAuthState(): Promise<User | null> {
  * AUTH STATE SUBSCRIPTION
  * =========================================================
  *
- * Uygulama genelinde güvenli Auth listener kullanımı.
+ * Login / logout / Google redirect sonrasında Firebase Auth
+ * state değişikliklerini takip eder.
  *
- * StorageService bunu kullanarak login/logout değişimlerini
- * otomatik takip eder.
+ * Bu listener özellikle Google OAuth dönüşünde önemlidir:
+ * Google hesabı başarıyla oluşturulduktan sonra Firebase
+ * currentUser durumunu burada yakalarız.
  */
 export function subscribeToAuthState(
   callback: (user: User | null) => void
 ): () => void {
   return onAuthStateChanged(
     auth,
-    callback,
+    (user) => {
+      console.log(
+        "🔄 Firebase Auth state değişti:",
+        user?.email ?? "YOK"
+      );
+
+      callback(user);
+    },
     (error) => {
       console.error(
-        "Firebase Auth listener hatası:",
+        "❌ Firebase Auth listener hatası:",
         error
       );
 
@@ -145,33 +149,41 @@ export function subscribeToAuthState(
  * =========================================================
  */
 
-export function getFirebaseUser():
-  | User
-  | null {
+/**
+ * Firebase'deki mevcut kullanıcıyı döndürür.
+ */
+export function getFirebaseUser(): User | null {
   return auth.currentUser;
 }
 
+/**
+ * Firebase'de aktif kullanıcı var mı?
+ */
 export function isFirebaseAuthenticated(): boolean {
   return !!auth.currentUser;
 }
 
+/**
+ * Firebase bağlantı / Auth durumunu kontrol etmek için
+ * yardımcı bilgi.
+ */
 export function getFirebaseStatus() {
+  const user = auth.currentUser;
+
   return {
-    appInitialized:
-      getApps().length > 0,
+    appInitialized: getApps().length > 0,
 
-    authenticated:
-      !!auth.currentUser,
+    authenticated: !!user,
 
-    userId:
-      auth.currentUser?.uid || null,
+    userId: user?.uid ?? null,
 
-    email:
-      auth.currentUser?.email || null,
+    email: user?.email ?? null,
 
-    hasFirestore:
-      !!db,
+    hasFirestore: !!db,
   };
 }
 
+/**
+ * Firebase App instance
+ */
 export { app };
