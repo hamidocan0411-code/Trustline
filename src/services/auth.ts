@@ -23,8 +23,7 @@ import {
 
 import { auth, db } from "./firebase";
 
-export const ADMIN_EMAIL =
-  "hamidocan0411@gmail.com";
+export const ADMIN_EMAIL = "hamidocan0411@gmail.com";
 
 export type UserRole =
   | "customer"
@@ -60,22 +59,7 @@ interface RegisterData {
    ERROR HELPERS
 ============================================================ */
 
-function createAuthError(
-  code: string,
-  message: string
-): Error & { code: string } {
-  const error = new Error(message) as Error & {
-    code: string;
-  };
-
-  error.code = code;
-
-  return error;
-}
-
-function getErrorCode(
-  error: unknown
-): string {
+function getErrorCode(error: unknown): string {
   if (
     typeof error === "object" &&
     error !== null &&
@@ -87,6 +71,33 @@ function getErrorCode(
   }
 
   return "";
+}
+
+function getErrorMessage(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error
+  ) {
+    return String(
+      Reflect.get(error, "message") ?? ""
+    );
+  }
+
+  return String(error ?? "");
+}
+
+function createAuthError(
+  code: string,
+  message: string
+): Error & { code: string } {
+  const error = new Error(message) as Error & {
+    code: string;
+  };
+
+  error.code = code;
+
+  return error;
 }
 
 /* ============================================================
@@ -120,7 +131,7 @@ function normalizeRole(
 }
 
 /* ============================================================
-   PROFILE NORMALIZATION
+   PROFILE
 ============================================================ */
 
 function normalizeProfile(
@@ -152,11 +163,8 @@ function normalizeProfile(
 
   return {
     id: uid,
-
     name,
-
     email,
-
     phone,
 
     role: normalizeRole(
@@ -181,24 +189,19 @@ function normalizeProfile(
         : undefined,
 
     courierStatus:
-      data.courierStatus ===
-        "Müsait" ||
-      data.courierStatus ===
-        "Meşgul" ||
-      data.courierStatus ===
-        "Çevrimdışı"
+      data.courierStatus === "Müsait" ||
+      data.courierStatus === "Meşgul" ||
+      data.courierStatus === "Çevrimdışı"
         ? data.courierStatus
         : undefined,
 
     totalDeliveries:
-      typeof data.totalDeliveries ===
-      "number"
+      typeof data.totalDeliveries === "number"
         ? data.totalDeliveries
         : 0,
 
     rating:
-      typeof data.rating ===
-      "number"
+      typeof data.rating === "number"
         ? data.rating
         : 5,
 
@@ -206,23 +209,10 @@ function normalizeProfile(
   };
 }
 
-/* ============================================================
-   FALLBACK PROFILE
-============================================================ */
-
-/**
- * Firestore erişimi başarısız olsa bile
- * Firebase Auth kullanıcısından kullanılabilir
- * bir profil oluşturur.
- *
- * Bu profil uygulamanın Login ekranına
- * geri dönmesini engeller.
- */
 function createFallbackProfile(
   user: User
 ): AuthUserProfile {
-  const email =
-    user.email ?? "";
+  const email = user.email ?? "";
 
   return {
     id: user.uid,
@@ -243,11 +233,8 @@ function createFallbackProfile(
       user.photoURL ||
       undefined,
 
-    totalDeliveries:
-      0,
-
-    rating:
-      5,
+    totalDeliveries: 0,
+    rating: 5,
 
     createdAt:
       new Date().toISOString(),
@@ -258,12 +245,6 @@ function createFallbackProfile(
    FIRESTORE PROFILE
 ============================================================ */
 
-/**
- * Firestore profilini okur.
- *
- * Firestore izin problemi varsa Auth oturumunu
- * bozmaz ve fallback profil döndürür.
- */
 export async function ensureUserProfile(
   user: User
 ): Promise<AuthUserProfile> {
@@ -271,50 +252,33 @@ export async function ensureUserProfile(
     createFallbackProfile(user);
 
   const userRef =
-    doc(
-      db,
-      "users",
-      user.uid
-    );
+    doc(db, "users", user.uid);
 
   try {
     const snapshot =
       await getDoc(userRef);
 
     if (snapshot.exists()) {
-      const data =
-        snapshot.data();
-
-      const profile =
-        normalizeProfile(
-          user.uid,
-          data,
-          user
-        );
-
-      /**
-       * Güvenlik:
-       *
-       * Firestore'daki id alanı yanlışsa
-       * uygulamada Firebase UID kullanılır.
-       */
       return {
-        ...profile,
+        ...normalizeProfile(
+          user.uid,
+          snapshot.data(),
+          user
+        ),
         id: user.uid,
       };
     }
   } catch (error) {
     console.error(
-      "⚠️ Firestore profil okunamadı. Auth oturumu korunuyor:",
-      error
+      "⚠️ Firestore profil okunamadı:",
+      {
+        code: getErrorCode(error),
+        message: getErrorMessage(error),
+        uid: user.uid,
+      }
     );
   }
 
-  /**
-   * Profil yoksa oluşturmayı deniyoruz.
-   *
-   * Başarısız olursa kullanıcıyı logout etmiyoruz.
-   */
   try {
     const profileData = {
       id: user.uid,
@@ -337,11 +301,8 @@ export async function ensureUserProfile(
       avatar:
         user.photoURL ?? "",
 
-      totalDeliveries:
-        0,
-
-      rating:
-        5,
+      totalDeliveries: 0,
+      rating: 5,
 
       createdAt:
         new Date().toISOString(),
@@ -353,9 +314,7 @@ export async function ensureUserProfile(
     await setDoc(
       userRef,
       profileData,
-      {
-        merge: true,
-      }
+      { merge: true }
     );
 
     return normalizeProfile(
@@ -365,8 +324,12 @@ export async function ensureUserProfile(
     );
   } catch (error) {
     console.error(
-      "⚠️ Firestore profil oluşturulamadı. Fallback profil kullanılıyor:",
-      error
+      "⚠️ Firestore profil oluşturulamadı:",
+      {
+        code: getErrorCode(error),
+        message: getErrorMessage(error),
+        uid: user.uid,
+      }
     );
 
     return fallbackProfile;
@@ -411,37 +374,48 @@ export async function registerUser({
   }
 
   console.log(
-    "🟡 Yeni Firebase Auth kullanıcısı oluşturuluyor:",
+    "🟡 Firebase kayıt başlıyor:",
     cleanEmail
   );
 
-  /**
-   * KRİTİK:
-   *
-   * Firebase Authentication işlemi
-   * Firestore'dan bağımsızdır.
-   */
-  const credential =
-    await createUserWithEmailAndPassword(
-      auth,
-      cleanEmail,
-      password
+  let credential;
+
+  try {
+    credential =
+      await createUserWithEmailAndPassword(
+        auth,
+        cleanEmail,
+        password
+      );
+  } catch (error) {
+    console.error(
+      "❌ FIREBASE KAYIT HATASI:",
+      {
+        code: getErrorCode(error),
+        message: getErrorMessage(error),
+        email: cleanEmail,
+      }
     );
+
+    throw error;
+  }
 
   const user =
     credential.user;
 
   console.log(
-    "🟢 Firebase Auth kullanıcısı oluşturuldu:",
+    "🟢 FIREBASE AUTH KULLANICISI OLUŞTU:",
     {
       uid: user.uid,
       email: user.email,
+      providers:
+        user.providerData.map(
+          (provider) =>
+            provider.providerId
+        ),
     }
   );
 
-  /**
-   * İsim bilgisini Auth'a yaz.
-   */
   try {
     await updateProfile(
       user,
@@ -452,17 +426,11 @@ export async function registerUser({
     );
   } catch (error) {
     console.warn(
-      "⚠️ Firebase Auth profil adı güncellenemedi:",
+      "⚠️ Auth isim güncellenemedi:",
       error
     );
   }
 
-  /**
-   * Firestore profilini oluşturmaya çalış.
-   *
-   * Permission hatası kayıt işlemini
-   * başarısız yapmayacak.
-   */
   const role =
     getDefaultRole(
       cleanEmail
@@ -470,24 +438,15 @@ export async function registerUser({
 
   const profileData = {
     id: user.uid,
-
     name: cleanName,
-
     email: cleanEmail,
-
     phone: cleanPhone,
-
     role,
-
     avatar: "",
-
     totalDeliveries: 0,
-
     rating: 5,
-
     createdAt:
       new Date().toISOString(),
-
     createdAtServer:
       serverTimestamp(),
   };
@@ -504,51 +463,33 @@ export async function registerUser({
         merge: true,
       }
     );
-
-    console.log(
-      "🟢 Firestore kullanıcı profili oluşturuldu:",
-      user.uid
-    );
   } catch (error) {
-    /**
-     * Firestore hatası burada kayıt işlemini
-     * bozmayacak.
-     *
-     * Auth kullanıcısı zaten oluşturuldu.
-     */
     console.error(
-      "⚠️ Firestore profil yazılamadı fakat Auth hesabı oluşturuldu:",
-      error
+      "⚠️ Firestore profil yazılamadı:",
+      {
+        code: getErrorCode(error),
+        message: getErrorMessage(error),
+        uid: user.uid,
+      }
     );
   }
 
-  /**
-   * Email doğrulaması gönder.
-   */
   try {
     await sendEmailVerification(
       user
     );
 
     console.log(
-      "📧 Email doğrulama gönderildi:",
-      cleanEmail
+      "📧 Doğrulama e-postası gönderildi."
     );
   } catch (error) {
     console.warn(
-      "⚠️ Email doğrulama gönderilemedi:",
+      "⚠️ Doğrulama e-postası gönderilemedi:",
       error
     );
   }
 
-  /**
-   * Kayıttan sonra kullanıcıyı logout ediyoruz.
-   *
-   * Bu normal davranış.
-   */
-  await signOut(
-    auth
-  ).catch(
+  await signOut(auth).catch(
     (error) => {
       console.warn(
         "⚠️ Kayıt sonrası logout hatası:",
@@ -559,7 +500,7 @@ export async function registerUser({
 
   throw createAuthError(
     "auth/email-verification-required",
-    "Hesabınız oluşturuldu. E-posta adresinizi doğrulamanız gerekiyor. E-postanıza gönderilen doğrulama bağlantısına tıklayın."
+    "Hesabınız oluşturuldu. E-posta adresinizi doğrulamanız gerekiyor."
   );
 }
 
@@ -587,41 +528,83 @@ export async function loginUser(
   }
 
   console.log(
-    "🟡 Email ile Firebase Auth giriş deneniyor:",
+    "🟡 FIREBASE EMAIL LOGIN:",
     cleanEmail
   );
 
-  /**
-   * Auth girişi.
-   *
-   * Buradaki hata Firestore kaynaklı değildir.
-   */
-  const credential =
-    await signInWithEmailAndPassword(
-      auth,
-      cleanEmail,
-      password
+  let credential;
+
+  try {
+    credential =
+      await signInWithEmailAndPassword(
+        auth,
+        cleanEmail,
+        password
+      );
+  } catch (error) {
+    const code =
+      getErrorCode(error);
+
+    const message =
+      getErrorMessage(error);
+
+    console.error(
+      "❌❌❌ GERÇEK FIREBASE LOGIN HATASI ❌❌❌",
+      {
+        code,
+        message,
+        email: cleanEmail,
+      }
     );
+
+    /**
+     * Firebase'in gerçek hatasını
+     * değiştirmeden AuthScreen'e gönderiyoruz.
+     */
+    throw error;
+  }
 
   const user =
     credential.user;
 
   console.log(
-  "🔐 Firebase sağlayıcıları:",
-  user.providerData.map(
-    (provider) => ({
-      providerId:
-        provider.providerId,
-      email:
-        provider.email,
-    })
-  )
-);
+    "🟢🟢🟢 FIREBASE EMAIL LOGIN BAŞARILI 🟢🟢🟢",
+    {
+      uid: user.uid,
+      email: user.email,
+      emailVerified:
+        user.emailVerified,
+
+      providers:
+        user.providerData.map(
+          (provider) => ({
+            providerId:
+              provider.providerId,
+            email:
+              provider.email,
+          })
+        ),
+    }
+  );
 
   /**
-   * Email/password hesaplarında doğrulama şartı.
+   * Şifre hesabıysa email doğrulamasını kontrol et.
    */
-  if (!user.emailVerified) {
+  const isPasswordUser =
+    user.providerData.some(
+      (provider) =>
+        provider.providerId ===
+        "password"
+    );
+
+  if (
+    isPasswordUser &&
+    !user.emailVerified
+  ) {
+    console.warn(
+      "⚠️ Kullanıcı giriş yaptı fakat email doğrulanmamış."
+    );
+
     await signOut(
       auth
     ).catch(
@@ -630,21 +613,17 @@ export async function loginUser(
 
     throw createAuthError(
       "auth/email-not-verified",
-      "E-posta adresiniz henüz doğrulanmamış. E-postanıza gönderilen doğrulama bağlantısına tıklayın."
+      "E-posta adresiniz henüz doğrulanmamış. Lütfen e-postanıza gönderilen doğrulama bağlantısına tıklayın."
     );
   }
 
-  /**
-   * Firestore problem çıkarsa fallback profil
-   * kullanılacak ve Auth oturumu korunacak.
-   */
   const profile =
     await ensureUserProfile(
       user
     );
 
   console.log(
-    "🟢 Email kullanıcı profili hazır:",
+    "🟢 Kullanıcı profili hazır:",
     {
       uid: profile.id,
       email: profile.email,
@@ -668,20 +647,11 @@ function createGoogleProvider():
     prompt: "select_account",
   });
 
-  provider.addScope(
-    "profile"
-  );
-
-  provider.addScope(
-    "email"
-  );
+  provider.addScope("profile");
+  provider.addScope("email");
 
   return provider;
 }
-
-/* ============================================================
-   MOBILE
-============================================================ */
 
 function isMobileDevice(): boolean {
   if (
@@ -732,10 +702,6 @@ export async function loginWithGoogle():
     browserLocalPersistence
   );
 
-  /**
-   * iPhone / iPad / Android:
-   * Redirect kullan.
-   */
   if (isMobileDevice()) {
     console.log(
       "📱 Mobil Google giriş başlatılıyor..."
@@ -752,10 +718,6 @@ export async function loginWithGoogle():
     );
   }
 
-  /**
-   * Desktop:
-   * Popup kullan.
-   */
   try {
     console.log(
       "🟡 Google popup giriş başlatılıyor..."
@@ -771,35 +733,34 @@ export async function loginWithGoogle():
       credential.user;
 
     console.log(
-      "🟢 Google Auth giriş başarılı:",
+      "🟢 Google Auth başarılı:",
       {
         uid: user.uid,
         email: user.email,
+        providers:
+          user.providerData.map(
+            (provider) =>
+              provider.providerId
+          ),
       }
     );
 
-    const profile =
-      await ensureUserProfile(
-        user
-      );
-
-    console.log(
-      "🟢 Google profili hazır:",
-      {
-        uid: profile.id,
-        email: profile.email,
-        role: profile.role,
-      }
+    return await ensureUserProfile(
+      user
     );
-
-    return profile;
   } catch (error) {
     const code =
       getErrorCode(error);
 
-    /**
-     * Popup engellenirse redirect'e geç.
-     */
+    console.error(
+      "❌ Google giriş hatası:",
+      {
+        code,
+        message:
+          getErrorMessage(error),
+      }
+    );
+
     const shouldUseRedirect =
       code ===
         "auth/popup-blocked" ||
@@ -809,10 +770,6 @@ export async function loginWithGoogle():
     if (
       shouldUseRedirect
     ) {
-      console.log(
-        "🔄 Google popup kullanılamadı, redirect'e geçiliyor..."
-      );
-
       await signInWithRedirect(
         auth,
         provider
@@ -823,11 +780,6 @@ export async function loginWithGoogle():
         "Google giriş sayfasına yönlendiriliyorsunuz..."
       );
     }
-
-    console.error(
-      "❌ Google giriş hatası:",
-      error
-    );
 
     throw error;
   }
@@ -847,12 +799,17 @@ export async function handleGoogleRedirectResult():
 
     if (result?.user) {
       console.log(
-        "🟢 Google redirect kullanıcısı bulundu:",
+        "🟢 Google redirect kullanıcısı:",
         {
           uid:
             result.user.uid,
           email:
             result.user.email,
+          providers:
+            result.user.providerData.map(
+              (provider) =>
+                provider.providerId
+            ),
         }
       );
 
@@ -861,19 +818,10 @@ export async function handleGoogleRedirectResult():
       );
     }
 
-    /**
-     * Redirect sonucu null gelebilir.
-     * Auth state yine hazır olabilir.
-     */
     const currentUser =
       auth.currentUser;
 
     if (currentUser) {
-      console.log(
-        "🟢 Redirect sonrası currentUser bulundu:",
-        currentUser.email
-      );
-
       return await ensureUserProfile(
         currentUser
       );
@@ -882,14 +830,14 @@ export async function handleGoogleRedirectResult():
     return null;
   } catch (error) {
     console.error(
-      "❌ Google redirect sonucu işlenemedi:",
-      error
+      "❌ Google redirect hatası:",
+      {
+        code: getErrorCode(error),
+        message:
+          getErrorMessage(error),
+      }
     );
 
-    /**
-     * Auth kullanıcısı mevcutsa
-     * Firestore hatası yüzünden logout yapma.
-     */
     const currentUser =
       auth.currentUser;
 
@@ -979,6 +927,18 @@ export function subscribeToAuth(
         return;
       }
 
+      console.log(
+        "🔐 AUTH PROVIDERS:",
+        user.providerData.map(
+          (provider) => ({
+            providerId:
+              provider.providerId,
+            email:
+              provider.email,
+          })
+        )
+      );
+
       const isPasswordUser =
         user.providerData.some(
           (provider) =>
@@ -986,14 +946,14 @@ export function subscribeToAuth(
             "password"
         );
 
-      /**
-       * Email/password kullanıcılarında
-       * doğrulama kontrolü.
-       */
       if (
         isPasswordUser &&
         !user.emailVerified
       ) {
+        console.warn(
+          "⚠️ Auth state: email doğrulanmamış."
+        );
+
         await signOut(
           auth
         ).catch(
@@ -1008,10 +968,6 @@ export function subscribeToAuth(
         return;
       }
 
-      /**
-       * Burada Firestore permission hatası
-       * Auth state'i bozmayacak.
-       */
       try {
         const profile =
           await ensureUserProfile(
@@ -1032,32 +988,27 @@ export function subscribeToAuth(
           profile
         );
       } catch (error) {
-        /**
-         * Bu blok normalde ensureUserProfile
-         * fallback kullandığı için çalışmamalı.
-         *
-         * Yine de Auth kullanıcısını koruyoruz.
-         */
         console.error(
           "⚠️ Profil hazırlanırken hata:",
           error
         );
 
-        const fallback =
-          createFallbackProfile(
-            user
-          );
-
         callback(
           user,
-          fallback
+          createFallbackProfile(
+            user
+          )
         );
       }
     },
     (error) => {
       console.error(
         "❌ Firebase Auth listener hatası:",
-        error
+        {
+          code: getErrorCode(error),
+          message:
+            getErrorMessage(error),
+        }
       );
 
       callback(
@@ -1080,8 +1031,7 @@ export function isAdminUser(
   }
 
   return (
-    profile.role ===
-      "admin" ||
+    profile.role === "admin" ||
     profile.email
       .trim()
       .toLowerCase() ===
@@ -1093,8 +1043,7 @@ export function isCourierUser(
   profile: AuthUserProfile | null
 ): boolean {
   return (
-    profile?.role ===
-    "courier"
+    profile?.role === "courier"
   );
 }
 
@@ -1102,8 +1051,7 @@ export function isCustomerUser(
   profile: AuthUserProfile | null
 ): boolean {
   return (
-    profile?.role ===
-    "customer"
+    profile?.role === "customer"
   );
 }
 
