@@ -140,6 +140,10 @@ export function App() {
         }
       })
       .catch((error) => {
+        if (!mounted) {
+          return;
+        }
+
         console.warn(
           "⚠️ Google redirect sonucu alınamadı:",
           error
@@ -168,6 +172,9 @@ export function App() {
               email:
                 firebaseUser?.email ??
                 "YOK",
+              emailVerified:
+                firebaseUser?.emailVerified ??
+                false,
             }
           );
 
@@ -182,7 +189,14 @@ export function App() {
               "🔒 Firebase'de aktif kullanıcı yok."
             );
 
-            storage.setCurrentUser(null);
+            try {
+              storage.setCurrentUser(null);
+            } catch (error) {
+              console.warn(
+                "⚠️ Storage kullanıcı temizlenemedi:",
+                error
+              );
+            }
 
             setCurrentUser(null);
             setNotifications([]);
@@ -195,7 +209,7 @@ export function App() {
 
           /**
            * ==================================================
-           * AUTH BAŞARILI
+           * AUTH KULLANICISI BULUNDU
            * ==================================================
            */
 
@@ -209,6 +223,65 @@ export function App() {
             }
           );
 
+          /**
+           * ==================================================
+           * KRİTİK EMAIL DOĞRULAMA KONTROLÜ
+           * ==================================================
+           *
+           * Kullanıcı Firebase Auth'ta mevcut olabilir.
+           *
+           * Ancak emailVerified false ise:
+           *
+           * - Firestore'a erişme
+           * - ensureUserProfile çağırma
+           * - users/{uid} oluşturmaya çalışma
+           * - bağlantı hatası gösterme
+           *
+           * LoginUser zaten bu kullanıcıyı signOut edip
+           * auth/email-not-verified hatası döndürecektir.
+           */
+
+          if (!firebaseUser.emailVerified) {
+            console.warn(
+              "⚠️ Auth kullanıcısı mevcut ancak e-posta doğrulanmamış.",
+              {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+              }
+            );
+
+            /**
+             * Kullanıcıyı dashboard'a alma.
+             *
+             * Burada signOut çağırmıyoruz.
+             * Çünkü loginUser() doğrulanmamış kullanıcıyı
+             * zaten güvenli şekilde signOut ediyor.
+             */
+
+            setCurrentUser(null);
+            setNotifications([]);
+            setProfileLoading(false);
+            setAuthLoading(false);
+
+            /**
+             * Bağlantı hatası göstermiyoruz.
+             *
+             * AuthScreen üzerinde loginUser tarafından
+             * "E-posta adresinizi doğrulamanız gerekiyor."
+             * mesajı gösterilecek.
+             */
+
+            setAppError(null);
+
+            return;
+          }
+
+          /**
+           * ==================================================
+           * DOĞRULANMIŞ AUTH KULLANICISI
+           * ==================================================
+           */
+
           setAuthLoading(false);
           setProfileLoading(true);
           setAppError(null);
@@ -218,17 +291,19 @@ export function App() {
            * FIRESTORE PROFİLİNİ GETİR
            * ==================================================
            *
-           * Kritik düzeltme burada.
-           *
-           * Auth kullanıcısı mevcutsa users/{uid}
-           * profili ayrıca ensureUserProfile() ile
-           * alınır / gerekiyorsa oluşturulur.
+           * Buraya sadece emailVerified === true olan
+           * kullanıcı ulaşabilir.
            */
 
           try {
             console.log(
               "👤 Firestore kullanıcı profili hazırlanıyor:",
-              firebaseUser.uid
+              {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                verified:
+                  firebaseUser.emailVerified,
+              }
             );
 
             const profile =
@@ -375,23 +450,58 @@ export function App() {
                 : "";
 
             /**
-             * Firestore profil hatası olduğunda
-             * artık sonsuza kadar "Hesap hazırlanıyor"
-             * ekranında kalma.
+             * ==================================================
+             * EMAIL DOĞRULAMA HATASI
+             * ==================================================
+             */
+
+            if (
+              code ===
+                "auth/email-not-verified" ||
+              code ===
+                "auth/email-verification-required"
+            ) {
+              console.warn(
+                "⚠️ Kullanıcı doğrulanmamış olduğu için profil yüklenmedi."
+              );
+
+              setCurrentUser(null);
+              setNotifications([]);
+              setAppError(null);
+
+              return;
+            }
+
+            /**
+             * ==================================================
+             * FIRESTORE PERMISSION HATASI
+             * ==================================================
              */
 
             if (
               code ===
               "permission-denied"
             ) {
+              setCurrentUser(null);
+
               setAppError(
                 "Kullanıcı hesabı bulundu ancak Firestore kullanıcı profiline erişilemiyor. Firebase Firestore Rules kontrol edilmeli."
               );
-            } else {
-              setAppError(
-                "Kullanıcı profili hazırlanırken bir hata oluştu. Lütfen tekrar deneyin."
-              );
+
+              return;
             }
+
+            /**
+             * ==================================================
+             * DİĞER HATALAR
+             * ==================================================
+             */
+
+            setCurrentUser(null);
+
+            setAppError(
+              "Kullanıcı profili hazırlanırken bir hata oluştu. Lütfen tekrar deneyin."
+            );
           }
         }
       );
