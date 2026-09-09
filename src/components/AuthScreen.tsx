@@ -154,11 +154,15 @@ function getDetailedFirebaseError(
   const details: string[] = [];
 
   if (code) {
-    details.push(`Firebase hata kodu: ${code}`);
+    details.push(
+      `Firebase hata kodu: ${code}`
+    );
   }
 
   if (message && message !== code) {
-    details.push(`Firebase mesajı: ${message}`);
+    details.push(
+      `Firebase mesajı: ${message}`
+    );
   }
 
   return details.join("\n");
@@ -211,13 +215,15 @@ function AuthScreen({
     clearMessages();
 
     const cleanName =
-      name.trim();
+      String(name).trim();
 
     const cleanEmail =
-      email.trim().toLowerCase();
+      String(email)
+        .trim()
+        .toLowerCase();
 
     const cleanPhone =
-      phone.trim();
+      String(phone).trim();
 
     if (
       isRegister &&
@@ -262,12 +268,28 @@ function AuthScreen({
           }
         );
 
-        await registerUser({
-          name: cleanName,
-          email: cleanEmail,
+        /**
+         * ÖNEMLİ DÜZELTME:
+         *
+         * registerUser() auth.ts içinde
+         * şu sırayla parametre bekliyor:
+         *
+         * registerUser(
+         *   email,
+         *   password,
+         *   name,
+         *   phone
+         * )
+         *
+         * Obje göndermek yerine doğru sırada
+         * değerleri gönderiyoruz.
+         */
+        await registerUser(
+          cleanEmail,
           password,
-          phone: cleanPhone,
-        });
+          cleanName,
+          cleanPhone
+        );
 
         console.log(
           "🟢 KAYIT İŞLEMİ TAMAMLANDI"
@@ -347,14 +369,6 @@ function AuthScreen({
         return;
       }
 
-      /*
-       * ÖNEMLİ:
-       * Artık sadece "E-posta veya şifre hatalı"
-       * göstermiyoruz.
-       *
-       * Firebase'in gerçek hata kodunu da
-       * ekranda gösteriyoruz.
-       */
       setError(
         technicalDetails
           ? `${friendlyMessage}\n\n${technicalDetails}`
