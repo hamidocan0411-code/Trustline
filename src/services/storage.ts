@@ -14,7 +14,6 @@ import {
 import {
   createUserWithEmailAndPassword,
   getAuth,
-  onAuthStateChanged,
   signOut,
 } from "firebase/auth";
 
@@ -27,6 +26,7 @@ import {
   db,
   auth,
   waitForAuthState,
+  subscribeToAuthState,
 } from "./firebase";
 
 import type {
@@ -64,10 +64,6 @@ const SECONDARY_APP_NAME =
 ============================================================ */
 
 class StorageService {
-  /* ----------------------------------------------------------
-     STATE
-  ---------------------------------------------------------- */
-
   private currentUser:
     | UserProfile
     | null = null;
@@ -87,10 +83,6 @@ class StorageService {
       ...DEFAULT_PRICING,
     };
 
-  /* ----------------------------------------------------------
-     LISTENERS
-  ---------------------------------------------------------- */
-
   private subscribers =
     new Set<Subscriber>();
 
@@ -100,10 +92,6 @@ class StorageService {
   private authUnsubscribe:
     | Unsubscribe
     | null = null;
-
-  /* ----------------------------------------------------------
-     INIT STATE
-  ---------------------------------------------------------- */
 
   private initialized = false;
 
@@ -122,16 +110,10 @@ class StorageService {
   ========================================================== */
 
   async init(): Promise<void> {
-    /*
-     * Aynı anda birden fazla init çağrılmasını engelle.
-     */
     if (this.initializing) {
       return;
     }
 
-    /*
-     * Auth listener zaten aktifse tekrar oluşturma.
-     */
     if (this.initialized) {
       return;
     }
@@ -143,27 +125,16 @@ class StorageService {
         "🔥 Storage init başlıyor..."
       );
 
-      /*
-       * Firebase Auth'un ilk durumunun belirlenmesini bekle.
-       *
-       * Burada kullanıcı yok diye hemen logout yapmıyoruz.
-       * Ana Auth sistemi Firebase oturumunu ayrıca yönetecek.
-       */
       const firebaseUser =
         await waitForAuthState();
 
-      /*
-       * Firebase Auth kullanıcıyı bulduysa profilini yüklemeyi
-       * dene.
-       *
-       * Profil henüz oluşturulmadıysa burada kullanıcıyı null
-       * yapmıyoruz. auth.ts içerisindeki ensureUserProfile()
-       * profil oluşturma işini üstlenir.
-       */
       if (firebaseUser) {
         console.log(
           "🔐 Storage Firebase kullanıcı bulundu:",
-          firebaseUser.uid
+          {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+          }
         );
 
         try {
@@ -183,14 +154,14 @@ class StorageService {
       }
 
       /*
-       * Global Auth listener.
+       * Firebase Auth için ortak listener kullanıyoruz.
        *
-       * Login / Logout / Session restore durumlarını
-       * merkezi olarak buradan takip ediyoruz.
+       * Böylece Storage kendi farklı Auth listener mantığını
+       * çalıştırmak yerine firebase.ts içerisindeki merkezi
+       * listener'ı kullanır.
        */
       this.authUnsubscribe =
-        onAuthStateChanged(
-          auth,
+        subscribeToAuthState(
           async (firebaseUser) => {
             try {
               if (!firebaseUser) {
@@ -204,8 +175,20 @@ class StorageService {
               }
 
               console.log(
-                "🔐 Firebase Auth kullanıcı bulundu:",
-                firebaseUser.uid
+                "🔐 Storage Firebase Auth kullanıcı bulundu:",
+                {
+                  uid:
+                    firebaseUser.uid,
+                  email:
+                    firebaseUser.email,
+                  provider:
+                    firebaseUser.providerData
+                      .map(
+                        (provider) =>
+                          provider.providerId
+                      )
+                      .join(", "),
+                }
               );
 
               await this.loadUserProfile(
@@ -213,21 +196,10 @@ class StorageService {
               );
             } catch (error) {
               console.error(
-                "❌ Auth state işleme hatası:",
+                "❌ Storage Auth state işleme hatası:",
                 error
               );
             }
-          },
-          (error) => {
-            console.error(
-              "❌ Auth listener hatası:",
-              error
-            );
-
-            /*
-             * Auth gerçekten hata verdiğinde temizle.
-             */
-            this.handleLogout();
           }
         );
 
@@ -266,14 +238,6 @@ class StorageService {
       const profileSnapshot =
         await getDoc(profileRef);
 
-      /*
-       * Firebase Auth kullanıcısı var fakat
-       * Firestore profili henüz yoksa kullanıcıyı
-       * logout olmuş gibi gösterme.
-       *
-       * auth.ts içerisindeki ensureUserProfile()
-       * profili oluşturacaktır.
-       */
       if (!profileSnapshot.exists()) {
         console.warn(
           "⚠️ Firebase Auth kullanıcısı var fakat users koleksiyonunda profil henüz bulunamadı:",
@@ -281,19 +245,10 @@ class StorageService {
         );
 
         /*
-         * ÖNEMLİ:
+         * Google girişinde profil oluşturma işlemi auth.ts
+         * tarafından gerçekleştirilebilir.
          *
-         * Burada currentUser / activeUserId / activeRole
-         * temizlenmiyor.
-         *
-         * Google OAuth sonrasında Firestore profilinin
-         * oluşturulması birkaç an sürebilir.
-         *
-         * Bu sırada Storage'ın kullanıcıyı null yapması
-         * App.tsx'in Login ekranına dönmesine sebep oluyordu.
-         *
-         * auth.ts içerisindeki ensureUserProfile()
-         * profil oluşturacaktır.
+         * Burada kullanıcıyı logout state'e çekmiyoruz.
          */
         return;
       }
@@ -303,10 +258,6 @@ class StorageService {
         id: profileSnapshot.id,
       };
 
-      /*
-       * Aynı kullanıcı ve aynı rol zaten aktifse
-       * listener'ları yeniden oluşturma.
-       */
       if (
         this.activeUserId === profile.id &&
         this.activeRole === profile.role &&
@@ -314,7 +265,9 @@ class StorageService {
       ) {
         this.currentUser = profile;
 
-        this.updateUserLocal(profile);
+        this.updateUserLocal(
+          profile
+        );
 
         this.emit();
 
@@ -332,25 +285,18 @@ class StorageService {
 
       this.currentUser = profile;
 
-      this.activeUserId = profile.id;
+      this.activeUserId =
+        profile.id;
 
-      this.activeRole = profile.role;
+      this.activeRole =
+        profile.role;
 
-      /*
-       * Kullanıcı değiştiyse eski verileri temizle.
-       */
       this.resetRealtimeData();
 
-      /*
-       * Aktif kullanıcıyı local listeye ekle.
-       */
       this.updateUserLocal(
         profile
       );
 
-      /*
-       * Yeni kullanıcı listener'larını başlat.
-       */
       this.startListeners(
         profile
       );
@@ -373,9 +319,6 @@ class StorageService {
   private startListeners(
     profile: UserProfile
   ): void {
-    /*
-     * Her zaman önce eski listener'ları kapat.
-     */
     this.cleanupFirestoreListeners();
 
     const uid =
@@ -393,40 +336,20 @@ class StorageService {
       }
     );
 
-    /* ========================================================
-       USER LISTENER
-    ======================================================== */
-
     this.startUserListener(
       profile
     );
-
-    /* ========================================================
-       ORDER LISTENER
-    ======================================================== */
 
     this.startOrderListener(
       uid,
       role
     );
 
-    /* ========================================================
-       NOTIFICATION LISTENER
-    ======================================================== */
-
     this.startNotificationListener(
       uid
     );
 
-    /* ========================================================
-       PRICING LISTENER
-    ======================================================== */
-
     this.startPricingListener();
-
-    /* ========================================================
-       COURIER LOCATION LISTENER
-    ======================================================== */
 
     this.startCourierLocationListener(
       uid,
@@ -447,10 +370,6 @@ class StorageService {
     const role =
       profile.role;
 
-    /*
-     * ADMIN:
-     * Tüm kullanıcıları canlı dinler.
-     */
     if (role === "admin") {
       const unsubscribe =
         onSnapshot(
@@ -468,9 +387,6 @@ class StorageService {
                   })
                 );
 
-              /*
-               * currentUser'ı canlı güncel tut.
-               */
               const updatedCurrentUser =
                 this.users.find(
                   (user) =>
@@ -510,10 +426,6 @@ class StorageService {
       return;
     }
 
-    /*
-     * CUSTOMER / COURIER:
-     * Sadece kendi profilini dinler.
-     */
     const unsubscribe =
       onSnapshot(
         doc(
@@ -523,18 +435,16 @@ class StorageService {
         ),
         (snapshot) => {
           try {
-            /*
-             * Kullanıcı profili silinmişse
-             * güvenli şekilde logout state.
-             */
             if (!snapshot.exists()) {
               console.warn(
                 "⚠️ Kullanıcı profili artık mevcut değil:",
                 uid
               );
 
-              this.currentUser = null;
-
+              /*
+               * Burada Firebase Auth oturumunu kapatmıyoruz.
+               * Auth sistemi asıl kullanıcı state'ini yönetir.
+               */
               this.emit();
 
               return;
@@ -542,17 +452,13 @@ class StorageService {
 
             const liveUser:
               UserProfile = {
-                ...(snapshot.data() as UserProfile),
-                id: snapshot.id,
-              };
+              ...(snapshot.data() as UserProfile),
+              id: snapshot.id,
+            };
 
             const previousRole =
               this.currentUser?.role;
 
-            /*
-             * Rol değişmişse listener sistemini
-             * yeni role göre yeniden başlat.
-             */
             if (
               previousRole &&
               previousRole !== liveUser.role
@@ -590,9 +496,6 @@ class StorageService {
               return;
             }
 
-            /*
-             * Normal profil güncellemesi.
-             */
             this.currentUser =
               liveUser;
 
@@ -834,10 +737,6 @@ class StorageService {
     uid: string,
     role: string
   ): void {
-    /*
-     * ADMIN:
-     * Tüm kurye konumlarını dinler.
-     */
     if (role === "admin") {
       const unsubscribe =
         onSnapshot(
@@ -885,10 +784,6 @@ class StorageService {
       return;
     }
 
-    /*
-     * COURIER:
-     * Sadece kendi konumunu dinler.
-     */
     if (
       role === "courier"
     ) {
@@ -1092,13 +987,6 @@ class StorageService {
   setCurrentUser(
     user: UserProfile | null
   ): void {
-    /*
-     * Manuel setCurrentUser çağrısı
-     * eski component yapılarıyla uyumluluk için tutuldu.
-     *
-     * Asıl kaynak Firebase Auth + Firestore'dur.
-     */
-
     if (!user) {
       this.handleLogout();
       return;
@@ -1117,10 +1005,6 @@ class StorageService {
     this.activeRole =
       user.role;
 
-    this.updateUserLocal(
-      user
-    );
-
     if (userChanged) {
       this.resetRealtimeData();
 
@@ -1129,6 +1013,10 @@ class StorageService {
       );
 
       this.startListeners(
+        user
+      );
+    } else {
+      this.updateUserLocal(
         user
       );
     }
@@ -1260,12 +1148,6 @@ class StorageService {
       );
     }
 
-    /*
-     * Secondary Firebase App.
-     *
-     * Yeni kullanıcı oluşturulduğunda
-     * ana admin oturumunun değişmesini engeller.
-     */
     const existingApp =
       getApps().find(
         (app) =>
@@ -1285,10 +1167,6 @@ class StorageService {
         secondaryApp
       );
 
-    let createdUserId:
-      | string
-      | null = null;
-
     try {
       const credential =
         await createUserWithEmailAndPassword(
@@ -1300,44 +1178,38 @@ class StorageService {
       const courierUser =
         credential.user;
 
-      createdUserId =
-        courierUser.uid;
-
       const now =
         new Date().toISOString();
 
       const profile:
         UserProfile = {
-          id:
-            courierUser.uid,
+        id:
+          courierUser.uid,
 
-          name,
+        name,
 
-          email:
-            courierUser.email ||
-            email,
+        email:
+          courierUser.email ||
+          email,
 
-          phone,
+        phone,
 
-          role:
-            "courier",
+        role:
+          "courier",
 
-          courierStatus:
-            "Çevrimdışı",
+        courierStatus:
+          "Çevrimdışı",
 
-          totalDeliveries:
-            0,
+        totalDeliveries:
+          0,
 
-          rating:
-            5,
+        rating:
+          5,
 
-          createdAt:
-            now,
-        };
+        createdAt:
+          now,
+      };
 
-      /*
-       * Firestore profil oluştur.
-       */
       await setDoc(
         doc(
           db,
@@ -1351,10 +1223,6 @@ class StorageService {
         }
       );
 
-      /*
-       * Secondary auth oturumunu kapat.
-       * Ana admin auth etkilenmez.
-       */
       await signOut(
         secondaryAuth
       );
@@ -1366,10 +1234,6 @@ class StorageService {
         error
       );
 
-      /*
-       * Yarım kalmış kullanıcı varsa
-       * mümkün olduğunca temizlemeye çalış.
-       */
       try {
         if (
           secondaryAuth.currentUser
@@ -1450,10 +1314,6 @@ class StorageService {
       }
     );
 
-    /*
-     * Optimistic local update.
-     * Snapshot geldiğinde tekrar doğrulanır.
-     */
     if (existing) {
       const updatedUser = {
         ...existing,
@@ -1508,15 +1368,15 @@ class StorageService {
 
     const finalOrder:
       Order = {
-        ...order,
+      ...order,
 
-        createdAt:
-          order.createdAt ||
-          now,
+      createdAt:
+        order.createdAt ||
+        now,
 
-        updatedAt:
-          now,
-      };
+      updatedAt:
+        now,
+    };
 
     await setDoc(
       doc(
@@ -1562,20 +1422,17 @@ class StorageService {
 
     const updatedOrder:
       Order = {
-        ...(current || {
-          id,
-        }),
-
-        ...data,
-
+      ...(current || {
         id,
+      }),
 
-        updatedAt,
-      } as Order;
+      ...data,
 
-    /*
-     * Local optimistic update.
-     */
+      id,
+
+      updatedAt,
+    } as Order;
+
     const exists =
       this.orders.some(
         (order) =>
@@ -1808,9 +1665,6 @@ class StorageService {
       }
     );
 
-    /*
-     * Local update.
-     */
     this.notifications =
       this.notifications.map(
         (notification) =>
@@ -1854,11 +1708,11 @@ class StorageService {
 
     const finalLocation:
       CourierLocation = {
-        ...location,
+      ...location,
 
-        updatedAt:
-          new Date().toISOString(),
-      };
+      updatedAt:
+        new Date().toISOString(),
+    };
 
     await setDoc(
       doc(
@@ -1872,9 +1726,6 @@ class StorageService {
       }
     );
 
-    /*
-     * Local update.
-     */
     this.courierLocations = [
       ...this.courierLocations.filter(
         (item) =>
@@ -1941,9 +1792,6 @@ class StorageService {
 export const storage =
   new StorageService();
 
-/*
- * Uygulama açıldığında Storage sistemini başlat.
- */
 void storage
   .init()
   .catch(
