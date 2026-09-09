@@ -17,15 +17,15 @@ import {
   type Firestore,
 } from "firebase/firestore";
 
-import firebaseConfig from "../../firebase-applet-config.json";
+import firebaseConfig from "../firebase-applet-config.json";
 
 /**
  * =========================================================
  * FIREBASE APP
  * =========================================================
  *
- * Vite Hot Reload / React Strict Mode nedeniyle Firebase
- * uygulaması birden fazla kez initialize edilmesin.
+ * Firebase uygulamasının yalnızca bir kez başlatılmasını
+ * sağlar.
  */
 const app: FirebaseApp =
   getApps().length > 0
@@ -51,11 +51,7 @@ export const db: Firestore = getFirestore(app);
  * AUTH READY STATE
  * =========================================================
  *
- * Firebase Auth, mevcut oturumu ilk açılışta async olarak
- * yükler.
- *
- * Uygulamanın farklı bölümlerinin bu işlemi ayrı ayrı
- * beklemesini önlemek için tek Promise kullanıyoruz.
+ * Firebase'in mevcut oturumu yüklemesini bekler.
  */
 let authReadyPromise: Promise<User | null> | null = null;
 
@@ -111,13 +107,6 @@ export function waitForAuthState(): Promise<User | null> {
  * =========================================================
  * AUTH STATE SUBSCRIPTION
  * =========================================================
- *
- * Login / logout / Google redirect sonrasında Firebase Auth
- * state değişikliklerini takip eder.
- *
- * Bu listener özellikle Google OAuth dönüşünde önemlidir:
- * Google hesabı başarıyla oluşturulduktan sonra Firebase
- * currentUser durumunu burada yakalarız.
  */
 export function subscribeToAuthState(
   callback: (user: User | null) => void
@@ -149,37 +138,33 @@ export function subscribeToAuthState(
  * =========================================================
  */
 
-/**
- * Firebase'deki mevcut kullanıcıyı döndürür.
- */
 export function getFirebaseUser(): User | null {
   return auth.currentUser;
 }
 
-/**
- * Firebase'de aktif kullanıcı var mı?
- */
 export function isFirebaseAuthenticated(): boolean {
   return !!auth.currentUser;
 }
 
 /**
- * Firebase bağlantı / Auth durumunu kontrol etmek için
- * yardımcı bilgi.
+ * Firebase bağlantı durumunu kontrol etmek için.
  */
 export function getFirebaseStatus() {
   const user = auth.currentUser;
 
   return {
     appInitialized: getApps().length > 0,
-
     authenticated: !!user,
-
     userId: user?.uid ?? null,
-
     email: user?.email ?? null,
-
     hasFirestore: !!db,
+
+    /**
+     * Hangi Firebase projesine bağlandığımızı
+     * konsolda doğrulamayı kolaylaştırır.
+     */
+    projectId: firebaseConfig.projectId,
+    authDomain: firebaseConfig.authDomain,
   };
 }
 
