@@ -17,15 +17,12 @@ import {
   type Firestore,
 } from "firebase/firestore";
 
-import firebaseConfig from "../firebase-applet-config.json";
+import firebaseConfig from "../../firebase-applet-config.json";
 
 /**
  * =========================================================
  * FIREBASE APP
  * =========================================================
- *
- * Firebase uygulamasının yalnızca bir kez başlatılmasını
- * sağlar.
  */
 const app: FirebaseApp =
   getApps().length > 0
@@ -50,8 +47,6 @@ export const db: Firestore = getFirestore(app);
  * =========================================================
  * AUTH READY STATE
  * =========================================================
- *
- * Firebase'in mevcut oturumu yüklemesini bekler.
  */
 let authReadyPromise: Promise<User | null> | null = null;
 
@@ -70,7 +65,6 @@ export function waitForAuthState(): Promise<User | null> {
       }
 
       finished = true;
-
       resolve(user);
 
       if (unsubscribe) {
@@ -146,9 +140,6 @@ export function isFirebaseAuthenticated(): boolean {
   return !!auth.currentUser;
 }
 
-/**
- * Firebase bağlantı durumunu kontrol etmek için.
- */
 export function getFirebaseStatus() {
   const user = auth.currentUser;
 
@@ -158,11 +149,6 @@ export function getFirebaseStatus() {
     userId: user?.uid ?? null,
     email: user?.email ?? null,
     hasFirestore: !!db,
-
-    /**
-     * Hangi Firebase projesine bağlandığımızı
-     * konsolda doğrulamayı kolaylaştırır.
-     */
     projectId: firebaseConfig.projectId,
     authDomain: firebaseConfig.authDomain,
   };
