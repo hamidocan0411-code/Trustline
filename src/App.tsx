@@ -6,6 +6,7 @@ import React, {
 import { storage } from "./services/storage";
 
 import {
+  handleGoogleRedirectResult,
   subscribeToAuth,
 } from "./services/auth";
 
@@ -163,49 +164,97 @@ export function App() {
 
   useEffect(() => {
     let mounted = true;
+    let unsubscribe:
+      | (() => void)
+      | null = null;
 
-    console.log(
-      "🚀 Trustline Firebase Auth başlatılıyor..."
-    );
+    const initializeAuth =
+      async () => {
+        console.log(
+          "🚀 Trustline Firebase Auth başlatılıyor..."
+        );
 
-    const unsubscribe =
-      subscribeToAuth(
-        async (
-          firebaseUser,
-          profile
-        ) => {
-          if (!mounted) {
-            return;
-          }
+        /*
+         * ------------------------------------------------------
+         * GOOGLE REDIRECT SONUCUNU ÖNCE İŞLE
+         * ------------------------------------------------------
+         *
+         * Mobilde Google girişi signInWithRedirect()
+         * kullandığı için uygulama Google'dan geri
+         * geldiğinde önce redirect sonucunu okuyoruz.
+         */
+        try {
+          const redirectProfile =
+            await handleGoogleRedirectResult();
 
-          console.log(
-            "🔄 App Auth callback:",
-            firebaseUser?.uid ??
-              "YOK"
-          );
-
-          /*
-           * ==================================================
-           * FIREBASE USER YOK
-           * ==================================================
-           */
-
-          if (!firebaseUser) {
+          if (
+            mounted &&
+            redirectProfile
+          ) {
             console.log(
-              "🔒 Firebase'de aktif kullanıcı yok."
+              "🟢 Google redirect kullanıcısı hazır:",
+              redirectProfile.email
             );
 
+            const appProfile =
+              redirectProfile as UserProfile;
+
             storage.setCurrentUser(
-              null
+              appProfile
             );
 
             setCurrentUser(
-              null
+              appProfile
             );
 
-            setNotifications(
-              []
-            );
+            setAppError(null);
+
+            if (
+              appProfile.role ===
+              "customer"
+            ) {
+              setActiveTab(
+                "home"
+              );
+            } else if (
+              appProfile.role ===
+              "courier"
+            ) {
+              setActiveTab(
+                "courier_panel"
+              );
+            } else if (
+              appProfile.role ===
+              "admin"
+            ) {
+              setActiveTab(
+                "admin_panel"
+              );
+            }
+
+            try {
+              const userNotifications =
+                storage.getNotifications(
+                  appProfile.id
+                );
+
+              setNotifications(
+                Array.isArray(
+                  userNotifications
+                )
+                  ? userNotifications
+                  : []
+              );
+            } catch (error) {
+              console.error(
+                "Bildirimler yüklenemedi:",
+                error
+              );
+
+              setNotifications(
+                []
+              );
+            }
 
             setProfileLoading(
               false
@@ -215,165 +264,241 @@ export function App() {
               false
             );
 
-            return;
-          }
-
-          /*
-           * ==================================================
-           * FIREBASE USER VAR
-           * ==================================================
-           */
-
-          console.log(
-            "🟢 Firebase kullanıcı canlı:",
-            firebaseUser.email
-          );
-
-          setAppError(
-            null
-          );
-
-          setAuthLoading(
-            false
-          );
-
-          /*
-           * Firestore profilinin okunmasını bekliyoruz.
-           */
-          if (!profile) {
-            console.warn(
-              "⏳ Firebase kullanıcı bulundu, Firestore profilinin gelmesi bekleniyor..."
-            );
-
-            setProfileLoading(
-              true
-            );
-
-            /*
-             * BURADA LOGIN EKRANINA DÖNMÜYORUZ.
-             */
-            return;
-          }
-
-          /*
-           * ==================================================
-           * PROFİL HAZIR
-           * ==================================================
-           */
-
-          console.log(
-            "🟢 Trustline kullanıcı profili hazır:",
-            profile.email,
-            profile.role
-          );
-
-          const appProfile =
-            profile as UserProfile;
-
-          /*
-           * Storage + React aynı kullanıcıyı kullanacak.
-           */
-          storage.setCurrentUser(
-            appProfile
-          );
-
-          setCurrentUser(
-            appProfile
-          );
-
-          /*
-           * ==================================================
-           * NOTIFICATIONS
-           * ==================================================
-           */
-
-          try {
-            const userNotifications =
-              storage.getNotifications(
-                appProfile.id
-              );
-
-            setNotifications(
-              Array.isArray(
-                userNotifications
-              )
-                ? userNotifications
-                : []
-            );
-          } catch (error) {
-            console.error(
-              "Bildirimler yüklenemedi:",
-              error
-            );
-
-            setNotifications(
-              []
+            console.log(
+              "🚀 Google redirect sonrası dashboard hazır."
             );
           }
-
-          /*
-           * ==================================================
-           * ROLE
-           * ==================================================
-           */
-
-          if (
-            appProfile.role ===
-            "customer"
-          ) {
-            setActiveTab(
-              "home"
-            );
-          }
-
-          if (
-            appProfile.role ===
-            "courier"
-          ) {
-            setActiveTab(
-              "courier_panel"
-            );
-          }
-
-          if (
-            appProfile.role ===
-            "admin"
-          ) {
-            setActiveTab(
-              "admin_panel"
-            );
-          }
-
-          /*
-           * ==================================================
-           * TAMAMLANDI
-           * ==================================================
-           */
-
-          setProfileLoading(
-            false
-          );
-
-          setAuthLoading(
-            false
-          );
-
-          console.log(
-            "🚀 TRUSTLINE DASHBOARD HAZIR."
+        } catch (error) {
+          console.error(
+            "❌ Google redirect işleme hatası:",
+            error
           );
         }
-      );
+
+        if (!mounted) {
+          return;
+        }
+
+        /*
+         * ------------------------------------------------------
+         * NORMAL FIREBASE AUTH LISTENER
+         * ------------------------------------------------------
+         *
+         * Redirect sonucu işlense de normal Auth listener
+         * çalışmaya devam eder.
+         *
+         * Böylece sayfa yenilendiğinde veya Firebase mevcut
+         * oturumu geri yüklediğinde kullanıcı tekrar bulunur.
+         */
+        unsubscribe =
+          subscribeToAuth(
+            async (
+              firebaseUser,
+              profile
+            ) => {
+              if (!mounted) {
+                return;
+              }
+
+              console.log(
+                "🔄 App Auth callback:",
+                firebaseUser?.uid ??
+                  "YOK"
+              );
+
+              /*
+               * ==================================================
+               * FIREBASE USER YOK
+               * ==================================================
+               */
+
+              if (!firebaseUser) {
+                console.log(
+                  "🔒 Firebase'de aktif kullanıcı yok."
+                );
+
+                storage.setCurrentUser(
+                  null
+                );
+
+                setCurrentUser(
+                  null
+                );
+
+                setNotifications(
+                  []
+                );
+
+                setProfileLoading(
+                  false
+                );
+
+                setAuthLoading(
+                  false
+                );
+
+                return;
+              }
+
+              /*
+               * ==================================================
+               * FIREBASE USER VAR
+               * ==================================================
+               */
+
+              console.log(
+                "🟢 Firebase kullanıcı canlı:",
+                firebaseUser.email
+              );
+
+              setAppError(
+                null
+              );
+
+              setAuthLoading(
+                false
+              );
+
+              /*
+               * Firebase Auth var fakat Firestore profilinin
+               * hazırlanması gerekiyorsa Login ekranına geçme.
+               */
+              if (!profile) {
+                console.warn(
+                  "⏳ Firebase kullanıcı bulundu, Firestore profilinin gelmesi bekleniyor..."
+                );
+
+                setProfileLoading(
+                  true
+                );
+
+                return;
+              }
+
+              /*
+               * ==================================================
+               * PROFİL HAZIR
+               * ==================================================
+               */
+
+              console.log(
+                "🟢 Trustline kullanıcı profili hazır:",
+                profile.email,
+                profile.role
+              );
+
+              const appProfile =
+                profile as UserProfile;
+
+              /*
+               * Storage + React aynı kullanıcıyı kullanacak.
+               */
+              storage.setCurrentUser(
+                appProfile
+              );
+
+              setCurrentUser(
+                appProfile
+              );
+
+              /*
+               * ==================================================
+               * NOTIFICATIONS
+               * ==================================================
+               */
+
+              try {
+                const userNotifications =
+                  storage.getNotifications(
+                    appProfile.id
+                  );
+
+                setNotifications(
+                  Array.isArray(
+                    userNotifications
+                  )
+                    ? userNotifications
+                    : []
+                );
+              } catch (error) {
+                console.error(
+                  "Bildirimler yüklenemedi:",
+                  error
+                );
+
+                setNotifications(
+                  []
+                );
+              }
+
+              /*
+               * ==================================================
+               * ROLE
+               * ==================================================
+               */
+
+              if (
+                appProfile.role ===
+                "customer"
+              ) {
+                setActiveTab(
+                  "home"
+                );
+              }
+
+              if (
+                appProfile.role ===
+                "courier"
+              ) {
+                setActiveTab(
+                  "courier_panel"
+                );
+              }
+
+              if (
+                appProfile.role ===
+                "admin"
+              ) {
+                setActiveTab(
+                  "admin_panel"
+                );
+              }
+
+              /*
+               * ==================================================
+               * TAMAMLANDI
+               * ==================================================
+               */
+
+              setProfileLoading(
+                false
+              );
+
+              setAuthLoading(
+                false
+              );
+
+              console.log(
+                "🚀 TRUSTLINE DASHBOARD HAZIR."
+              );
+            }
+          );
+      };
+
+    void initializeAuth();
 
     return () => {
       mounted = false;
 
-      try {
-        unsubscribe();
-      } catch (error) {
-        console.warn(
-          "Auth listener kapatılamadı:",
-          error
-        );
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.warn(
+            "Auth listener kapatılamadı:",
+            error
+          );
+        }
       }
     };
   }, []);
