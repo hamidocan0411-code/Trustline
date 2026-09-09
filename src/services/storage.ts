@@ -144,15 +144,49 @@ class StorageService {
       );
 
       /*
-       * Firebase Auth başlangıç durumunu bekle.
+       * Firebase Auth'un ilk durumunun belirlenmesini bekle.
+       *
+       * Burada kullanıcı yok diye hemen logout yapmıyoruz.
+       * Ana Auth sistemi Firebase oturumunu ayrıca yönetecek.
        */
-      await waitForAuthState();
+      const firebaseUser =
+        await waitForAuthState();
+
+      /*
+       * Firebase Auth kullanıcıyı bulduysa profilini yüklemeyi
+       * dene.
+       *
+       * Profil henüz oluşturulmadıysa burada kullanıcıyı null
+       * yapmıyoruz. auth.ts içerisindeki ensureUserProfile()
+       * profil oluşturma işini üstlenir.
+       */
+      if (firebaseUser) {
+        console.log(
+          "🔐 Storage Firebase kullanıcı bulundu:",
+          firebaseUser.uid
+        );
+
+        try {
+          await this.loadUserProfile(
+            firebaseUser.uid
+          );
+        } catch (error) {
+          console.error(
+            "❌ Storage kullanıcı profili yüklenemedi:",
+            error
+          );
+        }
+      } else {
+        console.log(
+          "ℹ️ Storage init sırasında aktif Firebase kullanıcısı yok."
+        );
+      }
 
       /*
        * Global Auth listener.
        *
        * Login / Logout / Session restore durumlarını
-       * merkezi olarak buradan yönetiyoruz.
+       * merkezi olarak buradan takip ediyoruz.
        */
       this.authUnsubscribe =
         onAuthStateChanged(
@@ -170,7 +204,7 @@ class StorageService {
               }
 
               console.log(
-                "🔐 Firebase kullanıcı bulundu:",
+                "🔐 Firebase Auth kullanıcı bulundu:",
                 firebaseUser.uid
               );
 
@@ -190,6 +224,9 @@ class StorageService {
               error
             );
 
+            /*
+             * Auth gerçekten hata verdiğinde temizle.
+             */
             this.handleLogout();
           }
         );
@@ -231,23 +268,31 @@ class StorageService {
 
       /*
        * Firebase Auth kullanıcısı var fakat
-       * Firestore profili yoksa listener başlatma.
+       * Firestore profili henüz yoksa kullanıcıyı
+       * logout olmuş gibi gösterme.
+       *
+       * auth.ts içerisindeki ensureUserProfile()
+       * profili oluşturacaktır.
        */
       if (!profileSnapshot.exists()) {
         console.warn(
-          "⚠️ Firebase Auth kullanıcısı var fakat users koleksiyonunda profil bulunamadı:",
+          "⚠️ Firebase Auth kullanıcısı var fakat users koleksiyonunda profil henüz bulunamadı:",
           uid
         );
 
-        this.cleanupFirestoreListeners();
-
-        this.currentUser = null;
-
-        this.activeUserId = null;
-        this.activeRole = null;
-
-        this.emit();
-
+        /*
+         * ÖNEMLİ:
+         *
+         * Burada:
+         *
+         * this.currentUser = null;
+         *
+         * yapmıyoruz.
+         *
+         * Böylece Google OAuth başarılı olduktan sonra
+         * Firestore profilinin oluşması sırasında kullanıcı
+         * Login ekranına düşmez.
+         */
         return;
       }
 
