@@ -1,3 +1,4 @@
+```ts
 import {
   GoogleAuthProvider,
   browserLocalPersistence,
@@ -478,7 +479,27 @@ export async function ensureUserProfile(
     }
   );
 
+  /**
+   * -------------------------------------------------------
+   * GOOGLE KULLANICI KONTROLÜ
+   * -------------------------------------------------------
+   *
+   * Google kullanıcılarında Firebase'in
+   * emailVerified değerini zorunlu tutmuyoruz.
+   *
+   * Email/şifre kullanıcılarında ise mevcut
+   * doğrulama zorunluluğu aynen korunuyor.
+   */
+
+  const isGoogleUser =
+    user.providerData.some(
+      (provider) =>
+        provider.providerId ===
+        "google.com"
+    );
+
   if (
+    !isGoogleUser &&
     !user.emailVerified
   ) {
     const verificationError =
@@ -519,6 +540,8 @@ export async function ensureUserProfile(
           uid: user.uid,
           email: data.email,
           role: data.role,
+          google:
+            isGoogleUser,
         }
       );
 
@@ -607,6 +630,8 @@ export async function ensureUserProfile(
       {
         uid: user.uid,
         role,
+        google:
+          isGoogleUser,
       }
     );
 
@@ -1002,3 +1027,4 @@ export function isAdminEmail(
     ADMIN_EMAIL.toLowerCase()
   );
 }
+```
