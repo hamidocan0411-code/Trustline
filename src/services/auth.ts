@@ -25,7 +25,10 @@ import { auth, db } from "./firebase";
 
 export const ADMIN_EMAIL = "hamidocan0411@gmail.com";
 
-export type UserRole = "customer" | "courier" | "admin";
+export type UserRole =
+  | "customer"
+  | "courier"
+  | "admin";
 
 export interface AuthUserProfile {
   id: string;
@@ -36,7 +39,10 @@ export interface AuthUserProfile {
   avatar?: string;
   vehicle?: string;
   plate?: string;
-  courierStatus?: "Müsait" | "Meşgul" | "Çevrimdışı";
+  courierStatus?:
+    | "Müsait"
+    | "Meşgul"
+    | "Çevrimdışı";
   totalDeliveries?: number;
   rating?: number;
   createdAt: string;
@@ -61,7 +67,9 @@ function createAuthError(
   return error;
 }
 
-function getErrorCode(error: unknown): string {
+function getErrorCode(
+  error: unknown
+): string {
   if (
     typeof error === "object" &&
     error !== null &&
@@ -75,9 +83,13 @@ function getErrorCode(error: unknown): string {
   return "";
 }
 
-function getDefaultRole(email: string): UserRole {
-  return email.trim().toLowerCase() ===
+function getDefaultRole(
+  email: string
+): UserRole {
+  return (
+    email.trim().toLowerCase() ===
     ADMIN_EMAIL.toLowerCase()
+  )
     ? "admin"
     : "customer";
 }
@@ -126,15 +138,23 @@ function normalizeProfile(
 
   return {
     id: uid,
+
     name,
+
     email,
+
     phone,
-    role: normalizeRole(data.role, email),
+
+    role: normalizeRole(
+      data.role,
+      email
+    ),
 
     avatar:
       typeof data.avatar === "string"
         ? data.avatar
-        : fallbackUser?.photoURL ?? undefined,
+        : fallbackUser?.photoURL ??
+          undefined,
 
     vehicle:
       typeof data.vehicle === "string"
@@ -147,14 +167,18 @@ function normalizeProfile(
         : undefined,
 
     courierStatus:
-      data.courierStatus === "Müsait" ||
-      data.courierStatus === "Meşgul" ||
-      data.courierStatus === "Çevrimdışı"
+      data.courierStatus ===
+        "Müsait" ||
+      data.courierStatus ===
+        "Meşgul" ||
+      data.courierStatus ===
+        "Çevrimdışı"
         ? data.courierStatus
         : undefined,
 
     totalDeliveries:
-      typeof data.totalDeliveries === "number"
+      typeof data.totalDeliveries ===
+      "number"
         ? data.totalDeliveries
         : 0,
 
@@ -168,7 +192,8 @@ function normalizeProfile(
 }
 
 /**
- * Firebase Auth kullanıcısı için Firestore profilini garanti eder.
+ * Firebase Auth kullanıcısı için
+ * Firestore profilini garanti eder.
  */
 export async function ensureUserProfile(
   user: User
@@ -179,7 +204,8 @@ export async function ensureUserProfile(
     user.uid
   );
 
-  const snapshot = await getDoc(userRef);
+  const snapshot =
+    await getDoc(userRef);
 
   if (snapshot.exists()) {
     return normalizeProfile(
@@ -189,7 +215,8 @@ export async function ensureUserProfile(
     );
   }
 
-  const email = user.email ?? "";
+  const email =
+    user.email ?? "";
 
   const profileData = {
     id: user.uid,
@@ -203,7 +230,8 @@ export async function ensureUserProfile(
     phone:
       user.phoneNumber ?? "",
 
-    role: getDefaultRole(email),
+    role:
+      getDefaultRole(email),
 
     avatar:
       user.photoURL ?? "",
@@ -240,10 +268,14 @@ export async function registerUser({
   password,
   phone = "",
 }: RegisterData): Promise<AuthUserProfile> {
-  const cleanName = name.trim();
+  const cleanName =
+    name.trim();
+
   const cleanEmail =
     email.trim().toLowerCase();
-  const cleanPhone = phone.trim();
+
+  const cleanPhone =
+    phone.trim();
 
   if (!cleanName) {
     throw new Error(
@@ -270,37 +302,59 @@ export async function registerUser({
       password
     );
 
-  const user = credential.user;
+  const user =
+    credential.user;
 
   try {
-    await updateProfile(user, {
-      displayName: cleanName,
-    });
+    await updateProfile(
+      user,
+      {
+        displayName:
+          cleanName,
+      }
+    );
 
     const role =
-      getDefaultRole(cleanEmail);
+      getDefaultRole(
+        cleanEmail
+      );
 
     const profileData = {
       id: user.uid,
+
       name: cleanName,
+
       email: cleanEmail,
+
       phone: cleanPhone,
+
       role,
+
       avatar: "",
+
       totalDeliveries: 0,
+
       rating: 5,
+
       createdAt:
         new Date().toISOString(),
+
       createdAtServer:
         serverTimestamp(),
     };
 
     await setDoc(
-      doc(db, "users", user.uid),
+      doc(
+        db,
+        "users",
+        user.uid
+      ),
       profileData
     );
 
-    await sendEmailVerification(user);
+    await sendEmailVerification(
+      user
+    );
 
     await signOut(auth);
 
@@ -316,7 +370,9 @@ export async function registerUser({
       throw error;
     }
 
-    await signOut(auth).catch(
+    await signOut(
+      auth
+    ).catch(
       () => undefined
     );
 
@@ -353,10 +409,13 @@ export async function loginUser(
       password
     );
 
-  const user = credential.user;
+  const user =
+    credential.user;
 
   if (!user.emailVerified) {
-    await signOut(auth).catch(
+    await signOut(
+      auth
+    ).catch(
       () => undefined
     );
 
@@ -366,7 +425,9 @@ export async function loginUser(
     );
   }
 
-  return ensureUserProfile(user);
+  return ensureUserProfile(
+    user
+  );
 }
 
 /**
@@ -380,8 +441,13 @@ function createGoogleProvider(): GoogleAuthProvider {
     prompt: "select_account",
   });
 
-  provider.addScope("profile");
-  provider.addScope("email");
+  provider.addScope(
+    "profile"
+  );
+
+  provider.addScope(
+    "email"
+  );
 
   return provider;
 }
@@ -391,7 +457,8 @@ function createGoogleProvider(): GoogleAuthProvider {
  */
 function isMobileDevice(): boolean {
   if (
-    typeof window === "undefined"
+    typeof window ===
+    "undefined"
   ) {
     return false;
   }
@@ -405,12 +472,15 @@ function isMobileDevice(): boolean {
     /Android|iPhone|iPad|iPod|IEMobile|Opera Mini|Mobile/i;
 
   const isMobileUserAgent =
-    mobileRegex.test(userAgent);
+    mobileRegex.test(
+      userAgent
+    );
 
   const isIPadOS =
     navigator.platform ===
       "MacIntel" &&
-    navigator.maxTouchPoints > 1;
+    navigator.maxTouchPoints >
+      1;
 
   return (
     isMobileUserAgent ||
@@ -454,9 +524,23 @@ export async function loginWithGoogle(): Promise<
         provider
       );
 
-    return await ensureUserProfile(
-      credential.user
+    console.log(
+      "🟢 Google popup başarılı:",
+      credential.user.email
     );
+
+    const profile =
+      await ensureUserProfile(
+        credential.user
+      );
+
+    console.log(
+      "🟢 Google profili hazır:",
+      profile.email,
+      profile.role
+    );
+
+    return profile;
   } catch (error) {
     const code =
       getErrorCode(error);
@@ -467,7 +551,9 @@ export async function loginWithGoogle(): Promise<
       code ===
         "auth/operation-not-supported-in-this-environment";
 
-    if (shouldUseRedirect) {
+    if (
+      shouldUseRedirect
+    ) {
       await signInWithRedirect(
         auth,
         provider
@@ -490,16 +576,15 @@ export async function loginWithGoogle(): Promise<
 
 /**
  * Google redirect sonucunu işler.
- *
- * Önce gerçek redirect sonucunu kontrol eder.
- * Sonra auth.currentUser kontrol edilir.
  */
 export async function handleGoogleRedirectResult(): Promise<
   AuthUserProfile | null
 > {
   try {
     const result =
-      await getRedirectResult(auth);
+      await getRedirectResult(
+        auth
+      );
 
     if (result?.user) {
       console.log(
@@ -507,24 +592,35 @@ export async function handleGoogleRedirectResult(): Promise<
         result.user.email
       );
 
-      return await ensureUserProfile(
-        result.user
+      const profile =
+        await ensureUserProfile(
+          result.user
+        );
+
+      console.log(
+        "🟢 Google redirect profili hazır:",
+        profile.email,
+        profile.role
       );
+
+      return profile;
     }
 
     /**
-     * Bazı tarayıcılarda redirect sonucu
-     * null gelebilir ancak Firebase Auth
-     * kullanıcısı zaten hazır olabilir.
+     * Redirect sonucu null gelebilir.
+     * Firebase kullanıcısı hazırsa onu kullan.
      */
-    if (auth.currentUser) {
+    const currentUser =
+      auth.currentUser;
+
+    if (currentUser) {
       console.log(
         "🟢 Firebase currentUser bulundu:",
-        auth.currentUser.email
+        currentUser.email
       );
 
       return await ensureUserProfile(
-        auth.currentUser
+        currentUser
       );
     }
 
@@ -537,18 +633,28 @@ export async function handleGoogleRedirectResult(): Promise<
 
     /**
      * Redirect sonucu okunamasa bile
-     * Firebase kullanıcısı hazırsa onu kullan.
+     * Firebase Auth kullanıcısı hazırsa
+     * onu kullanmaya devam et.
      */
-    if (auth.currentUser) {
+    const currentUser =
+      auth.currentUser;
+
+    if (currentUser) {
       try {
         return await ensureUserProfile(
-          auth.currentUser
+          currentUser
         );
       } catch (profileError) {
         console.error(
           "❌ Google kullanıcı profili oluşturulamadı:",
           profileError
         );
+
+        /**
+         * Burada Firebase Auth
+         * kullanıcısını logout etmiyoruz.
+         */
+        return null;
       }
     }
 
@@ -564,7 +670,8 @@ export async function logoutUser(): Promise<void> {
 }
 
 /**
- * Mevcut Firebase kullanıcısının profilini getirir.
+ * Mevcut Firebase kullanıcısının
+ * profilini getirir.
  */
 export async function getCurrentUserProfile(): Promise<
   AuthUserProfile | null
@@ -577,11 +684,8 @@ export async function getCurrentUserProfile(): Promise<
   }
 
   /**
-   * Sadece email/password hesaplarında
-   * doğrulama zorunlu.
-   *
-   * Google kullanıcılarını burada
-   * yanlışlıkla logout etmiyoruz.
+   * Sadece email/password
+   * hesaplarında doğrulama zorunlu.
    */
   const isPasswordUser =
     user.providerData.some(
@@ -594,7 +698,9 @@ export async function getCurrentUserProfile(): Promise<
     isPasswordUser &&
     !user.emailVerified
   ) {
-    await signOut(auth).catch(
+    await signOut(
+      auth
+    ).catch(
       () => undefined
     );
 
@@ -617,6 +723,15 @@ export async function getCurrentUserProfile(): Promise<
 
 /**
  * Firebase Auth state listener.
+ *
+ * ÖNEMLİ:
+ * Firestore profil işlemi başarısız olduğunda
+ * Firebase Auth kullanıcısını null olarak
+ * bildirmiyoruz.
+ *
+ * Böylece Google kullanıcısı Firebase Auth'ta
+ * oturum açmışken uygulama gereksiz yere
+ * Login ekranına dönmez.
  */
 export function subscribeToAuth(
   callback: (
@@ -627,11 +742,17 @@ export function subscribeToAuth(
   return onAuthStateChanged(
     auth,
     async (user) => {
+      console.log(
+        "🔄 Firebase Auth state:",
+        user?.email ?? "YOK"
+      );
+
       if (!user) {
         callback(
           null,
           null
         );
+
         return;
       }
 
@@ -653,7 +774,9 @@ export function subscribeToAuth(
         isPasswordUser &&
         !user.emailVerified
       ) {
-        await signOut(auth).catch(
+        await signOut(
+          auth
+        ).catch(
           () => undefined
         );
 
@@ -671,6 +794,12 @@ export function subscribeToAuth(
             user
           );
 
+        console.log(
+          "🟢 Auth profile hazır:",
+          profile.email,
+          profile.role
+        );
+
         callback(
           user,
           profile
@@ -682,12 +811,14 @@ export function subscribeToAuth(
         );
 
         /**
-         * Firebase Auth kullanıcısını
-         * burada logout etmiyoruz.
+         * KRİTİK:
          *
-         * Firestore geçici olarak hazır değilse
-         * kullanıcıyı Login ekranına atmak yerine
-         * Auth state korunur.
+         * Firebase Auth kullanıcısı mevcut.
+         * Firestore profil işlemi başarısız olsa bile
+         * kullanıcıyı Login ekranına göndermiyoruz.
+         *
+         * App.tsx bu durumda auth state'i korur
+         * ve profil hazırlanmasını bekler.
          */
         callback(
           user,
@@ -720,7 +851,8 @@ export function isAdminUser(
   }
 
   return (
-    profile.role === "admin" ||
+    profile.role ===
+      "admin" ||
     profile.email.toLowerCase() ===
       ADMIN_EMAIL.toLowerCase()
   );
@@ -733,7 +865,8 @@ export function isCourierUser(
   profile: AuthUserProfile | null
 ): boolean {
   return (
-    profile?.role === "courier"
+    profile?.role ===
+    "courier"
   );
 }
 
@@ -744,7 +877,8 @@ export function isCustomerUser(
   profile: AuthUserProfile | null
 ): boolean {
   return (
-    profile?.role === "customer"
+    profile?.role ===
+    "customer"
   );
 }
 
