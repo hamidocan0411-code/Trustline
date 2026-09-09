@@ -23,7 +23,7 @@ import {
 
 import { auth, db } from "./firebase";
 
-export const ADMIN_EMAIL = "hamidoc@gmail.com";
+export const ADMIN_EMAIL = "hamidocan0411@gmail.com";
 
 export type UserRole = "customer" | "courier" | "admin";
 
