@@ -1,686 +1,970 @@
-import {
-  GoogleAuthProvider,
-  browserLocalPersistence,
-  createUserWithEmailAndPassword,
-  getRedirectResult,
-  onAuthStateChanged,
-  sendEmailVerification,
-  setPersistence,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  signInWithRedirect,
-  signOut,
-  updateProfile,
-  type User,
-} from "firebase/auth";
+import React, {
+  useEffect,
+  useState,
+} from "react";
 
 import {
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
+  loginUser,
+  loginWithGoogle,
+  registerUser,
+} from "../services/auth";
 
-import { auth, db } from "./firebase";
-
-/**
- * =========================================================
- * SABİTLER
- * =========================================================
- */
-
-export const ADMIN_EMAIL = "hamidocan0411@gmail.com";
-
-const EXPECTED_PROJECT_ID = "trustline-8729d";
-
-/**
- * =========================================================
- * FIREBASE DEBUG
- * =========================================================
- *
- * Şifre veya API key yazdırılmaz.
- * Sadece hangi Firebase projesine bağlandığımızı kontrol eder.
- */
-function logFirebaseConnection() {
-  const projectId = auth.app.options.projectId;
-  const authDomain = auth.app.options.authDomain;
-
-  console.log("🔥 FIREBASE AUTH BAĞLANTISI:", {
-    projectId,
-    authDomain,
-    expectedProjectId: EXPECTED_PROJECT_ID,
-    projectCorrect: projectId === EXPECTED_PROJECT_ID,
-  });
-
-  if (projectId !== EXPECTED_PROJECT_ID) {
-    console.error(
-      "🚨 KRİTİK: Uygulama yanlış Firebase projesine bağlanıyor!",
-      {
-        actualProjectId: projectId,
-        expectedProjectId: EXPECTED_PROJECT_ID,
-      }
-    );
-  }
+interface AuthScreenProps {
+  onLogin?: () => void;
 }
 
-/**
- * =========================================================
- * USER PROFILE
- * =========================================================
- */
+const TRUSTLINE_LOGO =
+  "https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png";
 
-export interface UserProfile {
-  id: string;
-  uid?: string;
-  email: string;
-  name: string;
-  phone?: string;
-  role: string;
-  photoURL?: string;
-  createdAt?: unknown;
-  updatedAt?: unknown;
-}
-
-/**
- * =========================================================
- * ERROR HELPER
- * =========================================================
- */
-
-function getFirebaseErrorCode(error: unknown): string {
+function getErrorCode(error: unknown): string {
   if (
     typeof error === "object" &&
     error !== null &&
     "code" in error
   ) {
-    return String(
-      (error as { code?: unknown }).code ?? "unknown"
-    );
+    const value = Reflect.get(error, "code");
+
+    return typeof value === "string"
+      ? value
+      : "";
   }
 
-  return "unknown";
+  return "";
 }
 
-function getFirebaseErrorMessage(error: unknown): string {
+function getErrorMessage(error: unknown): string {
   if (
     typeof error === "object" &&
     error !== null &&
     "message" in error
   ) {
-    return String(
-      (error as { message?: unknown }).message ?? error
-    );
+    const value = Reflect.get(error, "message");
+
+    return typeof value === "string"
+      ? value
+      : "";
   }
 
-  return String(error);
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "";
 }
 
-/**
- * =========================================================
- * REGISTER
- * =========================================================
- */
+function getAuthErrorMessage(
+  error: unknown
+): string {
+  const code = getErrorCode(error);
 
-export async function registerUser(
-  email: string,
-  password: string,
-  name: string,
-  phone?: string
-): Promise<UserProfile> {
-  logFirebaseConnection();
+  switch (code) {
+    case "auth/email-verification-required":
+      return "Hesabınız oluşturuldu. E-posta adresinize bir doğrulama bağlantısı gönderdik. E-postanızı doğruladıktan sonra giriş yapabilirsiniz.";
 
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanName = name.trim();
-  const cleanPhone = phone?.trim() || "";
+    case "auth/email-not-verified":
+      return "E-posta adresiniz henüz doğrulanmamış. E-postanıza gönderilen doğrulama bağlantısına tıklayın.";
 
-  try {
-    console.log("📝 Yeni kullanıcı kaydı başlıyor:", {
-      email: cleanEmail,
-      projectId: auth.app.options.projectId,
-    });
+    case "auth/invalid-credential":
+      return "Firebase giriş bilgilerini kabul etmedi.";
 
-    const credential = await createUserWithEmailAndPassword(
-      auth,
-      cleanEmail,
-      password
-    );
+    case "auth/wrong-password":
+      return "Şifre hatalı.";
 
-    const user = credential.user;
+    case "auth/user-not-found":
+      return "Bu e-posta adresiyle kayıtlı bir kullanıcı bulunamadı.";
 
-    console.log("✅ Firebase Authentication kullanıcı oluşturdu:", {
-      uid: user.uid,
-      email: user.email,
-      provider: user.providerData.map(
-        (provider) => provider.providerId
-      ),
-    });
+    case "auth/email-already-in-use":
+      return "Bu e-posta adresi zaten kayıtlı.";
 
-    await updateProfile(user, {
-      displayName: cleanName,
-    });
+    case "auth/invalid-email":
+      return "Geçerli bir e-posta adresi girin.";
 
-    const userProfile: UserProfile = {
-      id: user.uid,
-      uid: user.uid,
-      email: cleanEmail,
-      name: cleanName,
-      phone: cleanPhone,
-      role: "customer",
-      photoURL: user.photoURL ?? "",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
+    case "auth/weak-password":
+      return "Şifre en az 6 karakter olmalıdır.";
 
-    console.log("📝 Firestore kullanıcı profili oluşturuluyor:", {
-      path: `users/${user.uid}`,
-    });
+    case "auth/password-does-not-meet-requirements":
+      return "Şifre Firebase güvenlik gereksinimlerini karşılamıyor.";
 
-    await setDoc(
-      doc(db, "users", user.uid),
-      userProfile
-    );
+    case "auth/popup-closed-by-user":
+      return "Google giriş penceresi kapatıldı.";
 
-    console.log("✅ Firestore kullanıcı profili oluşturuldu.");
+    case "auth/popup-blocked":
+      return "Google giriş penceresi tarayıcı tarafından engellendi. Tekrar deneyin.";
+
+    case "auth/cancelled-popup-request":
+      return "Google giriş işlemi iptal edildi. Lütfen tekrar deneyin.";
+
+    case "auth/account-exists-with-different-credential":
+      return "Bu e-posta başka bir giriş yöntemiyle zaten kayıtlı.";
+
+    case "auth/operation-not-allowed":
+      return "Bu giriş yöntemi Firebase Console'da etkin değil.";
+
+    case "auth/operation-not-supported-in-this-environment":
+      return "Bu tarayıcıda Google popup kullanılamıyor. Güvenli giriş sayfasına yönlendiriliyorsunuz.";
+
+    case "auth/network-request-failed":
+      return "Firebase bağlantısı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.";
+
+    case "auth/unauthorized-domain":
+      return "Bu site Firebase tarafından yetkilendirilmemiş.";
+
+    case "auth/internal-error":
+      return "Firebase'de geçici bir hata oluştu.";
+
+    case "auth/too-many-requests":
+      return "Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.";
+
+    case "auth/google-redirect-started":
+      return "Google giriş sayfasına yönlendiriliyorsunuz...";
+
+    case "auth/invalid-api-key":
+      return "Firebase API anahtarı geçersiz.";
+
+    case "auth/app-not-authorized":
+      return "Bu uygulama Firebase tarafından yetkilendirilmemiş.";
+
+    case "auth/invalid-app-credential":
+      return "Firebase uygulama doğrulaması başarısız oldu.";
+
+    case "auth/quota-exceeded":
+      return "Firebase kullanım kotası aşıldı.";
+
+    case "auth/user-disabled":
+      return "Bu kullanıcı hesabı devre dışı bırakılmış.";
+
+    default:
+      return (
+        getErrorMessage(error) ||
+        "Bir hata oluştu. Lütfen tekrar deneyin."
+      );
+  }
+}
+
+function getDetailedFirebaseError(
+  error: unknown
+): string {
+  const code = getErrorCode(error);
+  const message = getErrorMessage(error);
+
+  if (!code && !message) {
+    return "";
+  }
+
+  const details: string[] = [];
+
+  if (code) {
+    details.push(`Firebase hata kodu: ${code}`);
+  }
+
+  if (message && message !== code) {
+    details.push(`Firebase mesajı: ${message}`);
+  }
+
+  return details.join("\n");
+}
+
+function AuthScreen({
+  onLogin,
+}: AuthScreenProps) {
+  const [isRegister, setIsRegister] =
+    useState(false);
+
+  const [name, setName] =
+    useState("");
+
+  const [phone, setPhone] =
+    useState("");
+
+  const [email, setEmail] =
+    useState("");
+
+  const [password, setPassword] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [googleLoading, setGoogleLoading] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const [success, setSuccess] =
+    useState("");
+
+  const clearMessages = () => {
+    setError("");
+    setSuccess("");
+  };
+
+  useEffect(() => {
+    setError("");
+  }, []);
+
+  const handleSubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+
+    clearMessages();
+
+    const cleanName =
+      name.trim();
+
+    const cleanEmail =
+      email.trim().toLowerCase();
+
+    const cleanPhone =
+      phone.trim();
+
+    if (
+      isRegister &&
+      !cleanName
+    ) {
+      setError(
+        "Ad soyad alanını doldurun."
+      );
+      return;
+    }
+
+    if (!cleanEmail) {
+      setError(
+        "E-posta adresinizi girin."
+      );
+      return;
+    }
+
+    if (!password) {
+      setError(
+        "Şifrenizi girin."
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      setError(
+        "Şifre en az 6 karakter olmalıdır."
+      );
+      return;
+    }
+
+    setLoading(true);
 
     try {
-      await sendEmailVerification(user);
+      if (isRegister) {
+        console.log(
+          "🟡 KAYIT BAŞLADI",
+          {
+            email: cleanEmail,
+            name: cleanName,
+          }
+        );
+
+        await registerUser({
+          name: cleanName,
+          email: cleanEmail,
+          password,
+          phone: cleanPhone,
+        });
+
+        console.log(
+          "🟢 KAYIT İŞLEMİ TAMAMLANDI"
+        );
+
+        setSuccess(
+          "Hesabınız oluşturuldu. E-posta adresinizi doğrulayın."
+        );
+
+        setPassword("");
+
+        return;
+      }
 
       console.log(
-        "📧 E-posta doğrulama bağlantısı gönderildi."
-      );
-    } catch (verificationError) {
-      console.warn(
-        "⚠️ E-posta doğrulama gönderilemedi:",
-        verificationError
-      );
-    }
-
-    await signOut(auth);
-
-    console.log(
-      "🚪 Kayıt sonrası kullanıcı oturumu kapatıldı."
-    );
-
-    const verificationError = new Error(
-      "E-posta adresinizi doğrulamanız gerekiyor."
-    );
-
-    (
-      verificationError as Error & {
-        code?: string;
-      }
-    ).code = "auth/email-verification-required";
-
-    throw verificationError;
-  } catch (error) {
-    const code = getFirebaseErrorCode(error);
-    const message = getFirebaseErrorMessage(error);
-
-    console.error("❌ REGISTER HATASI:", {
-      code,
-      message,
-      projectId: auth.app.options.projectId,
-      authDomain: auth.app.options.authDomain,
-    });
-
-    throw error;
-  }
-}
-
-/**
- * =========================================================
- * LOGIN
- * =========================================================
- */
-
-export async function loginUser(
-  email: string,
-  password: string
-): Promise<UserProfile> {
-  logFirebaseConnection();
-
-  const cleanEmail = email.trim().toLowerCase();
-
-  console.log("🔐 LOGIN BAŞLIYOR:", {
-    email: cleanEmail,
-    projectId: auth.app.options.projectId,
-    authDomain: auth.app.options.authDomain,
-  });
-
-  try {
-    /**
-     * Firebase Auth persistence
-     */
-    await setPersistence(
-      auth,
-      browserLocalPersistence
-    );
-
-    console.log("✅ Auth persistence hazır.");
-
-    /**
-     * Email / Password giriş
-     */
-    const credential =
-      await signInWithEmailAndPassword(
-        auth,
-        cleanEmail,
-        password
-      );
-
-    const user = credential.user;
-
-    console.log("✅ FIREBASE AUTH GİRİŞ BAŞARILI:", {
-      uid: user.uid,
-      email: user.email,
-      emailVerified: user.emailVerified,
-      providers: user.providerData.map(
-        (provider) => provider.providerId
-      ),
-      projectId: auth.app.options.projectId,
-    });
-
-    /**
-     * Password provider kontrolü
-     */
-    const hasPasswordProvider =
-      user.providerData.some(
-        (provider) =>
-          provider.providerId === "password"
-      );
-
-    if (!hasPasswordProvider) {
-      console.error(
-        "🚨 Kullanıcıda password provider görünmüyor:",
-        user.providerData
-      );
-
-      await signOut(auth);
-
-      const providerError = new Error(
-        "Bu hesap email/şifre ile giriş için yapılandırılmamış."
-      );
-
-      (
-        providerError as Error & {
-          code?: string;
-        }
-      ).code = "auth/wrong-provider";
-
-      throw providerError;
-    }
-
-    /**
-     * Email doğrulama kontrolü
-     */
-    if (!user.emailVerified) {
-      console.warn(
-        "⚠️ Kullanıcının e-posta adresi doğrulanmamış."
-      );
-
-      await signOut(auth);
-
-      const verificationError = new Error(
-        "E-posta adresinizi doğrulamanız gerekiyor."
-      );
-
-      (
-        verificationError as Error & {
-          code?: string;
-        }
-      ).code = "auth/email-not-verified";
-
-      throw verificationError;
-    }
-
-    /**
-     * Firestore profilini getir
-     */
-    const profile = await ensureUserProfile(user);
-
-    console.log("✅ LOGIN TAMAMLANDI:", {
-      uid: profile.id,
-      email: profile.email,
-      role: profile.role,
-    });
-
-    return profile;
-  } catch (error) {
-    const code = getFirebaseErrorCode(error);
-    const message = getFirebaseErrorMessage(error);
-
-    console.error("❌ LOGIN HATASI:", {
-      code,
-      message,
-      email: cleanEmail,
-      projectId: auth.app.options.projectId,
-      authDomain: auth.app.options.authDomain,
-    });
-
-    /**
-     * =====================================================
-     * INVALID CREDENTIAL ÖZEL TEŞHİS
-     * =====================================================
-     */
-
-    if (code === "auth/invalid-credential") {
-      const projectId =
-        auth.app.options.projectId ?? "BİLİNMİYOR";
-
-      const authDomain =
-        auth.app.options.authDomain ?? "BİLİNMİYOR";
-
-      console.error(
-        "🚨🚨🚨 INVALID CREDENTIAL TEŞHİS 🚨🚨🚨",
+        "🟡 GİRİŞ BAŞLADI",
         {
-          projectId,
-          authDomain,
-          expectedProjectId: EXPECTED_PROJECT_ID,
-          projectCorrect:
-            projectId === EXPECTED_PROJECT_ID,
           email: cleanEmail,
         }
       );
 
-      const diagnosticError = new Error(
-        `Firebase giriş bilgilerini kabul etmedi. ` +
-          `Bağlı proje: ${projectId}. ` +
-          `Auth Domain: ${authDomain}.`
+      await loginUser(
+        cleanEmail,
+        password
       );
 
-      (
-        diagnosticError as Error & {
-          code?: string;
-          firebaseProjectId?: string;
-          firebaseAuthDomain?: string;
-        }
-      ).code = "auth/invalid-credential";
-
-      (
-        diagnosticError as Error & {
-          firebaseProjectId?: string;
-        }
-      ).firebaseProjectId = projectId;
-
-      (
-        diagnosticError as Error & {
-          firebaseAuthDomain?: string;
-        }
-      ).firebaseAuthDomain = authDomain;
-
-      throw diagnosticError;
-    }
-
-    throw error;
-  }
-}
-
-/**
- * =========================================================
- * ENSURE USER PROFILE
- * =========================================================
- */
-
-export async function ensureUserProfile(
-  user: User
-): Promise<UserProfile> {
-  console.log("👤 Firestore profil kontrolü:", {
-    uid: user.uid,
-    path: `users/${user.uid}`,
-  });
-
-  const userRef = doc(db, "users", user.uid);
-
-  const snapshot = await getDoc(userRef);
-
-  if (snapshot.exists()) {
-    const data = snapshot.data();
-
-    console.log("✅ Firestore profili bulundu:", {
-      uid: user.uid,
-      email: data.email,
-      role: data.role,
-    });
-
-    return {
-      id: user.uid,
-      uid: user.uid,
-      email:
-        typeof data.email === "string"
-          ? data.email
-          : user.email ?? "",
-      name:
-        typeof data.name === "string"
-          ? data.name
-          : user.displayName ?? "",
-      phone:
-        typeof data.phone === "string"
-          ? data.phone
-          : "",
-      role:
-        typeof data.role === "string"
-          ? data.role
-          : "customer",
-      photoURL:
-        typeof data.photoURL === "string"
-          ? data.photoURL
-          : user.photoURL ?? "",
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
-    };
-  }
-
-  /**
-   * Profil yoksa oluştur.
-   */
-  console.warn(
-    "⚠️ Firestore kullanıcı profili bulunamadı. Oluşturuluyor."
-  );
-
-  const role =
-    user.email?.toLowerCase() ===
-    ADMIN_EMAIL.toLowerCase()
-      ? "admin"
-      : "customer";
-
-  const newProfile: UserProfile = {
-    id: user.uid,
-    uid: user.uid,
-    email: user.email ?? "",
-    name: user.displayName ?? "",
-    phone: "",
-    role,
-    photoURL: user.photoURL ?? "",
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-
-  await setDoc(userRef, newProfile);
-
-  console.log("✅ Eksik Firestore profili oluşturuldu:", {
-    uid: user.uid,
-    role,
-  });
-
-  return {
-    ...newProfile,
-    createdAt: undefined,
-    updatedAt: undefined,
-  };
-}
-
-/**
- * =========================================================
- * GOOGLE LOGIN
- * =========================================================
- */
-
-export async function loginWithGoogle(): Promise<void> {
-  logFirebaseConnection();
-
-  const provider = new GoogleAuthProvider();
-
-  provider.setCustomParameters({
-    prompt: "select_account",
-  });
-
-  try {
-    await setPersistence(
-      auth,
-      browserLocalPersistence
-    );
-
-    /**
-     * Mobil cihazlarda redirect kullan.
-     */
-    if (
-      typeof window !== "undefined" &&
-      /iPhone|iPad|iPod|Android/i.test(
-        window.navigator.userAgent
-      )
-    ) {
       console.log(
-        "📱 Mobil cihaz algılandı. Google redirect başlıyor."
+        "🟢 GİRİŞ BAŞARILI"
       );
 
-      await signInWithRedirect(auth, provider);
-      return;
-    }
-
-    /**
-     * Masaüstünde popup kullan.
-     */
-    console.log(
-      "🖥️ Masaüstü cihaz. Google popup başlıyor."
-    );
-
-    await signInWithPopup(auth, provider);
-  } catch (error) {
-    console.error("❌ GOOGLE LOGIN HATASI:", {
-      code: getFirebaseErrorCode(error),
-      message: getFirebaseErrorMessage(error),
-      projectId: auth.app.options.projectId,
-      authDomain: auth.app.options.authDomain,
-    });
-
-    throw error;
-  }
-}
-
-/**
- * =========================================================
- * GOOGLE REDIRECT RESULT
- * =========================================================
- */
-
-export async function handleGoogleRedirectResult(): Promise<
-  UserProfile | null
-> {
-  logFirebaseConnection();
-
-  try {
-    const result = await getRedirectResult(auth);
-
-    if (!result) {
-      return null;
-    }
-
-    console.log(
-      "✅ Google redirect sonucu alındı:",
-      {
-        uid: result.user.uid,
-        email: result.user.email,
-      }
-    );
-
-    const profile = await ensureUserProfile(
-      result.user
-    );
-
-    return profile;
-  } catch (error) {
-    console.error(
-      "❌ GOOGLE REDIRECT RESULT HATASI:",
-      {
-        code: getFirebaseErrorCode(error),
-        message: getFirebaseErrorMessage(error),
-        projectId: auth.app.options.projectId,
-        authDomain: auth.app.options.authDomain,
-      }
-    );
-
-    throw error;
-  }
-}
-
-/**
- * =========================================================
- * LOGOUT
- * =========================================================
- */
-
-export async function logoutUser(): Promise<void> {
-  try {
-    await signOut(auth);
-
-    console.log("🚪 Firebase logout başarılı.");
-  } catch (error) {
-    console.error("❌ LOGOUT HATASI:", error);
-    throw error;
-  }
-}
-
-/**
- * =========================================================
- * CURRENT USER
- * =========================================================
- */
-
-export function getCurrentFirebaseUser(): User | null {
-  return auth.currentUser;
-}
-
-/**
- * =========================================================
- * AUTH STATE
- * =========================================================
- */
-
-export function subscribeToAuth(
-  callback: (user: User | null) => void
-): () => void {
-  return onAuthStateChanged(
-    auth,
-    (user) => {
-      console.log(
-        "🔄 Firebase Auth state:",
-        user?.email ?? "YOK"
+      setSuccess(
+        "Giriş başarılı."
       );
 
-      callback(user);
-    },
-    (error) => {
+      onLogin?.();
+    } catch (err) {
       console.error(
-        "❌ Auth state listener hatası:",
-        error
+        "❌ AUTHENTICATION ERROR",
+        err
       );
 
-      callback(null);
+      const code =
+        getErrorCode(err);
+
+      const friendlyMessage =
+        getAuthErrorMessage(err);
+
+      const technicalDetails =
+        getDetailedFirebaseError(err);
+
+      console.error(
+        "❌ FIREBASE HATA KODU:",
+        code || "YOK"
+      );
+
+      console.error(
+        "❌ FIREBASE HATA MESAJI:",
+        getErrorMessage(err) || "YOK"
+      );
+
+      if (
+        code ===
+        "auth/email-verification-required"
+      ) {
+        setIsRegister(false);
+
+        setEmail(
+          cleanEmail
+        );
+
+        setPassword("");
+
+        setSuccess(
+          "Hesabınız oluşturuldu. E-posta adresinize doğrulama bağlantısı gönderildi. E-postanızı doğruladıktan sonra Giriş Yap bölümünden giriş yapabilirsiniz."
+        );
+
+        return;
+      }
+
+      /*
+       * ÖNEMLİ:
+       * Artık sadece "E-posta veya şifre hatalı"
+       * göstermiyoruz.
+       *
+       * Firebase'in gerçek hata kodunu da
+       * ekranda gösteriyoruz.
+       */
+      setError(
+        technicalDetails
+          ? `${friendlyMessage}\n\n${technicalDetails}`
+          : friendlyMessage
+      );
+    } finally {
+      setLoading(false);
     }
-  );
-}
+  };
 
-/**
- * =========================================================
- * ADMIN CHECK
- * =========================================================
- */
+  const handleGoogle =
+    async () => {
+      clearMessages();
 
-export function isAdminEmail(
-  email: string | null | undefined
-): boolean {
+      setGoogleLoading(true);
+
+      try {
+        console.log(
+          "🟡 GOOGLE GİRİŞ BAŞLADI"
+        );
+
+        const profile =
+          await loginWithGoogle();
+
+        if (profile) {
+          console.log(
+            "🟢 GOOGLE GİRİŞ BAŞARILI",
+            profile
+          );
+
+          setSuccess(
+            "Google hesabınızla giriş başarılı."
+          );
+
+          onLogin?.();
+        }
+      } catch (err) {
+        console.error(
+          "❌ GOOGLE AUTHENTICATION ERROR",
+          err
+        );
+
+        const code =
+          getErrorCode(err);
+
+        const friendlyMessage =
+          getAuthErrorMessage(err);
+
+        const technicalDetails =
+          getDetailedFirebaseError(err);
+
+        console.error(
+          "❌ GOOGLE FIREBASE HATA KODU:",
+          code || "YOK"
+        );
+
+        console.error(
+          "❌ GOOGLE FIREBASE HATA MESAJI:",
+          getErrorMessage(err) || "YOK"
+        );
+
+        if (
+          code ===
+          "auth/google-redirect-started"
+        ) {
+          setSuccess(
+            "Google hesabınız seçildi. Trustline Express'e giriş yapılıyor..."
+          );
+
+          return;
+        }
+
+        setError(
+          technicalDetails
+            ? `${friendlyMessage}\n\n${technicalDetails}`
+            : friendlyMessage
+        );
+      } finally {
+        setGoogleLoading(false);
+      }
+    };
+
+  const toggleMode = () => {
+    clearMessages();
+
+    setIsRegister(
+      (current) => !current
+    );
+
+    setPassword("");
+  };
+
   return (
-    email?.trim().toLowerCase() ===
-    ADMIN_EMAIL.toLowerCase()
+    <div className="relative min-h-screen overflow-hidden bg-[#05070a] text-white">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-amber-500/10 blur-[120px]" />
+
+        <div className="absolute -bottom-48 -right-40 h-[600px] w-[600px] rounded-full bg-amber-400/10 blur-[140px]" />
+
+        <div className="absolute left-1/2 top-1/2 h-[450px] w-[450px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-500/5 blur-[100px]" />
+
+        <div
+          className="absolute inset-0 opacity-[0.08]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.18) 1px, transparent 1px)",
+            backgroundSize:
+              "70px 70px",
+          }}
+        />
+
+        <div className="absolute left-[-10%] top-[24%] h-px w-[120%] rotate-[8deg] bg-gradient-to-r from-transparent via-amber-400/20 to-transparent" />
+
+        <div className="absolute left-[-10%] top-[65%] h-px w-[120%] rotate-[-7deg] bg-gradient-to-r from-transparent via-amber-400/10 to-transparent" />
+
+        <div className="absolute left-[10%] top-[40%] h-[1px] w-[80%] rotate-[25deg] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+        <div className="absolute left-[-20%] top-[28%] h-[2px] w-[35%] rotate-[8deg] bg-gradient-to-r from-transparent via-amber-400 to-transparent opacity-70 blur-[1px] animate-[routeMove_6s_linear_infinite]" />
+
+        <div className="absolute right-[-20%] top-[67%] h-[2px] w-[35%] rotate-[-7deg] bg-gradient-to-r from-transparent via-amber-400 to-transparent opacity-60 blur-[1px] animate-[routeMoveReverse_8s_linear_infinite]" />
+
+        <div className="absolute left-[9%] top-[23%] h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.8)] animate-pulse" />
+
+        <div className="absolute right-[14%] top-[31%] h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.8)] animate-pulse [animation-delay:1s]" />
+
+        <div className="absolute left-[18%] bottom-[25%] h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.8)] animate-pulse [animation-delay:2s]" />
+
+        <div className="absolute right-[8%] bottom-[20%] h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.8)] animate-pulse [animation-delay:3s]" />
+
+        <div className="absolute left-[7%] top-[48%] text-4xl opacity-[0.08] animate-bounce">
+          📦
+        </div>
+
+        <div className="absolute right-[8%] top-[56%] text-4xl opacity-[0.08] animate-bounce [animation-delay:1.5s]">
+          📍
+        </div>
+
+        <div className="absolute bottom-[12%] left-[43%] text-3xl opacity-[0.06] animate-pulse">
+          🛵
+        </div>
+
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(5,7,10,0.35)_45%,rgba(5,7,10,0.95)_100%)]" />
+      </div>
+
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
+        <div className="w-full max-w-[470px]">
+
+          <div className="mb-6 text-center">
+            <div className="relative mx-auto mb-5 h-24 w-24">
+              <div className="absolute inset-[-15px] rounded-[35px] bg-amber-400/10 blur-2xl" />
+
+              <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-[28px] border border-white/15 bg-white p-2 shadow-[0_0_50px_rgba(245,158,11,0.18)]">
+                <img
+                  src={TRUSTLINE_LOGO}
+                  alt="Trustline Express"
+                  className="h-full w-full object-contain"
+                  loading="eager"
+                  draggable={false}
+                  onError={(event) => {
+                    event.currentTarget.style.display =
+                      "none";
+
+                    const fallback =
+                      event.currentTarget
+                        .nextElementSibling as HTMLElement | null;
+
+                    if (fallback) {
+                      fallback.style.display =
+                        "flex";
+                    }
+                  }}
+                />
+
+                <span
+                  className="hidden h-full w-full items-center justify-center rounded-2xl bg-slate-950 text-4xl font-black text-amber-400"
+                  aria-hidden="true"
+                >
+                  T
+                </span>
+              </div>
+            </div>
+
+            <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+              Trustline{" "}
+              <span className="text-amber-400">
+                Express
+              </span>
+            </h1>
+
+            <p className="mt-2 text-sm text-slate-400">
+              Teslimatın güvenilir adresi
+            </p>
+          </div>
+
+          <div className="mb-4 flex justify-center">
+            <div className="flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/[0.06] px-4 py-2 text-xs font-semibold text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.05)] backdrop-blur">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
+              </span>
+
+              Sistem aktif • Güvenli bağlantı
+            </div>
+          </div>
+
+          <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.97] shadow-[0_35px_100px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <div className="h-1 w-full bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
+
+            <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-amber-400/10 blur-3xl" />
+
+            <div className="relative p-6 sm:p-9">
+
+              <div className="mb-7">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-600">
+                    {isRegister
+                      ? "Yeni hesap"
+                      : "Hesap erişimi"}
+                  </p>
+                </div>
+
+                <h2 className="text-2xl font-black tracking-tight text-slate-950">
+                  {isRegister
+                    ? "Hesabını Oluştur"
+                    : "Tekrar Hoş Geldin"}
+                </h2>
+
+                <p className="mt-1.5 text-sm text-slate-500">
+                  {isRegister
+                    ? "Trustline Express ile teslimatlarını kolayca yönet."
+                    : "Teslimat yönetimine devam etmek için giriş yap."}
+                </p>
+              </div>
+
+              {error && (
+                <div
+                  role="alert"
+                  className="mb-5 whitespace-pre-line rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm leading-5 text-red-700 shadow-sm"
+                >
+                  <div className="flex gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100 font-black">
+                      !
+                    </span>
+
+                    <span>
+                      {error}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {success && (
+                <div
+                  role="status"
+                  className="mb-5 whitespace-pre-line rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-sm leading-6 text-emerald-700 shadow-sm"
+                >
+                  <div className="flex gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-black">
+                      ✓
+                    </span>
+
+                    <span>
+                      {success}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleGoogle}
+                disabled={
+                  loading ||
+                  googleLoading
+                }
+                className="group flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+              >
+                {googleLoading ? (
+                  <>
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-800" />
+
+                    Google ile bağlanılıyor...
+                  </>
+                ) : (
+                  <>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-black shadow-sm">
+                      G
+                    </span>
+
+                    Google ile devam et
+                  </>
+                )}
+              </button>
+
+              <div className="my-6 flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-200" />
+
+                <span className="text-[10px] font-black tracking-[0.2em] text-slate-400">
+                  VEYA
+                </span>
+
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+
+              <form
+                onSubmit={handleSubmit}
+                className="space-y-4"
+              >
+                {isRegister && (
+                  <div>
+                    <label
+                      htmlFor="auth-name"
+                      className="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600"
+                    >
+                      Ad Soyad
+                    </label>
+
+                    <input
+                      id="auth-name"
+                      type="text"
+                      value={name}
+                      onChange={(e) =>
+                        setName(
+                          e.target.value
+                        )
+                      }
+                      placeholder="Adınız Soyadınız"
+                      autoComplete="name"
+                      disabled={
+                        loading ||
+                        googleLoading
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                    />
+                  </div>
+                )}
+
+                {isRegister && (
+                  <div>
+                    <label
+                      htmlFor="auth-phone"
+                      className="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600"
+                    >
+                      Telefon{" "}
+                      <span className="normal-case font-medium tracking-normal text-slate-400">
+                        (opsiyonel)
+                      </span>
+                    </label>
+
+                    <input
+                      id="auth-phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) =>
+                        setPhone(
+                          e.target.value
+                        )
+                      }
+                      placeholder="05XX XXX XX XX"
+                      autoComplete="tel"
+                      disabled={
+                        loading ||
+                        googleLoading
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label
+                    htmlFor="auth-email"
+                    className="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600"
+                  >
+                    E-posta
+                  </label>
+
+                  <input
+                    id="auth-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) =>
+                      setEmail(
+                        e.target.value
+                      )
+                    }
+                    placeholder="ornek@email.com"
+                    autoComplete="email"
+                    disabled={
+                      loading ||
+                      googleLoading
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="auth-password"
+                    className="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600"
+                  >
+                    Şifre
+                  </label>
+
+                  <input
+                    id="auth-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) =>
+                      setPassword(
+                        e.target.value
+                      )
+                    }
+                    placeholder="En az 6 karakter"
+                    autoComplete={
+                      isRegister
+                        ? "new-password"
+                        : "current-password"
+                    }
+                    disabled={
+                      loading ||
+                      googleLoading
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-400/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={
+                    loading ||
+                    googleLoading
+                  }
+                  className="group relative mt-2 w-full overflow-hidden rounded-2xl bg-slate-950 px-4 py-4 text-sm font-black text-white shadow-[0_12px_30px_rgba(2,6,23,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_35px_rgba(2,6,23,0.35)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                >
+                  <span className="absolute inset-0 -translate-x-full skew-x-[-20deg] bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-[150%]" />
+
+                  <span className="absolute inset-x-10 bottom-0 h-1 bg-amber-400/70 blur-md" />
+
+                  <span className="relative flex items-center justify-center gap-2">
+                    {loading ? (
+                      <>
+                        <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+
+                        İşleniyor...
+                      </>
+                    ) : isRegister ? (
+                      <>
+                        <span>
+                          Hesap Oluştur
+                        </span>
+
+                        <span className="text-lg text-amber-400 transition-transform group-hover:translate-x-1">
+                          →
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>
+                          Giriş Yap
+                        </span>
+
+                        <span className="text-lg text-amber-400 transition-transform group-hover:translate-x-1">
+                          →
+                        </span>
+                      </>
+                    )}
+                  </span>
+                </button>
+              </form>
+
+              <div className="mt-6 text-center text-sm text-slate-500">
+                {isRegister
+                  ? "Zaten hesabınız var mı?"
+                  : "Henüz hesabınız yok mu?"}
+
+                <button
+                  type="button"
+                  onClick={toggleMode}
+                  disabled={
+                    loading ||
+                    googleLoading
+                  }
+                  className="ml-1.5 font-black text-amber-600 transition-colors hover:text-amber-700 hover:underline disabled:opacity-50"
+                >
+                  {isRegister
+                    ? "Giriş Yap"
+                    : "Kayıt Ol"}
+                </button>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-sm font-black text-amber-400 shadow-sm">
+                    ✓
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-black text-slate-700">
+                      Güvenli hesap sistemi
+                    </p>
+
+                    <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                      Hesap bilgileriniz Firebase Authentication
+                      ve Firestore üzerinde güvenli şekilde
+                      saklanır.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 border-t border-slate-200 pt-3 text-[11px] leading-5 text-slate-500">
+                  E-posta ve şifre ile kayıt olan kullanıcıların
+                  e-posta adreslerini doğrulaması zorunludur.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center backdrop-blur">
+              <div className="text-lg">
+                📦
+              </div>
+
+              <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                Sipariş
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center backdrop-blur">
+              <div className="text-lg">
+                🛵
+              </div>
+
+              <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                Kurye
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center backdrop-blur">
+              <div className="text-lg">
+                📍
+              </div>
+
+              <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                Teslimat
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 pb-2 text-center">
+            <p className="text-xs text-slate-500">
+              © {new Date().getFullYear()} Trustline Express
+            </p>
+
+            <p className="mt-1 text-[10px] tracking-wide text-slate-600">
+              GÜVENLİ • HIZLI • PROFESYONEL
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes routeMove {
+          0% {
+            transform: translateX(-30vw) rotate(8deg);
+            opacity: 0;
+          }
+
+          15% {
+            opacity: 0.7;
+          }
+
+          70% {
+            opacity: 0.45;
+          }
+
+          100% {
+            transform: translateX(130vw) rotate(8deg);
+            opacity: 0;
+          }
+        }
+
+        @keyframes routeMoveReverse {
+          0% {
+            transform: translateX(30vw) rotate(-7deg);
+            opacity: 0;
+          }
+
+          15% {
+            opacity: 0.6;
+          }
+
+          70% {
+            opacity: 0.4;
+          }
+
+          100% {
+            transform: translateX(-130vw) rotate(-7deg);
+            opacity: 0;
+          }
+        }
+      `}</style>
+    </div>
   );
 }
+
+export { AuthScreen };
+
+export default AuthScreen;
