@@ -8,13 +8,13 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// 1. KRİTİK DÜZELTME: Render (Reverse Proxy) arkasında çalıştığı için IP ve protokol doğrul యేsi
+// 1. KRİTİK DÜZELTME: Render (Reverse Proxy) arkasında çalıştığı için IP ve protokol doğrulaması
 app.set('trust proxy', 1);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 2. Oturum ve Güvenli Çerez (Cookie) Yapılandırması
+// 2. Oturum ve Güvenli Çerez (Cookie) Yapılandırması (express-session)
 app.use(session({
   secret: process.env.SESSION_SECRET || 'trustline-secret-key',
   resave: false,
@@ -27,7 +27,7 @@ app.use(session({
   }
 }));
 
-// API Rotalarınız buraya gelebilir...
+// API Rotalarınız
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
