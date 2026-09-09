@@ -283,15 +283,17 @@ class StorageService {
         /*
          * ÖNEMLİ:
          *
-         * Burada:
+         * Burada currentUser / activeUserId / activeRole
+         * temizlenmiyor.
          *
-         * this.currentUser = null;
+         * Google OAuth sonrasında Firestore profilinin
+         * oluşturulması birkaç an sürebilir.
          *
-         * yapmıyoruz.
+         * Bu sırada Storage'ın kullanıcıyı null yapması
+         * App.tsx'in Login ekranına dönmesine sebep oluyordu.
          *
-         * Böylece Google OAuth başarılı olduktan sonra
-         * Firestore profilinin oluşması sırasında kullanıcı
-         * Login ekranına düşmez.
+         * auth.ts içerisindeki ensureUserProfile()
+         * profil oluşturacaktır.
          */
         return;
       }
@@ -907,11 +909,11 @@ class StorageService {
 
                 const location:
                   CourierLocation = {
-                    ...data,
-                    courierId:
-                      data.courierId ||
-                      uid,
-                  };
+                  ...data,
+                  courierId:
+                    data.courierId ||
+                    uid,
+                };
 
                 this.courierLocations =
                   [
