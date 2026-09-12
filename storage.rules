@@ -9,19 +9,25 @@ service firebase.storage {
 
     function isAdmin() {
       return signedIn()
-        && request.auth.token.email == "hamidocan0411@gmail.com";
+        && (
+          request.auth.token.email == "hamidocan0411@gmail.com"
+          ||
+          (
+            firestore.exists(
+              /databases/(default)/documents/users/$(request.auth.uid)
+            )
+            &&
+            firestore.get(
+              /databases/(default)/documents/users/$(request.auth.uid)
+            ).data.role == "admin"
+          )
+        );
     }
 
     match /delivery-proofs/{orderId}/{fileName} {
-
       allow read: if signedIn();
 
-      allow create:
-        if signedIn()
-        && request.resource.size <= 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
-
-      allow update:
+      allow create, update:
         if signedIn()
         && request.resource.size <= 10 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
