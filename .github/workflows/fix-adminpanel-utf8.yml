@@ -1,0 +1,89 @@
+name: Fix AdminPanel UTF-8
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-adminpanel-utf8.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Repair AdminPanel UTF-8
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const file = path.join(process.cwd(), 'src/components/AdminPanel.tsx');
+          let text = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
+
+          const special = {
+            '\u20AC': 0x80, '\u201A': 0x82, '\u0192': 0x83, '\u201E': 0x84,
+            '\u2026': 0x85, '\u2020': 0x86, '\u2021': 0x87, '\u02C6': 0x88,
+            '\u2030': 0x89, '\u0160': 0x8A, '\u2039': 0x8B, '\u0152': 0x8C,
+            '\u017D': 0x8E, '\u2018': 0x91, '\u2019': 0x92, '\u201C': 0x93,
+            '\u201D': 0x94, '\u2022': 0x95, '\u2013': 0x96, '\u2014': 0x97,
+            '\u02DC': 0x98, '\u2122': 0x99, '\u0161': 0x9A, '\u203A': 0x9B,
+            '\u0153': 0x9C, '\u017E': 0x9E, '\u0178': 0x9F
+          };
+
+          function bytesFrom1252(s) {
+            const bytes = [];
+            for (const ch of s) {
+              const cp = ch.codePointAt(0);
+              if (cp <= 0x7F || (cp >= 0xA0 && cp <= 0xFF)) bytes.push(cp);
+              else if (special[ch] !== undefined) bytes.push(special[ch]);
+              else return null;
+            }
+            return Buffer.from(bytes);
+          }
+
+          function score(s) {
+            let n = 0;
+            for (const ch of s) {
+              const cp = ch.codePointAt(0);
+              if ([0xC2,0xC3,0xC4,0xC5,0xC6,0xCB,0xE2,0xEF,0xF0].includes(cp)) n += 2;
+              if ((cp >= 0x80 && cp <= 0x9F) || cp === 0xFFFD) n += 5;
+            }
+            return n;
+          }
+
+          let best = text;
+          let bestScore = score(best);
+          for (let pass = 0; pass < 5; pass++) {
+            const b = bytesFrom1252(best);
+            if (!b) break;
+            const candidate = b.toString('utf8');
+            if (candidate.includes('\uFFFD')) break;
+            const s = score(candidate);
+            if (s < bestScore) {
+              best = candidate;
+              bestScore = s;
+            } else break;
+          }
+
+          fs.writeFileSync(file, best, 'utf8');
+
+          const remaining = score(best);
+          console.log('AdminPanel UTF-8 score:', remaining);
+          if (remaining > 0) process.exitCode = 1;
+          NODE
+
+      - name: Commit repaired file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/AdminPanel.tsx
+          if git diff --cached --quiet; then
+            echo "No changes needed."
+          else
+            git commit -m "Repair AdminPanel Turkish text encoding"
+            git push
+          fi
