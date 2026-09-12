@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
   useRef,
   useState,
 } from "react";

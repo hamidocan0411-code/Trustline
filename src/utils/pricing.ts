@@ -1,4 +1,4 @@
-﻿import { CourierType, PricingConfig } from '../types';
+import { CourierType, PricingConfig } from '../types';
 
 export const DEFAULT_PRICING: PricingConfig = {
   perKmPrice: 36,
