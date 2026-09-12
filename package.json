@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "trustline-express",
   "version": "1.0.0",
   "type": "module",
@@ -26,8 +26,9 @@
     "@types/react-dom": "^18.3.0",
     "esbuild": "^0.20.2",
     "typescript": "^5.4.3",
-    "vite": "^7.0.0",
+    "vite": "^6.2.3",
     "eslint": "^8.56.0",
     "prettier": "^3.1.0"
   }
 }
+

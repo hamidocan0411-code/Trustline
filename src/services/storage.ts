@@ -1,4 +1,4 @@
-import {
+﻿import {
   collection,
   deleteDoc,
   doc,
@@ -122,7 +122,7 @@ class StorageService {
 
     try {
       console.log(
-        "🔥 Storage init başlıyor..."
+        "ğŸ”¥ Storage init baÅŸlÄ±yor..."
       );
 
       const firebaseUser =
@@ -130,7 +130,7 @@ class StorageService {
 
       if (firebaseUser) {
         console.log(
-          "🔐 Storage Firebase kullanıcı bulundu:",
+          "ğŸ” Storage Firebase kullanÄ±cÄ± bulundu:",
           {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
@@ -143,13 +143,13 @@ class StorageService {
           );
         } catch (error) {
           console.error(
-            "❌ Storage kullanıcı profili yüklenemedi:",
+            "âŒ Storage kullanÄ±cÄ± profili yÃ¼klenemedi:",
             error
           );
         }
       } else {
         console.log(
-          "ℹ️ Storage init sırasında aktif Firebase kullanıcısı yok."
+          "â„¹ï¸ Storage init sÄ±rasÄ±nda aktif Firebase kullanÄ±cÄ±sÄ± yok."
         );
       }
 
@@ -159,7 +159,7 @@ class StorageService {
             try {
               if (!firebaseUser) {
                 console.log(
-                  "🔒 Firebase kullanıcı yok. Storage temizleniyor."
+                  "ğŸ”’ Firebase kullanÄ±cÄ± yok. Storage temizleniyor."
                 );
 
                 await this.handleLogout();
@@ -168,7 +168,7 @@ class StorageService {
               }
 
               console.log(
-                "🔐 Storage Firebase Auth kullanıcı bulundu:",
+                "ğŸ” Storage Firebase Auth kullanÄ±cÄ± bulundu:",
                 {
                   uid:
                     firebaseUser.uid,
@@ -189,7 +189,7 @@ class StorageService {
               );
             } catch (error) {
               console.error(
-                "❌ Storage Auth state işleme hatası:",
+                "âŒ Storage Auth state iÅŸleme hatasÄ±:",
                 error
               );
             }
@@ -199,11 +199,11 @@ class StorageService {
       this.initialized = true;
 
       console.log(
-        "🔥 Trustline Storage sistemi hazır."
+        "ğŸ”¥ Trustline Storage sistemi hazÄ±r."
       );
     } catch (error) {
       console.error(
-        "❌ Storage init hatası:",
+        "âŒ Storage init hatasÄ±:",
         error
       );
     } finally {
@@ -233,7 +233,7 @@ class StorageService {
 
       if (!profileSnapshot.exists()) {
         console.warn(
-          "⚠️ Firebase Auth kullanıcısı var fakat users koleksiyonunda profil henüz bulunamadı:",
+          "âš ï¸ Firebase Auth kullanÄ±cÄ±sÄ± var fakat users koleksiyonunda profil henÃ¼z bulunamadÄ±:",
           uid
         );
 
@@ -262,7 +262,7 @@ class StorageService {
       }
 
       console.log(
-        "👤 Kullanıcı profili yüklendi:",
+        "ğŸ‘¤ KullanÄ±cÄ± profili yÃ¼klendi:",
         {
           id: profile.id,
           email: profile.email,
@@ -291,7 +291,7 @@ class StorageService {
       this.emit();
     } catch (error) {
       console.error(
-        "❌ Kullanıcı profili yüklenemedi:",
+        "âŒ KullanÄ±cÄ± profili yÃ¼klenemedi:",
         error
       );
 
@@ -315,7 +315,7 @@ class StorageService {
       profile.role;
 
     console.log(
-      "🔥 Firestore listener sistemi başlatılıyor:",
+      "ğŸ”¥ Firestore listener sistemi baÅŸlatÄ±lÄ±yor:",
       {
         uid,
         role,
@@ -386,21 +386,21 @@ class StorageService {
               }
 
               console.log(
-                "👑 ADMIN kullanıcılar güncellendi:",
+                "ğŸ‘‘ ADMIN kullanÄ±cÄ±lar gÃ¼ncellendi:",
                 this.users.length
               );
 
               this.emit();
             } catch (error) {
               console.error(
-                "❌ Admin users snapshot işleme hatası:",
+                "âŒ Admin users snapshot iÅŸleme hatasÄ±:",
                 error
               );
             }
           },
           (error) => {
             console.error(
-              "❌ Admin users listener hatası:",
+              "âŒ Admin users listener hatasÄ±:",
               error
             );
           }
@@ -426,7 +426,7 @@ class StorageService {
               !snapshot.exists()
             ) {
               console.warn(
-                "⚠️ Kullanıcı profili artık mevcut değil:",
+                "âš ï¸ KullanÄ±cÄ± profili artÄ±k mevcut deÄŸil:",
                 uid
               );
 
@@ -449,7 +449,7 @@ class StorageService {
               previousRole !== liveUser.role
             ) {
               console.log(
-                "🔄 Kullanıcı rolü değişti:",
+                "ğŸ”„ KullanÄ±cÄ± rolÃ¼ deÄŸiÅŸti:",
                 {
                   oldRole:
                     previousRole,
@@ -491,14 +491,14 @@ class StorageService {
             this.emit();
           } catch (error) {
             console.error(
-              "❌ Kullanıcı snapshot işleme hatası:",
+              "âŒ KullanÄ±cÄ± snapshot iÅŸleme hatasÄ±:",
               error
             );
           }
         },
         (error) => {
           console.error(
-            "❌ Kullanıcı profil listener hatası:",
+            "âŒ KullanÄ±cÄ± profil listener hatasÄ±:",
             error
           );
         }
@@ -529,7 +529,7 @@ class StorageService {
         );
 
       console.log(
-        "👑 ADMIN tüm siparişleri dinliyor."
+        "ğŸ‘‘ ADMIN tÃ¼m sipariÅŸleri dinliyor."
       );
     } else if (
       role === "courier"
@@ -548,7 +548,7 @@ class StorageService {
         );
 
       console.log(
-        "🚴 KURYE siparişleri dinliyor."
+        "ğŸš´ KURYE sipariÅŸleri dinliyor."
       );
     } else {
       ordersQuery =
@@ -565,7 +565,7 @@ class StorageService {
         );
 
       console.log(
-        "👤 MÜŞTERİ siparişleri dinliyor."
+        "ğŸ‘¤ MÃœÅTERÄ° sipariÅŸleri dinliyor."
       );
     }
 
@@ -583,7 +583,7 @@ class StorageService {
               );
 
             console.log(
-              "📦 Siparişler güncellendi:",
+              "ğŸ“¦ SipariÅŸler gÃ¼ncellendi:",
               {
                 count:
                   this.orders.length,
@@ -594,14 +594,14 @@ class StorageService {
             this.emit();
           } catch (error) {
             console.error(
-              "❌ Orders snapshot işleme hatası:",
+              "âŒ Orders snapshot iÅŸleme hatasÄ±:",
               error
             );
           }
         },
         (error) => {
           console.error(
-            "❌ Orders listener hatası:",
+            "âŒ Orders listener hatasÄ±:",
             error
           );
         }
@@ -648,14 +648,14 @@ class StorageService {
             this.emit();
           } catch (error) {
             console.error(
-              "❌ Notification snapshot işleme hatası:",
+              "âŒ Notification snapshot iÅŸleme hatasÄ±:",
               error
             );
           }
         },
         (error) => {
           console.error(
-            "❌ Notifications listener hatası:",
+            "âŒ Notifications listener hatasÄ±:",
             error
           );
         }
@@ -696,14 +696,14 @@ class StorageService {
             this.emit();
           } catch (error) {
             console.error(
-              "❌ Pricing snapshot işleme hatası:",
+              "âŒ Pricing snapshot iÅŸleme hatasÄ±:",
               error
             );
           }
         },
         (error) => {
           console.error(
-            "❌ Pricing listener hatası:",
+            "âŒ Pricing listener hatasÄ±:",
             error
           );
         }
@@ -722,8 +722,7 @@ class StorageService {
     uid: string,
     role: string
   ): void {
-    if (role === "admin") {
-      const unsubscribe =
+    if (role === "admin" || role === "customer") {const unsubscribe =
         onSnapshot(
           collection(
             db,
@@ -749,14 +748,14 @@ class StorageService {
               this.emit();
             } catch (error) {
               console.error(
-                "❌ Courier location snapshot işleme hatası:",
+                "âŒ Courier location snapshot iÅŸleme hatasÄ±:",
                 error
               );
             }
           },
           (error) => {
             console.error(
-              "❌ Courier locations listener hatası:",
+              "âŒ Courier locations listener hatasÄ±:",
               error
             );
           }
@@ -814,14 +813,14 @@ class StorageService {
               this.emit();
             } catch (error) {
               console.error(
-                "❌ Kurye konum snapshot işleme hatası:",
+                "âŒ Kurye konum snapshot iÅŸleme hatasÄ±:",
                 error
               );
             }
           },
           (error) => {
             console.error(
-              "❌ Kurye konum listener hatası:",
+              "âŒ Kurye konum listener hatasÄ±:",
               error
             );
           }
@@ -846,7 +845,7 @@ class StorageService {
         unsubscribe();
       } catch (error) {
         console.warn(
-          "⚠️ Listener kapatma hatası:",
+          "âš ï¸ Listener kapatma hatasÄ±:",
           error
         );
       }
@@ -929,7 +928,7 @@ class StorageService {
         ];
       } catch (error) {
         console.error(
-          "❌ Kurye GPS kapatılırken konum güncellenemedi:",
+          "âŒ Kurye GPS kapatÄ±lÄ±rken konum gÃ¼ncellenemedi:",
           error
         );
       }
@@ -944,14 +943,14 @@ class StorageService {
         ),
         {
           courierStatus:
-            "Çevrimdışı",
+            "Ã‡evrimdÄ±ÅŸÄ±",
 
           updatedAt: now,
         }
       );
     } catch (error) {
       console.error(
-        "❌ Kurye çevrimdışı yapılamadı:",
+        "âŒ Kurye Ã§evrimdÄ±ÅŸÄ± yapÄ±lamadÄ±:",
         error
       );
 
@@ -967,7 +966,7 @@ class StorageService {
       this.updateUserLocal({
         ...existingUser,
         courierStatus:
-          "Çevrimdışı",
+          "Ã‡evrimdÄ±ÅŸÄ±",
       });
     }
 
@@ -978,14 +977,14 @@ class StorageService {
       this.currentUser = {
         ...this.currentUser,
         courierStatus:
-          "Çevrimdışı",
+          "Ã‡evrimdÄ±ÅŸÄ±",
       };
     }
 
     this.emit();
 
     console.log(
-      "🔴 Kurye çevrimdışı + canlı GPS kapalı:",
+      "ğŸ”´ Kurye Ã§evrimdÄ±ÅŸÄ± + canlÄ± GPS kapalÄ±:",
       courierId
     );
   }
@@ -1008,7 +1007,7 @@ class StorageService {
         );
       } catch (error) {
         console.error(
-          "⚠️ Logout sırasında kurye GPS kapatılamadı:",
+          "âš ï¸ Logout sÄ±rasÄ±nda kurye GPS kapatÄ±lamadÄ±:",
           error
         );
       }
@@ -1027,7 +1026,7 @@ class StorageService {
     this.emit();
 
     console.log(
-      "🧹 Storage logout temizliği tamamlandı."
+      "ğŸ§¹ Storage logout temizliÄŸi tamamlandÄ±."
     );
   }
 
@@ -1075,7 +1074,7 @@ class StorageService {
       callback();
     } catch (error) {
       console.error(
-        "❌ Storage subscriber ilk çağrı hatası:",
+        "âŒ Storage subscriber ilk Ã§aÄŸrÄ± hatasÄ±:",
         error
       );
     }
@@ -1096,7 +1095,7 @@ class StorageService {
         callback();
       } catch (error) {
         console.error(
-          "❌ Storage subscriber emit hatası:",
+          "âŒ Storage subscriber emit hatasÄ±:",
           error
         );
       }
@@ -1196,7 +1195,7 @@ class StorageService {
   ): Promise<void> {
     if (!id) {
       throw new Error(
-        "Kullanıcı ID gerekli."
+        "KullanÄ±cÄ± ID gerekli."
       );
     }
 
@@ -1263,7 +1262,7 @@ class StorageService {
       existing.role !== "courier"
     ) {
       throw new Error(
-        "Bu kullanıcı kurye değil."
+        "Bu kullanÄ±cÄ± kurye deÄŸil."
       );
     }
 
@@ -1310,7 +1309,7 @@ class StorageService {
     this.emit();
 
     console.log(
-      "👔 Kurye çalışma durumu güncellendi:",
+      "ğŸ‘” Kurye Ã§alÄ±ÅŸma durumu gÃ¼ncellendi:",
       {
         courierId,
         status,
@@ -1327,7 +1326,7 @@ class StorageService {
   ): Promise<UserProfile> {
     if (!userId) {
       throw new Error(
-        "Kullanıcı ID gerekli."
+        "KullanÄ±cÄ± ID gerekli."
       );
     }
 
@@ -1336,7 +1335,7 @@ class StorageService {
 
     if (!adminUser) {
       throw new Error(
-        "Admin oturumu bulunamadı."
+        "Admin oturumu bulunamadÄ±."
       );
     }
 
@@ -1347,7 +1346,7 @@ class StorageService {
       ADMIN_EMAIL.toLowerCase()
     ) {
       throw new Error(
-        "Bu işlemi sadece yetkili admin yapabilir."
+        "Bu iÅŸlemi sadece yetkili admin yapabilir."
       );
     }
 
@@ -1363,7 +1362,7 @@ class StorageService {
 
     if (!snapshot.exists()) {
       throw new Error(
-        "Müşteri bulunamadı."
+        "MÃ¼ÅŸteri bulunamadÄ±."
       );
     }
 
@@ -1375,7 +1374,7 @@ class StorageService {
       "courier"
     ) {
       throw new Error(
-        "Bu kullanıcı zaten kurye."
+        "Bu kullanÄ±cÄ± zaten kurye."
       );
     }
 
@@ -1384,7 +1383,7 @@ class StorageService {
       "admin"
     ) {
       throw new Error(
-        "Yönetici hesabı kurye yapılamaz."
+        "YÃ¶netici hesabÄ± kurye yapÄ±lamaz."
       );
     }
 
@@ -1393,7 +1392,7 @@ class StorageService {
       "customer"
     ) {
       throw new Error(
-        "Sadece müşteri hesapları kurye yapılabilir."
+        "Sadece mÃ¼ÅŸteri hesaplarÄ± kurye yapÄ±labilir."
       );
     }
 
@@ -1412,7 +1411,7 @@ class StorageService {
 
       courierStatus:
         existing.courierStatus ||
-        "Çevrimdışı",
+        "Ã‡evrimdÄ±ÅŸÄ±",
 
       totalDeliveries:
         typeof existing.totalDeliveries ===
@@ -1453,7 +1452,7 @@ class StorageService {
     this.emit();
 
     console.log(
-      "🚴 Müşteri kurye yapıldı:",
+      "ğŸš´ MÃ¼ÅŸteri kurye yapÄ±ldÄ±:",
       {
         uid:
           updatedProfile.id,
@@ -1491,13 +1490,13 @@ class StorageService {
 
     if (!name) {
       throw new Error(
-        "Kurye adı gerekli."
+        "Kurye adÄ± gerekli."
       );
     }
 
     if (!email) {
       throw new Error(
-        "Kurye e-postası gerekli."
+        "Kurye e-postasÄ± gerekli."
       );
     }
 
@@ -1506,7 +1505,7 @@ class StorageService {
       data.password.length < 6
     ) {
       throw new Error(
-        "Şifre en az 6 karakter olmalıdır."
+        "Åifre en az 6 karakter olmalÄ±dÄ±r."
       );
     }
 
@@ -1515,7 +1514,7 @@ class StorageService {
 
     if (!adminUser) {
       throw new Error(
-        "Admin oturumu bulunamadı."
+        "Admin oturumu bulunamadÄ±."
       );
     }
 
@@ -1526,7 +1525,7 @@ class StorageService {
       ADMIN_EMAIL.toLowerCase()
     ) {
       throw new Error(
-        "Bu işlemi sadece yetkili admin yapabilir."
+        "Bu iÅŸlemi sadece yetkili admin yapabilir."
       );
     }
 
@@ -1580,7 +1579,7 @@ class StorageService {
           "courier",
 
         courierStatus:
-          "Çevrimdışı",
+          "Ã‡evrimdÄ±ÅŸÄ±",
 
         totalDeliveries:
           0,
@@ -1612,7 +1611,7 @@ class StorageService {
       return profile;
     } catch (error: any) {
       console.error(
-        "❌ Kurye oluşturma hatası:",
+        "âŒ Kurye oluÅŸturma hatasÄ±:",
         error
       );
 
@@ -1639,7 +1638,7 @@ class StorageService {
         "auth/email-already-in-use"
       ) {
         throw new Error(
-          "Bu e-posta adresi zaten kayıtlı."
+          "Bu e-posta adresi zaten kayÄ±tlÄ±."
         );
       }
 
@@ -1648,7 +1647,7 @@ class StorageService {
         "auth/invalid-email"
       ) {
         throw new Error(
-          "Geçerli bir e-posta adresi girin."
+          "GeÃ§erli bir e-posta adresi girin."
         );
       }
 
@@ -1657,7 +1656,7 @@ class StorageService {
         "auth/weak-password"
       ) {
         throw new Error(
-          "Şifre en az 6 karakter olmalıdır."
+          "Åifre en az 6 karakter olmalÄ±dÄ±r."
         );
       }
 
@@ -1684,7 +1683,7 @@ class StorageService {
 
     if (
       status ===
-      "Çevrimdışı"
+      "Ã‡evrimdÄ±ÅŸÄ±"
     ) {
       await this.setCourierOffline(
         courierId
@@ -1771,7 +1770,7 @@ class StorageService {
   ): Promise<Order> {
     if (!order.id) {
       throw new Error(
-        "Sipariş ID gerekli."
+        "SipariÅŸ ID gerekli."
       );
     }
 
@@ -1808,7 +1807,7 @@ class StorageService {
   ): Promise<Order> {
     if (!id) {
       throw new Error(
-        "Sipariş ID gerekli."
+        "SipariÅŸ ID gerekli."
       );
     }
 
@@ -1873,7 +1872,7 @@ class StorageService {
 
   /* ==========================================================
      UPDATE ORDER STATUS
-     TESLİM EDİLDİ = DELIVERED AT KAYDI
+     TESLÄ°M EDÄ°LDÄ° = DELIVERED AT KAYDI
   ========================================================== */
 
   async updateOrderStatus(
@@ -1882,7 +1881,7 @@ class StorageService {
   ): Promise<Order> {
     if (!orderId) {
       throw new Error(
-        "Sipariş ID gerekli."
+        "SipariÅŸ ID gerekli."
       );
     }
 
@@ -1960,7 +1959,7 @@ class StorageService {
       this.emit();
 
       console.log(
-        "✅ Sipariş teslim edildi:",
+        "âœ… SipariÅŸ teslim edildi:",
         {
           orderId,
           deliveredAt,
@@ -1989,7 +1988,7 @@ class StorageService {
 
     if (!courier) {
       throw new Error(
-        "Kurye bulunamadı."
+        "Kurye bulunamadÄ±."
       );
     }
 
@@ -1998,7 +1997,7 @@ class StorageService {
       "courier"
     ) {
       throw new Error(
-        "Seçilen kullanıcı kurye değil."
+        "SeÃ§ilen kullanÄ±cÄ± kurye deÄŸil."
       );
     }
 
@@ -2014,7 +2013,7 @@ class StorageService {
           courier.phone || "",
 
         status:
-          "Kurye Atandı",
+          "Kurye AtandÄ±",
       }
     );
   }
@@ -2024,7 +2023,7 @@ class StorageService {
   ): Promise<void> {
     if (!orderId) {
       throw new Error(
-        "Sipariş ID gerekli."
+        "SipariÅŸ ID gerekli."
       );
     }
 
@@ -2198,7 +2197,7 @@ class StorageService {
   ): Promise<void> {
     if (!userId) {
       throw new Error(
-        "Kullanıcı ID gerekli."
+        "KullanÄ±cÄ± ID gerekli."
       );
     }
 
@@ -2241,7 +2240,7 @@ class StorageService {
     this.emit();
 
     console.log(
-      "✅ Tüm bildirimler okundu:",
+      "âœ… TÃ¼m bildirimler okundu:",
       userId
     );
   }
@@ -2312,7 +2311,7 @@ class StorageService {
 
   destroy(): void {
     console.log(
-      "🧹 Storage destroy başlatıldı."
+      "ğŸ§¹ Storage destroy baÅŸlatÄ±ldÄ±."
     );
 
     this.cleanupFirestoreListeners();
@@ -2363,8 +2362,9 @@ void storage
   .catch(
     (error) => {
       console.error(
-        "❌ Storage başlangıç hatası:",
+        "âŒ Storage baÅŸlangÄ±Ã§ hatasÄ±:",
         error
       );
     }
   );
+

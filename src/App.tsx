@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useEffect,
   useRef,
   useState,
@@ -48,7 +48,7 @@ export function App() {
         : [];
     } catch (error) {
       console.error(
-        "Orders yüklenemedi:",
+        "Orders yÃ¼klenemedi:",
         error
       );
 
@@ -62,7 +62,7 @@ export function App() {
         return storage.getPricing();
       } catch (error) {
         console.error(
-          "Pricing yüklenemedi:",
+          "Pricing yÃ¼klenemedi:",
           error
         );
 
@@ -145,7 +145,7 @@ export function App() {
         "inactive"
     ) {
       console.warn(
-        "🚫 Pasif kurye hesabı giriş yapmaya çalıştı:",
+        "ğŸš« Pasif kurye hesabÄ± giriÅŸ yapmaya Ã§alÄ±ÅŸtÄ±:",
         {
           uid: profile.id,
           email: profile.email,
@@ -156,7 +156,7 @@ export function App() {
         storage.setCurrentUser(null);
       } catch (error) {
         console.warn(
-          "⚠️ Pasif hesap için storage temizlenemedi:",
+          "âš ï¸ Pasif hesap iÃ§in storage temizlenemedi:",
           error
         );
       }
@@ -172,7 +172,7 @@ export function App() {
         await signOut(auth);
       } catch (error) {
         console.warn(
-          "⚠️ Pasif kurye Firebase oturumu kapatılamadı:",
+          "âš ï¸ Pasif kurye Firebase oturumu kapatÄ±lamadÄ±:",
           error
         );
       }
@@ -183,7 +183,7 @@ export function App() {
     setInactiveAccount(false);
 
     console.log(
-      "👤 Trustline kullanıcı profili uygulanıyor:",
+      "ğŸ‘¤ Trustline kullanÄ±cÄ± profili uygulanÄ±yor:",
       {
         uid: profile.id,
         email: profile.email,
@@ -197,7 +197,7 @@ export function App() {
       );
     } catch (error) {
       console.warn(
-        "⚠️ Storage kullanıcı ayarlanamadı:",
+        "âš ï¸ Storage kullanÄ±cÄ± ayarlanamadÄ±:",
         error
       );
     }
@@ -221,7 +221,7 @@ export function App() {
       );
     } catch (error) {
       console.warn(
-        "⚠️ Bildirimler yüklenemedi:",
+        "âš ï¸ Bildirimler yÃ¼klenemedi:",
         error
       );
 
@@ -257,7 +257,7 @@ export function App() {
       true;
 
     console.log(
-      "🚀 TRUSTLINE DASHBOARD HAZIR."
+      "ğŸš€ TRUSTLINE DASHBOARD HAZIR."
     );
   };
 
@@ -280,7 +280,7 @@ export function App() {
           }
 
           console.log(
-            "🔄 App Auth callback:",
+            "ğŸ”„ App Auth callback:",
             {
               uid:
                 firebaseUser?.uid ??
@@ -301,7 +301,7 @@ export function App() {
               true;
 
             console.log(
-              "ℹ️ Firebase Auth kullanıcısı yok. Login ekranına geçiliyor."
+              "â„¹ï¸ Firebase Auth kullanÄ±cÄ±sÄ± yok. Login ekranÄ±na geÃ§iliyor."
             );
 
             if (
@@ -309,7 +309,7 @@ export function App() {
               currentUser !== null
             ) {
               console.log(
-                "⚠️ Kullanıcı zaten doğrulandı. Auth null geçici olarak yok sayılıyor."
+                "âš ï¸ KullanÄ±cÄ± zaten doÄŸrulandÄ±. Auth null geÃ§ici olarak yok sayÄ±lÄ±yor."
               );
 
               return;
@@ -365,7 +365,7 @@ export function App() {
             true;
 
           console.log(
-            "🟢 Firebase Authentication kullanıcısı bulundu:",
+            "ğŸŸ¢ Firebase Authentication kullanÄ±cÄ±sÄ± bulundu:",
             {
               uid:
                 firebaseUser.uid,
@@ -400,7 +400,7 @@ export function App() {
             !firebaseUser.emailVerified
           ) {
             console.warn(
-              "⚠️ E-posta doğrulanmamış."
+              "âš ï¸ E-posta doÄŸrulanmamÄ±ÅŸ."
             );
 
             try {
@@ -448,7 +448,7 @@ export function App() {
 
           try {
             console.log(
-              "👤 Firestore kullanıcı profili hazırlanıyor:",
+              "ğŸ‘¤ Firestore kullanÄ±cÄ± profili hazÄ±rlanÄ±yor:",
               {
                 uid:
                   firebaseUser.uid,
@@ -473,7 +473,7 @@ export function App() {
             }
 
             console.log(
-              "✅ Firestore kullanıcı profili hazır:",
+              "âœ… Firestore kullanÄ±cÄ± profili hazÄ±r:",
               {
                 uid:
                   profile.id,
@@ -508,7 +508,7 @@ export function App() {
             }
 
             console.error(
-              "❌ Kullanıcı profili hazırlanamadı:",
+              "âŒ KullanÄ±cÄ± profili hazÄ±rlanamadÄ±:",
               error
             );
 
@@ -572,7 +572,7 @@ export function App() {
               );
 
               setAppError(
-                "Kullanıcı hesabı bulundu ancak Firestore kullanıcı profiline erişilemiyor. Firebase Firestore Rules kontrol edilmeli."
+                "KullanÄ±cÄ± hesabÄ± bulundu ancak Firestore kullanÄ±cÄ± profiline eriÅŸilemiyor. Firebase Firestore Rules kontrol edilmeli."
               );
 
               return;
@@ -583,7 +583,7 @@ export function App() {
             );
 
             setAppError(
-              "Kullanıcı profili hazırlanırken bir hata oluştu. Lütfen tekrar deneyin."
+              "KullanÄ±cÄ± profili hazÄ±rlanÄ±rken bir hata oluÅŸtu. LÃ¼tfen tekrar deneyin."
             );
           }
         }
@@ -592,7 +592,7 @@ export function App() {
     const initializeRedirect =
       async () => {
         console.log(
-          "🚀 Trustline Google redirect kontrolü başlatılıyor..."
+          "ğŸš€ Trustline Google redirect kontrolÃ¼ baÅŸlatÄ±lÄ±yor..."
         );
 
         try {
@@ -609,7 +609,7 @@ export function App() {
             redirectProfile
           ) {
             console.log(
-              "🟢 GOOGLE REDIRECT PROFİLİ BULUNDU:",
+              "ğŸŸ¢ GOOGLE REDIRECT PROFÄ°LÄ° BULUNDU:",
               {
                 uid:
                   redirectProfile.id,
@@ -641,7 +641,7 @@ export function App() {
             );
           } else {
             console.log(
-              "ℹ️ Google redirect sonucu bulunamadı."
+              "â„¹ï¸ Google redirect sonucu bulunamadÄ±."
             );
           }
         } catch (error) {
@@ -652,7 +652,7 @@ export function App() {
           }
 
           console.error(
-            "❌ Google redirect işlemi başarısız:",
+            "âŒ Google redirect iÅŸlemi baÅŸarÄ±sÄ±z:",
             error
           );
         } finally {
@@ -663,7 +663,7 @@ export function App() {
               true;
 
             console.log(
-              "🏁 Google redirect kontrolü tamamlandı."
+              "ğŸ Google redirect kontrolÃ¼ tamamlandÄ±."
             );
 
             if (
@@ -673,7 +673,7 @@ export function App() {
               !inactiveAccount
             ) {
               console.log(
-                "🔒 Redirect kullanıcı bulamadı ve Firebase Auth kullanıcısı yok."
+                "ğŸ”’ Redirect kullanÄ±cÄ± bulamadÄ± ve Firebase Auth kullanÄ±cÄ±sÄ± yok."
               );
 
               setCurrentUser(
@@ -710,7 +710,7 @@ export function App() {
         unsubscribe?.();
       } catch (error) {
         console.warn(
-          "Auth listener kapatılamadı:",
+          "Auth listener kapatÄ±lamadÄ±:",
           error
         );
       }
@@ -744,7 +744,7 @@ export function App() {
             );
           } catch (error) {
             console.error(
-              "Orders listener hatası:",
+              "Orders listener hatasÄ±:",
               error
             );
           }
@@ -760,7 +760,7 @@ export function App() {
             }
           } catch (error) {
             console.error(
-              "Pricing listener hatası:",
+              "Pricing listener hatasÄ±:",
               error
             );
           }
@@ -781,7 +781,7 @@ export function App() {
               );
             } catch (error) {
               console.error(
-                "Notification listener hatası:",
+                "Notification listener hatasÄ±:",
                 error
               );
             }
@@ -791,7 +791,7 @@ export function App() {
         });
     } catch (error) {
       console.error(
-        "Storage listener başlatılamadı:",
+        "Storage listener baÅŸlatÄ±lamadÄ±:",
         error
       );
     }
@@ -803,7 +803,7 @@ export function App() {
         unsubscribe?.();
       } catch (error) {
         console.warn(
-          "Storage listener kapatılamadı:",
+          "Storage listener kapatÄ±lamadÄ±:",
           error
         );
       }
@@ -856,7 +856,7 @@ export function App() {
           </div>
 
           <p className="mt-4 text-xs text-[#666666]">
-            Güvenli bağlantı kuruluyor...
+            GÃ¼venli baÄŸlantÄ± kuruluyor...
           </p>
         </div>
       </div>
@@ -878,11 +878,11 @@ export function App() {
           </div>
 
           <h2 className="mt-5 text-lg font-bold text-white">
-            Hesap hazırlanıyor
+            Hesap hazÄ±rlanÄ±yor
           </h2>
 
           <p className="mt-2 text-xs text-[#999999]">
-            Hesap bilgileriniz yükleniyor...
+            Hesap bilgileriniz yÃ¼kleniyor...
           </p>
 
           <div className="mx-auto mt-5 h-1.5 w-32 overflow-hidden rounded-full bg-[#303036]">
@@ -914,13 +914,13 @@ export function App() {
           </div>
 
           <h2 className="mt-7 text-xl font-black text-white">
-            Hesabınız pasife alınmıştır
+            HesabÄ±nÄ±z pasife alÄ±nmÄ±ÅŸtÄ±r
           </h2>
 
           <p className="mt-3 text-sm leading-6 text-[#999999]">
-            Kurye hesabınız şu anda aktif değildir.
+            Kurye hesabÄ±nÄ±z ÅŸu anda aktif deÄŸildir.
             <br />
-            Lütfen yönetici ile iletişime geçin.
+            LÃ¼tfen yÃ¶netici ile iletiÅŸime geÃ§in.
           </p>
 
           <button
@@ -933,7 +933,7 @@ export function App() {
             }}
             className="mt-7 w-full rounded-2xl bg-[#D6A84F] px-6 py-3 text-sm font-black text-[#0B0B0D] transition hover:opacity-90"
           >
-            Giriş Ekranına Dön
+            GiriÅŸ EkranÄ±na DÃ¶n
           </button>
         </div>
       </div>
@@ -952,7 +952,7 @@ export function App() {
           </div>
 
           <h2 className="mt-4 text-lg font-bold">
-            Bağlantı Hatası
+            BaÄŸlantÄ± HatasÄ±
           </h2>
 
           <p className="mt-2 text-sm text-[#999999]">
@@ -980,7 +980,7 @@ export function App() {
           profile
         ) => {
           console.log(
-            "🟢 AuthScreen Google profili App'e ulaştı:",
+            "ğŸŸ¢ AuthScreen Google profili App'e ulaÅŸtÄ±:",
             {
               uid:
                 profile.id,
@@ -1046,7 +1046,7 @@ export function App() {
         order.status !==
           "Teslim Edildi" &&
         order.status !==
-          "İptal Edildi"
+          "Ä°ptal Edildi"
     );
 
   const unreadNotificationsCount =
@@ -1348,3 +1348,4 @@ export function App() {
 }
 
 export default App;
+

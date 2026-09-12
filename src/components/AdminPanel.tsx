@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Activity,
@@ -60,18 +60,18 @@ type AdminTab =
 
 const ORDER_STATUSES: OrderStatus[] = [
   "Kurye Bekleniyor",
-  "Kurye Atandı",
+  "Kurye AtandÄ±",
   "Kurye Kabul Etti",
-  "Paket Alındı",
+  "Paket AlÄ±ndÄ±",
   "Teslimatta",
   "Teslim Edildi",
-  "İptal Edildi",
+  "Ä°ptal Edildi",
 ];
 
 const COURIER_STATUSES: CourierAvailability[] = [
-  "Müsait",
-  "Meşgul",
-  "Çevrimdışı",
+  "MÃ¼sait",
+  "MeÅŸgul",
+  "Ã‡evrimdÄ±ÅŸÄ±",
 ];
 
 type CourierWithEmployment = UserProfile & {
@@ -93,7 +93,7 @@ export const AdminPanel: React.FC<Props> = ({
   const [searchTerm, setSearchTerm] = useState("");
 
   const [statusFilter, setStatusFilter] =
-    useState<"Tümü" | OrderStatus>("Tümü");
+    useState<"TÃ¼mÃ¼" | OrderStatus>("TÃ¼mÃ¼");
 
   const [selectedOrder, setSelectedOrder] =
     useState<Order | null>(null);
@@ -141,7 +141,7 @@ export const AdminPanel: React.FC<Props> = ({
     useState<UserProfile[]>([]);
 
   const [perKmPrice, setPerKmPrice] =
-    useState(pricing?.perKmPrice ?? 50);
+    useState(pricing?.perKmPrice ?? 36);
 
   const [minPrice, setMinPrice] =
     useState(pricing?.minPrice ?? 250);
@@ -173,7 +173,7 @@ export const AdminPanel: React.FC<Props> = ({
 
   useEffect(() => {
     setPerKmPrice(
-      pricing?.perKmPrice ?? 50
+      pricing?.perKmPrice ?? 36
     );
 
     setMinPrice(
@@ -221,7 +221,7 @@ export const AdminPanel: React.FC<Props> = ({
         setCourierRatingStats(stats);
       });
     } catch (error) {
-      console.error("Admin kurye puanları listener hatası:", error);
+      console.error("Admin kurye puanlarÄ± listener hatasÄ±:", error);
       setCourierRatingStats({});
     }
 
@@ -242,7 +242,7 @@ export const AdminPanel: React.FC<Props> = ({
       );
     } catch (error) {
       console.error(
-        "Admin kullanıcıları alınamadı:",
+        "Admin kullanÄ±cÄ±larÄ± alÄ±namadÄ±:",
         error
       );
 
@@ -284,7 +284,7 @@ export const AdminPanel: React.FC<Props> = ({
             }
           } catch (error) {
             console.warn(
-              `Kurye konumu alınamadı: ${courier.id}`,
+              `Kurye konumu alÄ±namadÄ±: ${courier.id}`,
               error
             );
           }
@@ -294,7 +294,7 @@ export const AdminPanel: React.FC<Props> = ({
       setCourierLocations(next);
     } catch (error) {
       console.error(
-        "Kurye konumları alınamadı:",
+        "Kurye konumlarÄ± alÄ±namadÄ±:",
         error
       );
     } finally {
@@ -316,7 +316,7 @@ export const AdminPanel: React.FC<Props> = ({
         );
     } catch (error) {
       console.warn(
-        "Admin storage listener kurulamadı:",
+        "Admin storage listener kurulamadÄ±:",
         error
       );
     }
@@ -339,7 +339,7 @@ export const AdminPanel: React.FC<Props> = ({
         );
     } catch (error) {
       console.warn(
-        "Canlı konum listener kurulamadı:",
+        "CanlÄ± konum listener kurulamadÄ±:",
         error
       );
     }
@@ -359,12 +359,12 @@ export const AdminPanel: React.FC<Props> = ({
   }, [couriers.length]);
 
   /*
-   * CANLI DESTEK - ADMIN PANEL GENELİ
+   * CANLI DESTEK - ADMIN PANEL GENELÄ°
    *
    * Buradaki listener sayesinde:
-   * - Yeni destek talebi anında gelir.
-   * - Bekleyen destek sayısı anında güncellenir.
-   * - Admin hangi sekmede olursa olsun sayı görünür.
+   * - Yeni destek talebi anÄ±nda gelir.
+   * - Bekleyen destek sayÄ±sÄ± anÄ±nda gÃ¼ncellenir.
+   * - Admin hangi sekmede olursa olsun sayÄ± gÃ¶rÃ¼nÃ¼r.
    */
   useEffect(() => {
     let unsubscribe:
@@ -384,7 +384,7 @@ export const AdminPanel: React.FC<Props> = ({
         );
     } catch (error) {
       console.error(
-        "Admin canlı destek listener başlatılamadı:",
+        "Admin canlÄ± destek listener baÅŸlatÄ±lamadÄ±:",
         error
       );
 
@@ -443,7 +443,7 @@ export const AdminPanel: React.FC<Props> = ({
     safeOrders.filter(
       (order) =>
         order.status ===
-        "İptal Edildi"
+        "Ä°ptal Edildi"
     ).length;
 
   const waitingOrders =
@@ -457,7 +457,7 @@ export const AdminPanel: React.FC<Props> = ({
     safeOrders.filter(
       (order) =>
         order.status ===
-          "Kurye Atandı" ||
+          "Kurye AtandÄ±" ||
         order.status ===
           "Kurye Kabul Etti"
     ).length;
@@ -466,7 +466,7 @@ export const AdminPanel: React.FC<Props> = ({
     safeOrders.filter(
       (order) =>
         order.status ===
-        "Paket Alındı"
+        "Paket AlÄ±ndÄ±"
     ).length;
 
   const deliveringOrders =
@@ -481,7 +481,7 @@ export const AdminPanel: React.FC<Props> = ({
       .filter(
         (order) =>
           order.status !==
-          "İptal Edildi"
+          "Ä°ptal Edildi"
       )
       .reduce(
         (sum, order) =>
@@ -496,7 +496,7 @@ export const AdminPanel: React.FC<Props> = ({
     activeCouriers.filter(
       (courier) =>
         courier.courierStatus ===
-        "Müsait"
+        "MÃ¼sait"
     ).length;
 
   const urgentOrders =
@@ -506,12 +506,12 @@ export const AdminPanel: React.FC<Props> = ({
           order.urgency ===
             "Acil" ||
           order.urgency ===
-            "Çok Acil"
+            "Ã‡ok Acil"
         ) &&
         order.status !==
           "Teslim Edildi" &&
         order.status !==
-          "İptal Edildi"
+          "Ä°ptal Edildi"
     );
 
   const filteredOrders =
@@ -557,7 +557,7 @@ export const AdminPanel: React.FC<Props> = ({
 
           const matchesStatus =
             statusFilter ===
-              "Tümü" ||
+              "TÃ¼mÃ¼" ||
             order.status ===
               statusFilter;
 
@@ -626,14 +626,14 @@ export const AdminPanel: React.FC<Props> = ({
   };
 
   /*
-   * SIPARIŞ GÜNCELLEME
+   * SIPARIÅ GÃœNCELLEME
    *
-   * Tüm Firestore işlemleri async olarak
+   * TÃ¼m Firestore iÅŸlemleri async olarak
    * await edilir.
    *
-   * updateOrderPrice kullanılmaz.
-   * Fiyat değişikliği mevcut updateOrder()
-   * metodu üzerinden yapılır.
+   * updateOrderPrice kullanÄ±lmaz.
+   * Fiyat deÄŸiÅŸikliÄŸi mevcut updateOrder()
+   * metodu Ã¼zerinden yapÄ±lÄ±r.
    */
   const saveOrderChanges =
     async () => {
@@ -650,7 +650,7 @@ export const AdminPanel: React.FC<Props> = ({
 
         if (!currentOrder) {
           alert(
-            "Sipariş artık bulunamadı."
+            "SipariÅŸ artÄ±k bulunamadÄ±."
           );
           return;
         }
@@ -750,16 +750,16 @@ export const AdminPanel: React.FC<Props> = ({
         refresh();
 
         alert(
-          "Sipariş başarıyla güncellendi."
+          "SipariÅŸ baÅŸarÄ±yla gÃ¼ncellendi."
         );
       } catch (error) {
         console.error(
-          "Sipariş güncelleme hatası:",
+          "SipariÅŸ gÃ¼ncelleme hatasÄ±:",
           error
         );
 
         alert(
-          "Sipariş güncellenemedi. Firestore yetkilerini kontrol edin."
+          "SipariÅŸ gÃ¼ncellenemedi. Firestore yetkilerini kontrol edin."
         );
       } finally {
         setSaving(false);
@@ -778,7 +778,7 @@ export const AdminPanel: React.FC<Props> = ({
 
       if (
         status ===
-        "Çevrimdışı"
+        "Ã‡evrimdÄ±ÅŸÄ±"
       ) {
         void storage
           .setCourierOffline(
@@ -792,12 +792,12 @@ export const AdminPanel: React.FC<Props> = ({
       refresh();
     } catch (error) {
       console.error(
-        "Kurye durumu güncellenemedi:",
+        "Kurye durumu gÃ¼ncellenemedi:",
         error
       );
 
       alert(
-        "Kurye durumu güncellenemedi."
+        "Kurye durumu gÃ¼ncellenemedi."
       );
     }
   };
@@ -822,7 +822,7 @@ export const AdminPanel: React.FC<Props> = ({
 
       if (
         !window.confirm(
-          `${name} işten ayrıldı olarak işaretlensin mi?\n\nFirebase hesabı ve geçmiş siparişleri korunacaktır.`
+          `${name} iÅŸten ayrÄ±ldÄ± olarak iÅŸaretlensin mi?\n\nFirebase hesabÄ± ve geÃ§miÅŸ sipariÅŸleri korunacaktÄ±r.`
         )
       ) {
         return;
@@ -847,16 +847,16 @@ export const AdminPanel: React.FC<Props> = ({
         onRefreshData?.();
 
         alert(
-          `${name} pasif duruma alındı.`
+          `${name} pasif duruma alÄ±ndÄ±.`
         );
       } catch (error) {
         console.error(
-          "Kurye pasifleştirme hatası:",
+          "Kurye pasifleÅŸtirme hatasÄ±:",
           error
         );
 
         alert(
-          "Kurye pasifleştirilemedi."
+          "Kurye pasifleÅŸtirilemedi."
         );
       } finally {
         setChangingEmploymentId(
@@ -894,12 +894,12 @@ export const AdminPanel: React.FC<Props> = ({
         );
       } catch (error) {
         console.error(
-          "Kurye aktifleştirme hatası:",
+          "Kurye aktifleÅŸtirme hatasÄ±:",
           error
         );
 
         alert(
-          "Kurye aktifleştirilemedi."
+          "Kurye aktifleÅŸtirilemedi."
         );
       } finally {
         setChangingEmploymentId(
@@ -941,23 +941,23 @@ export const AdminPanel: React.FC<Props> = ({
         );
       } else {
         throw new Error(
-          "Pricing API bulunamadı."
+          "Pricing API bulunamadÄ±."
         );
       }
 
       onRefreshData?.();
 
       alert(
-        "Fiyatlandırma başarıyla kaydedildi."
+        "FiyatlandÄ±rma baÅŸarÄ±yla kaydedildi."
       );
     } catch (error) {
       console.error(
-        "Fiyatlandırma hatası:",
+        "FiyatlandÄ±rma hatasÄ±:",
         error
       );
 
       alert(
-        "Fiyatlandırma kaydedilemedi."
+        "FiyatlandÄ±rma kaydedilemedi."
       );
     } finally {
       setPricingSaving(false);
@@ -992,8 +992,8 @@ export const AdminPanel: React.FC<Props> = ({
       loadUsers();
       setSelectedCourierProfile(null);
     } catch (error) {
-      console.error("Kurye araç bilgisi kaydedilemedi:", error);
-      alert("Kurye araç bilgisi kaydedilemedi.");
+      console.error("Kurye araÃ§ bilgisi kaydedilemedi:", error);
+      alert("Kurye araÃ§ bilgisi kaydedilemedi.");
     } finally {
       setProfileSaving(false);
     }
@@ -1002,14 +1002,14 @@ export const AdminPanel: React.FC<Props> = ({
   const deleteCancelledOrder = async () => {
     if (
       !selectedOrder ||
-      selectedOrder.status !== "İptal Edildi" ||
+      selectedOrder.status !== "Ä°ptal Edildi" ||
       deletingOrderId
     ) {
       return;
     }
 
     const confirmed = window.confirm(
-      `#${selectedOrder.id} numaralı iptal edilmiş sipariş kalıcı olarak silinsin mi? Bu işlem geri alınamaz.`
+      `#${selectedOrder.id} numaralÄ± iptal edilmiÅŸ sipariÅŸ kalÄ±cÄ± olarak silinsin mi? Bu iÅŸlem geri alÄ±namaz.`
     );
 
     if (!confirmed) {
@@ -1021,8 +1021,8 @@ export const AdminPanel: React.FC<Props> = ({
       await storage.deleteOrder(selectedOrder.id);
       closeOrder();
     } catch (error) {
-      console.error("İptal edilen sipariş silinemedi:", error);
-      alert("İptal edilen sipariş silinemedi.");
+      console.error("Ä°ptal edilen sipariÅŸ silinemedi:", error);
+      alert("Ä°ptal edilen sipariÅŸ silinemedi.");
     } finally {
       setDeletingOrderId(null);
     }
@@ -1040,7 +1040,7 @@ export const AdminPanel: React.FC<Props> = ({
     },
     {
       id: "orders",
-      label: "Siparişler",
+      label: "SipariÅŸler",
       icon: Package,
     },
     {
@@ -1050,17 +1050,17 @@ export const AdminPanel: React.FC<Props> = ({
     },
     {
       id: "customers",
-      label: "Müşteriler",
+      label: "MÃ¼ÅŸteriler",
       icon: Users,
     },
     {
       id: "pricing",
-      label: "Fiyatlandırma",
+      label: "FiyatlandÄ±rma",
       icon: DollarSign,
     },
     {
       id: "support",
-      label: "Canlı Destek",
+      label: "CanlÄ± Destek",
       icon: Headphones,
     },
     {
@@ -1089,7 +1089,7 @@ export const AdminPanel: React.FC<Props> = ({
                 </h1>
 
                 <p className="text-xs text-[#999999]">
-                  Trustline Express • Canlı kontrol paneli
+                  Trustline Express â€¢ CanlÄ± kontrol paneli
                 </p>
               </div>
             </div>
@@ -1180,20 +1180,20 @@ export const AdminPanel: React.FC<Props> = ({
 
               <div className="min-w-0">
                 <p className="font-semibold text-white">
-                  Yeni canlı destek talebi
+                  Yeni canlÄ± destek talebi
                 </p>
 
                 <p className="mt-0.5 truncate text-xs text-[#999999]">
                   {waitingSupportTickets.length ===
                   1
-                    ? "1 müşteri yönetici desteği bekliyor."
-                    : `${waitingSupportTickets.length} müşteri yönetici desteği bekliyor.`}
+                    ? "1 mÃ¼ÅŸteri yÃ¶netici desteÄŸi bekliyor."
+                    : `${waitingSupportTickets.length} mÃ¼ÅŸteri yÃ¶netici desteÄŸi bekliyor.`}
                 </p>
               </div>
             </div>
 
             <span className="flex shrink-0 items-center gap-2 rounded-xl bg-[#D6A84F] px-3 py-2 text-xs font-bold text-[#0B0B0D]">
-              Destek Taleplerini Aç
+              Destek Taleplerini AÃ§
               <ChevronRight
                 size={15}
               />
@@ -1217,7 +1217,7 @@ export const AdminPanel: React.FC<Props> = ({
 
                   <div>
                     <h3 className="font-semibold text-red-300">
-                      Acil siparişler var
+                      Acil sipariÅŸler var
                     </h3>
 
                     <p className="mt-1 text-sm text-red-200/80">
@@ -1225,7 +1225,7 @@ export const AdminPanel: React.FC<Props> = ({
                         urgentOrders.length
                       }{" "}
                       adet acil veya
-                      çok acil sipariş
+                      Ã§ok acil sipariÅŸ
                       aktif.
                     </p>
                   </div>
@@ -1235,7 +1235,7 @@ export const AdminPanel: React.FC<Props> = ({
 
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               <StatCard
-                title="Toplam Sipariş"
+                title="Toplam SipariÅŸ"
                 value={
                   totalOrders
                 }
@@ -1255,7 +1255,7 @@ export const AdminPanel: React.FC<Props> = ({
               />
 
               <StatCard
-                title="Müsait Kurye"
+                title="MÃ¼sait Kurye"
                 value={`${availableCouriers}/${activeCouriers.length}`}
                 icon={
                   <Truck size={20} />
@@ -1284,14 +1284,14 @@ export const AdminPanel: React.FC<Props> = ({
               />
 
               <MiniStat
-                title="Atandı"
+                title="AtandÄ±"
                 value={
                   assignedOrders
                 }
               />
 
               <MiniStat
-                title="Paket Alındı"
+                title="Paket AlÄ±ndÄ±"
                 value={
                   pickedUpOrders
                 }
@@ -1305,7 +1305,7 @@ export const AdminPanel: React.FC<Props> = ({
               />
 
               <MiniStat
-                title="İptal"
+                title="Ä°ptal"
                 value={
                   cancelledOrders
                 }
@@ -1327,8 +1327,8 @@ export const AdminPanel: React.FC<Props> = ({
                   </div>
                   <ChevronRight size={16} className="text-blue-300 transition group-hover:translate-x-1" />
                 </div>
-                <p className="mt-4 text-sm font-black text-white">Bekleyen siparişleri yönet</p>
-                <p className="mt-1 text-xs text-[#8F8F99]">{waitingOrders} sipariş kurye ataması bekliyor.</p>
+                <p className="mt-4 text-sm font-black text-white">Bekleyen sipariÅŸleri yÃ¶net</p>
+                <p className="mt-1 text-xs text-[#8F8F99]">{waitingOrders} sipariÅŸ kurye atamasÄ± bekliyor.</p>
               </button>
 
               <button
@@ -1342,14 +1342,14 @@ export const AdminPanel: React.FC<Props> = ({
                   </div>
                   <ChevronRight size={16} className="text-emerald-300 transition group-hover:translate-x-1" />
                 </div>
-                <p className="mt-4 text-sm font-black text-white">Kurye filoyu yönet</p>
-                <p className="mt-1 text-xs text-[#8F8F99]">{availableCouriers} kurye şu an müsait görünüyor.</p>
+                <p className="mt-4 text-sm font-black text-white">Kurye filoyu yÃ¶net</p>
+                <p className="mt-1 text-xs text-[#8F8F99]">{availableCouriers} kurye ÅŸu an mÃ¼sait gÃ¶rÃ¼nÃ¼yor.</p>
               </button>
 
               <button
                 type="button"
                 onClick={() => {
-                  setStatusFilter("İptal Edildi");
+                  setStatusFilter("Ä°ptal Edildi");
                   setActiveTab("orders");
                 }}
                 className="group rounded-2xl border border-red-500/20 bg-red-500/[0.04] p-4 text-left transition hover:-translate-y-0.5 hover:border-red-400/40 hover:bg-red-500/[0.08]"
@@ -1360,8 +1360,8 @@ export const AdminPanel: React.FC<Props> = ({
                   </div>
                   <ChevronRight size={16} className="text-red-300 transition group-hover:translate-x-1" />
                 </div>
-                <p className="mt-4 text-sm font-black text-white">İptal kayıtlarını temizle</p>
-                <p className="mt-1 text-xs text-[#8F8F99]">{cancelledOrders} kayıt detaydan güvenle silinebilir.</p>
+                <p className="mt-4 text-sm font-black text-white">Ä°ptal kayÄ±tlarÄ±nÄ± temizle</p>
+                <p className="mt-1 text-xs text-[#8F8F99]">{cancelledOrders} kayÄ±t detaydan gÃ¼venle silinebilir.</p>
               </button>
             </section>
 
@@ -1380,7 +1380,7 @@ export const AdminPanel: React.FC<Props> = ({
                   </h2>
 
                   <p className="text-sm text-emerald-400">
-                    Firebase bağlantısı
+                    Firebase baÄŸlantÄ±sÄ±
                     aktif
                   </p>
                 </div>
@@ -1391,12 +1391,12 @@ export const AdminPanel: React.FC<Props> = ({
               <div className="flex items-center justify-between border-b border-[#303036] p-5">
                 <div>
                   <h2 className="font-semibold">
-                    Son Siparişler
+                    Son SipariÅŸler
                   </h2>
 
                   <p className="text-sm text-[#999999]">
-                    En son oluşturulan
-                    gönderiler
+                    En son oluÅŸturulan
+                    gÃ¶nderiler
                   </p>
                 </div>
 
@@ -1408,7 +1408,7 @@ export const AdminPanel: React.FC<Props> = ({
                   }
                   className="flex items-center gap-1 text-sm text-[#D6A84F]"
                 >
-                  Tümünü Gör
+                  TÃ¼mÃ¼nÃ¼ GÃ¶r
                   <ChevronRight
                     size={16}
                   />
@@ -1438,7 +1438,7 @@ export const AdminPanel: React.FC<Props> = ({
 
                 {safeOrders.length ===
                   0 && (
-                  <EmptyState text="Henüz sipariş bulunmuyor." />
+                  <EmptyState text="HenÃ¼z sipariÅŸ bulunmuyor." />
                 )}
               </div>
             </div>
@@ -1467,7 +1467,7 @@ export const AdminPanel: React.FC<Props> = ({
                         .value
                     )
                   }
-                  placeholder="Sipariş, müşteri, kurye veya adres ara..."
+                  placeholder="SipariÅŸ, mÃ¼ÅŸteri, kurye veya adres ara..."
                   className="w-full rounded-xl border border-[#303036] bg-[#19191E] py-3 pl-10 pr-4 text-sm outline-none focus:border-[#D6A84F]"
                 />
               </div>
@@ -1482,14 +1482,14 @@ export const AdminPanel: React.FC<Props> = ({
                   setStatusFilter(
                     event.target
                       .value as
-                      | "Tümü"
+                      | "TÃ¼mÃ¼"
                       | OrderStatus
                   )
                 }
                 className="rounded-xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm outline-none"
               >
                 <option>
-                  Tümü
+                  TÃ¼mÃ¼
                 </option>
 
                 {ORDER_STATUSES.map(
@@ -1545,7 +1545,7 @@ export const AdminPanel: React.FC<Props> = ({
                         <p className="mt-2 text-sm text-slate-300">
                           {
                             order.customerName ||
-                            "Müşteri"
+                            "MÃ¼ÅŸteri"
                           }
                         </p>
 
@@ -1601,7 +1601,7 @@ export const AdminPanel: React.FC<Props> = ({
 
               {filteredOrders.length ===
                 0 && (
-                <EmptyState text="Arama kriterlerine uygun sipariş bulunamadı." />
+                <EmptyState text="Arama kriterlerine uygun sipariÅŸ bulunamadÄ±." />
               )}
             </div>
           </div>
@@ -1620,7 +1620,7 @@ export const AdminPanel: React.FC<Props> = ({
                   {
                     activeCouriers.length
                   }{" "}
-                  aktif •{" "}
+                  aktif â€¢{" "}
                   {
                     inactiveCouriers.length
                   }{" "}
@@ -1654,12 +1654,12 @@ export const AdminPanel: React.FC<Props> = ({
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="font-semibold">
-                    Canlı Kurye Konumları
+                    CanlÄ± Kurye KonumlarÄ±
                   </h3>
 
                   <p className="text-xs text-[#777777]">
-                    Aktif ve canlı GPS
-                    paylaşan kuryeler
+                    Aktif ve canlÄ± GPS
+                    paylaÅŸan kuryeler
                   </p>
                 </div>
 
@@ -1667,15 +1667,15 @@ export const AdminPanel: React.FC<Props> = ({
                   {
                     liveCouriers.length
                   }{" "}
-                  canlı
+                  canlÄ±
                 </span>
               </div>
 
               {liveCouriers.length ===
               0 ? (
                 <div className="rounded-xl border border-dashed border-[#303036] bg-[#0B0B0D] p-6 text-center text-sm text-[#777777]">
-                  Şu anda canlı GPS
-                  paylaşan aktif kurye
+                  Åu anda canlÄ± GPS
+                  paylaÅŸan aktif kurye
                   yok.
                 </div>
               ) : (
@@ -1756,10 +1756,10 @@ export const AdminPanel: React.FC<Props> = ({
                         <span
                           className={`h-3 w-3 shrink-0 rounded-full ${
                             courier.courierStatus ===
-                            "Müsait"
+                            "MÃ¼sait"
                               ? "bg-emerald-400"
                               : courier.courierStatus ===
-                                "Meşgul"
+                                "MeÅŸgul"
                               ? "bg-amber-400"
                               : "bg-slate-600"
                           }`}
@@ -1771,37 +1771,37 @@ export const AdminPanel: React.FC<Props> = ({
                           (order) =>
                             order.courierId === courier.id &&
                             order.status !== "Teslim Edildi" &&
-                            order.status !== "İptal Edildi"
+                            order.status !== "Ä°ptal Edildi"
                         );
 
                         const assigned = Boolean(assignedOrder);
                         const deliveryActive =
                           assignedOrder?.status === "Teslimatta";
                         const packagePickedUp =
-                          assignedOrder?.status === "Paket Alındı";
+                          assignedOrder?.status === "Paket AlÄ±ndÄ±";
                         const waitingToPickup =
-                          assignedOrder?.status === "Kurye Atandı" ||
+                          assignedOrder?.status === "Kurye AtandÄ±" ||
                           assignedOrder?.status === "Kurye Kabul Etti";
 
                         const displayStatus = deliveryActive
-                          ? "TESLİMATTA"
+                          ? "TESLÄ°MATTA"
                           : packagePickedUp
                           ? "PAKET ALINDI"
                           : waitingToPickup
-                          ? "GÖREV ATANDI"
-                          : courier.courierStatus || "ÇEVRİMDIŞI";
+                          ? "GÃ–REV ATANDI"
+                          : courier.courierStatus || "Ã‡EVRÄ°MDIÅI";
 
                         const availabilityLabel = deliveryActive
-                          ? "Teslimat yapıyor"
+                          ? "Teslimat yapÄ±yor"
                           : packagePickedUp
-                          ? "Paket alındı • teslimata hazırlanıyor"
+                          ? "Paket alÄ±ndÄ± â€¢ teslimata hazÄ±rlanÄ±yor"
                           : waitingToPickup
-                          ? "Paket alacak görev üzerinde"
-                          : courier.courierStatus === "Müsait"
-                          ? "Paket almaya müsait"
-                          : courier.courierStatus === "Meşgul"
-                          ? "Meşgul"
-                          : "Paket almaya uygun değil";
+                          ? "Paket alacak gÃ¶rev Ã¼zerinde"
+                          : courier.courierStatus === "MÃ¼sait"
+                          ? "Paket almaya mÃ¼sait"
+                          : courier.courierStatus === "MeÅŸgul"
+                          ? "MeÅŸgul"
+                          : "Paket almaya uygun deÄŸil";
 
                         const availabilityClass = assigned
                           ? deliveryActive
@@ -1809,9 +1809,9 @@ export const AdminPanel: React.FC<Props> = ({
                             : packagePickedUp
                             ? "border-violet-500/20 bg-violet-500/5 text-violet-300"
                             : "border-amber-500/20 bg-amber-500/5 text-amber-300"
-                          : courier.courierStatus === "Müsait"
+                          : courier.courierStatus === "MÃ¼sait"
                           ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-300"
-                          : courier.courierStatus === "Meşgul"
+                          : courier.courierStatus === "MeÅŸgul"
                           ? "border-amber-500/20 bg-amber-500/5 text-amber-300"
                           : "border-[#303036] bg-[#0B0B0D] text-[#999999]";
 
@@ -1831,7 +1831,7 @@ export const AdminPanel: React.FC<Props> = ({
                             {assignedOrder && (
                               <div className="mt-2 rounded-lg bg-black/20 p-2.5 text-[11px] leading-5 text-[#BDBDBD]">
                                 <div className="font-semibold text-white">
-                                  Sipariş #{assignedOrder.id}
+                                  SipariÅŸ #{assignedOrder.id}
                                 </div>
                                 <div className="mt-0.5 truncate">
                                   {assignedOrder.status === "Teslimatta"
@@ -1852,7 +1852,7 @@ export const AdminPanel: React.FC<Props> = ({
                         }`}>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-[#777777]">
-                            Canlı GPS
+                            CanlÄ± GPS
                           </span>
 
                           <span
@@ -1863,7 +1863,7 @@ export const AdminPanel: React.FC<Props> = ({
                             }`}
                           >
                             {sharing
-                              ? "AKTİF"
+                              ? "AKTÄ°F"
                               : "KAPALI"}
                           </span>
                         </div>
@@ -1890,7 +1890,7 @@ export const AdminPanel: React.FC<Props> = ({
                         <select
                           value={
                             courier.courierStatus ||
-                            "Çevrimdışı"
+                            "Ã‡evrimdÄ±ÅŸÄ±"
                           }
                           onChange={(
                             event
@@ -1946,7 +1946,7 @@ export const AdminPanel: React.FC<Props> = ({
                           <p className="mt-1 font-bold text-[#D6A84F]">
                             {courierRatingStats[courier.id]?.count
                               ? courierRatingStats[courier.id].average.toFixed(1)
-                              : "—"}
+                              : "â€”"}
                           </p>
                         </div>
                       </div>
@@ -1959,7 +1959,7 @@ export const AdminPanel: React.FC<Props> = ({
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
                             <p className="text-[10px] font-bold uppercase tracking-wide text-[#777777]">
-                              Araç & plaka
+                              AraÃ§ & plaka
                             </p>
                             <p className="mt-1 truncate text-xs font-semibold text-[#D6A84F]">
                               {courier.plate || "Plaka eklenmedi"}
@@ -1981,7 +1981,7 @@ export const AdminPanel: React.FC<Props> = ({
                         className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#D6A84F]/25 bg-[#D6A84F]/5 py-2.5 text-xs font-bold text-[#D6A84F] transition hover:bg-[#D6A84F]/10"
                       >
                         <Car size={14} />
-                        Araç Bilgilerini Düzenle
+                        AraÃ§ Bilgilerini DÃ¼zenle
                       </button>
 
                       <button
@@ -1990,7 +1990,7 @@ export const AdminPanel: React.FC<Props> = ({
                         className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#D6A84F]/25 bg-[#D6A84F]/5 py-2.5 text-xs font-bold text-[#D6A84F] transition hover:bg-[#D6A84F]/10"
                       >
                         <Star size={14} className="fill-current" />
-                        ⭐ Puan Değerlendirmeleri
+                        â­ Puan DeÄŸerlendirmeleri
                         <span className="ml-1 rounded-full bg-[#D6A84F]/10 px-1.5 py-0.5 text-[10px]">
                           {courierRatingStats[courier.id]?.count ?? 0}
                         </span>
@@ -2010,8 +2010,8 @@ export const AdminPanel: React.FC<Props> = ({
                       >
                         {changingEmploymentId ===
                         courier.id
-                          ? "İşleniyor..."
-                          : "İşten Ayrıldı"}
+                          ? "Ä°ÅŸleniyor..."
+                          : "Ä°ÅŸten AyrÄ±ldÄ±"}
                       </button>
                     </div>
                   );
@@ -2062,8 +2062,8 @@ export const AdminPanel: React.FC<Props> = ({
                         >
                           {changingEmploymentId ===
                           courier.id
-                            ? "İşleniyor..."
-                            : "Yeniden Aktifleştir"}
+                            ? "Ä°ÅŸleniyor..."
+                            : "Yeniden AktifleÅŸtir"}
                         </button>
                       </div>
                     )
@@ -2084,14 +2084,14 @@ export const AdminPanel: React.FC<Props> = ({
           <div className="space-y-5">
             <div>
               <h2 className="text-xl font-bold">
-                Müşteriler
+                MÃ¼ÅŸteriler
               </h2>
 
               <p className="text-sm text-[#999999]">
                 {
                   customers.length
                 }{" "}
-                gerçek müşteri hesabı
+                gerÃ§ek mÃ¼ÅŸteri hesabÄ±
               </p>
             </div>
 
@@ -2110,7 +2110,7 @@ export const AdminPanel: React.FC<Props> = ({
                       .filter(
                         (order) =>
                           order.status !==
-                          "İptal Edildi"
+                          "Ä°ptal Edildi"
                       )
                       .reduce(
                         (
@@ -2177,7 +2177,7 @@ export const AdminPanel: React.FC<Props> = ({
                       <div className="mt-5 grid grid-cols-2 gap-3">
                         <div className="rounded-xl bg-[#0B0B0D] p-3">
                           <p className="text-xs text-[#777777]">
-                            Sipariş
+                            SipariÅŸ
                           </p>
 
                           <p className="mt-1 font-bold">
@@ -2209,7 +2209,7 @@ export const AdminPanel: React.FC<Props> = ({
                         className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-blue-500/25 bg-blue-500/5 py-2.5 text-xs font-bold text-blue-300 transition hover:bg-blue-500/10"
                       >
                         <Users size={14} />
-                        Müşteri Profilini Aç
+                        MÃ¼ÅŸteri Profilini AÃ§
                       </button>
                     </div>
                   );
@@ -2218,7 +2218,7 @@ export const AdminPanel: React.FC<Props> = ({
 
               {customers.length ===
                 0 && (
-                <EmptyState text="Firestore'da henüz müşteri profili bulunmuyor." />
+                <EmptyState text="Firestore'da henÃ¼z mÃ¼ÅŸteri profili bulunmuyor." />
               )}
             </div>
           </div>
@@ -2229,18 +2229,18 @@ export const AdminPanel: React.FC<Props> = ({
           <div className="mx-auto max-w-2xl space-y-5">
             <div>
               <h2 className="text-xl font-bold">
-                Fiyatlandırma
+                FiyatlandÄ±rma
               </h2>
 
               <p className="text-sm text-[#999999]">
-                Yeni siparişlerin fiyat
-                hesaplamasını yönet.
+                Yeni sipariÅŸlerin fiyat
+                hesaplamasÄ±nÄ± yÃ¶net.
               </p>
             </div>
 
             <div className="space-y-5 rounded-2xl border border-[#303036] bg-[#19191E] p-5">
               <NumberField
-                label="KM Başına Fiyat"
+                label="KM BaÅŸÄ±na Fiyat"
                 value={
                   perKmPrice
                 }
@@ -2258,7 +2258,7 @@ export const AdminPanel: React.FC<Props> = ({
               />
 
               <NumberField
-                label="Acil Çarpanı"
+                label="Acil Ã‡arpanÄ±"
                 value={
                   urgentMultiplier
                 }
@@ -2269,7 +2269,7 @@ export const AdminPanel: React.FC<Props> = ({
               />
 
               <NumberField
-                label="VIP Çarpanı"
+                label="VIP Ã‡arpanÄ±"
                 value={
                   vipMultiplier
                 }
@@ -2285,13 +2285,13 @@ export const AdminPanel: React.FC<Props> = ({
                 </p>
 
                 <p className="mt-1 text-lg font-bold text-[#D6A84F]">
-                  KM ×{" "}
+                  KM Ã—{" "}
                   {
                     perKmPrice
                   }{" "}
                   TL{" "}
                   <span className="text-xs text-[#777777]">
-                    • minimum{" "}
+                    â€¢ minimum{" "}
                     {
                       minPrice
                     }{" "}
@@ -2309,7 +2309,7 @@ export const AdminPanel: React.FC<Props> = ({
               >
                 {pricingSaving
                   ? "Firebase'e kaydediliyor..."
-                  : "Fiyatları Firebase'e Kaydet"}
+                  : "FiyatlarÄ± Firebase'e Kaydet"}
               </button>
             </div>
           </div>
@@ -2348,7 +2348,7 @@ export const AdminPanel: React.FC<Props> = ({
 
               <div className="col-span-2 rounded-2xl border border-[#303036] bg-[#19191E] p-4 md:col-span-1">
                 <p className="text-xs text-[#777777]">
-                  Toplam kayıt
+                  Toplam kayÄ±t
                 </p>
 
                 <p className="mt-1 text-2xl font-bold">
@@ -2385,7 +2385,7 @@ export const AdminPanel: React.FC<Props> = ({
                   />
                 }
                 title="Firebase Authentication"
-                description="Gerçek e-posta/şifre kullanıcı hesapları"
+                description="GerÃ§ek e-posta/ÅŸifre kullanÄ±cÄ± hesaplarÄ±"
                 status="Aktif"
               />
 
@@ -2396,7 +2396,7 @@ export const AdminPanel: React.FC<Props> = ({
                   />
                 }
                 title="Firestore"
-                description="Sipariş, kullanıcı, fiyat ve konum verileri"
+                description="SipariÅŸ, kullanÄ±cÄ±, fiyat ve konum verileri"
                 status="Aktif"
               />
 
@@ -2414,7 +2414,7 @@ export const AdminPanel: React.FC<Props> = ({
                   <Truck size={20} />
                 }
                 title="Kurye GPS"
-                description={`${liveCouriers.length} kurye canlı konum paylaşıyor`}
+                description={`${liveCouriers.length} kurye canlÄ± konum paylaÅŸÄ±yor`}
                 status="V1"
               />
 
@@ -2424,8 +2424,8 @@ export const AdminPanel: React.FC<Props> = ({
                     size={20}
                   />
                 }
-                title="Canlı Destek"
-                description={`${waitingSupportTickets.length} bekleyen • ${activeSupportTickets.length} aktif destek`}
+                title="CanlÄ± Destek"
+                description={`${waitingSupportTickets.length} bekleyen â€¢ ${activeSupportTickets.length} aktif destek`}
                 status="Aktif"
               />
             </div>
@@ -2439,7 +2439,7 @@ export const AdminPanel: React.FC<Props> = ({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-[#777777]">
-                  Sipariş Yönetimi
+                  SipariÅŸ YÃ¶netimi
                 </p>
 
                 <h2 className="mt-1 text-lg font-bold">
@@ -2464,7 +2464,7 @@ export const AdminPanel: React.FC<Props> = ({
               <div className="rounded-2xl border border-[#303036] bg-[#19191E] p-4">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <InfoItem
-                    label="Müşteri"
+                    label="MÃ¼ÅŸteri"
                     value={
                       selectedOrder.customerName
                     }
@@ -2474,12 +2474,12 @@ export const AdminPanel: React.FC<Props> = ({
                     label="Telefon"
                     value={
                       selectedOrder.customerPhone ||
-                      "—"
+                      "â€”"
                     }
                   />
 
                   <InfoItem
-                    label="Alım"
+                    label="AlÄ±m"
                     value={
                       selectedOrder.pickupAddress
                     }
@@ -2527,7 +2527,7 @@ export const AdminPanel: React.FC<Props> = ({
                     className="w-full rounded-xl border border-[#303036] bg-[#19191E] px-3 py-3 text-sm"
                   >
                     <option value="">
-                      Kurye seçilmedi
+                      Kurye seÃ§ilmedi
                     </option>
 
                     {activeCouriers.map(
@@ -2543,10 +2543,10 @@ export const AdminPanel: React.FC<Props> = ({
                           {
                             courier.name
                           }{" "}
-                          •{" "}
+                          â€¢{" "}
                           {
                             courier.courierStatus ||
-                            "Çevrimdışı"
+                            "Ã‡evrimdÄ±ÅŸÄ±"
                           }
                         </option>
                       )
@@ -2556,7 +2556,7 @@ export const AdminPanel: React.FC<Props> = ({
 
                 <div>
                   <label className="mb-2 block text-xs text-[#777777]">
-                    Sipariş Durumu
+                    SipariÅŸ Durumu
                   </label>
 
                   <select
@@ -2595,7 +2595,7 @@ export const AdminPanel: React.FC<Props> = ({
 
               <div>
                 <label className="mb-2 block text-xs text-[#777777]">
-                  Sipariş Fiyatı
+                  SipariÅŸ FiyatÄ±
                 </label>
 
                 <input
@@ -2630,8 +2630,8 @@ export const AdminPanel: React.FC<Props> = ({
                 !selectedOrder.signature && (
                   <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">
                     Teslim edildi olarak
-                    işaretlenmiş ancak
-                    teslim kanıtı
+                    iÅŸaretlenmiÅŸ ancak
+                    teslim kanÄ±tÄ±
                     bulunmuyor.
                   </div>
                 )}
@@ -2645,11 +2645,11 @@ export const AdminPanel: React.FC<Props> = ({
               >
                 {saving
                   ? "Kaydediliyor..."
-                  : "Siparişi Güncelle"}
+                  : "SipariÅŸi GÃ¼ncelle"}
               </button>
 
               {selectedOrder.status ===
-                "İptal Edildi" && (
+                "Ä°ptal Edildi" && (
                 <button
                   type="button"
                   disabled={
@@ -2664,8 +2664,8 @@ export const AdminPanel: React.FC<Props> = ({
                   <Trash2 size={16} />
                   {deletingOrderId ===
                   selectedOrder.id
-                    ? "Sipariş siliniyor..."
-                    : "İptal Edilmiş Siparişi Sil"}
+                    ? "SipariÅŸ siliniyor..."
+                    : "Ä°ptal EdilmiÅŸ SipariÅŸi Sil"}
                 </button>
               )}
             </div>
@@ -2684,7 +2684,7 @@ export const AdminPanel: React.FC<Props> = ({
                 </div>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#D6A84F]">
-                    Araç bilgileri
+                    AraÃ§ bilgileri
                   </p>
                   <h2 className="mt-1 text-lg font-bold text-white">
                     {selectedCourierProfile.name || "Kurye"}
@@ -2703,19 +2703,19 @@ export const AdminPanel: React.FC<Props> = ({
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <InfoItem label="E-posta" value={selectedCourierProfile.email || "—"} />
-              <InfoItem label="Telefon" value={selectedCourierProfile.phone || "—"} />
+              <InfoItem label="E-posta" value={selectedCourierProfile.email || "â€”"} />
+              <InfoItem label="Telefon" value={selectedCourierProfile.phone || "â€”"} />
             </div>
 
             <div className="mt-5 space-y-4 rounded-2xl border border-[#303036] bg-[#19191E] p-4">
               <div>
                 <label className="mb-2 block text-xs font-semibold text-[#999999]">
-                  Araç bilgisi
+                  AraÃ§ bilgisi
                 </label>
                 <input
                   value={courierVehicle}
                   onChange={(event) => setCourierVehicle(event.target.value)}
-                  placeholder="Örn. Honda PCX 125"
+                  placeholder="Ã–rn. Honda PCX 125"
                   className="w-full rounded-xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 text-sm outline-none focus:border-[#D6A84F]"
                 />
               </div>
@@ -2740,7 +2740,7 @@ export const AdminPanel: React.FC<Props> = ({
               className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#D6A84F] py-3 font-bold text-[#0B0B0D] disabled:opacity-50"
             >
               <CheckCircle2 size={17} />
-              {profileSaving ? "Kaydediliyor..." : "Araç Bilgilerini Kaydet"}
+              {profileSaving ? "Kaydediliyor..." : "AraÃ§ Bilgilerini Kaydet"}
             </button>
           </div>
         </div>,
@@ -2758,7 +2758,7 @@ export const AdminPanel: React.FC<Props> = ({
                 </div>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#D6A84F]">
-                    Puan Değerlendirmeleri
+                    Puan DeÄŸerlendirmeleri
                   </p>
                   <h2 className="mt-1 text-lg font-bold text-white">
                     {selectedCourierRatings.name || "Kurye"}
@@ -2838,7 +2838,7 @@ const CourierRatingAdminDetails: React.FC<{
         setRatings(safeRatings as typeof ratings);
       });
     } catch (error) {
-      console.error("Kurye puanları alınamadı:", error);
+      console.error("Kurye puanlarÄ± alÄ±namadÄ±:", error);
       setRatings([]);
     }
 
@@ -2861,10 +2861,10 @@ const CourierRatingAdminDetails: React.FC<{
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold text-white">
-            Kurye değerlendirmeleri
+            Kurye deÄŸerlendirmeleri
           </p>
           <p className="mt-1 text-[11px] text-[#888888]">
-            Müşteri puanları ve yazılı yorumlar canlı olarak görünür.
+            MÃ¼ÅŸteri puanlarÄ± ve yazÄ±lÄ± yorumlar canlÄ± olarak gÃ¶rÃ¼nÃ¼r.
           </p>
         </div>
         <div className="text-right">
@@ -2872,7 +2872,7 @@ const CourierRatingAdminDetails: React.FC<{
             {average.toFixed(1)} / 5
           </div>
           <div className="text-[10px] text-[#888888]">
-            {ratings.length} değerlendirme
+            {ratings.length} deÄŸerlendirme
           </div>
         </div>
       </div>
@@ -2881,9 +2881,9 @@ const CourierRatingAdminDetails: React.FC<{
         <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-red-300">
           <AlertCircle size={17} className="mt-0.5 shrink-0" />
           <div>
-            <p className="text-xs font-bold">Düşük puan uyarısı</p>
+            <p className="text-xs font-bold">DÃ¼ÅŸÃ¼k puan uyarÄ±sÄ±</p>
             <p className="mt-1 text-[11px] leading-5 text-red-200/80">
-              Bu kuryenin ortalama müşteri puanı 3.0 seviyesinin altında.
+              Bu kuryenin ortalama mÃ¼ÅŸteri puanÄ± 3.0 seviyesinin altÄ±nda.
             </p>
           </div>
         </div>
@@ -2891,7 +2891,7 @@ const CourierRatingAdminDetails: React.FC<{
 
       {ratings.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[#303036] p-4 text-center text-xs text-[#777777]">
-          Henüz kayıtlı müşteri değerlendirmesi yok.
+          HenÃ¼z kayÄ±tlÄ± mÃ¼ÅŸteri deÄŸerlendirmesi yok.
         </div>
       ) : (
         <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
@@ -2910,17 +2910,17 @@ const CourierRatingAdminDetails: React.FC<{
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold text-white">
-                      {rating.customerName || "Müşteri"}
+                      {rating.customerName || "MÃ¼ÅŸteri"}
                     </p>
                     <p className="mt-1 text-[10px] text-[#666666]">
-                      Sipariş: {rating.orderId || "—"}
+                      SipariÅŸ: {rating.orderId || "â€”"}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="text-sm font-black text-[#D6A84F]">
                       {Number(rating.score || 0).toFixed(1)}
                     </span>
-                    <span className="text-[#D6A84F]">★</span>
+                    <span className="text-[#D6A84F]">â˜…</span>
                   </div>
                 </div>
 
@@ -2930,7 +2930,7 @@ const CourierRatingAdminDetails: React.FC<{
                   </p>
                 ) : (
                   <p className="mt-3 text-[11px] text-[#666666]">
-                    Yazılı yorum bırakılmadı.
+                    YazÄ±lÄ± yorum bÄ±rakÄ±lmadÄ±.
                   </p>
                 )}
 
@@ -2963,7 +2963,7 @@ const CustomerProfileModal: React.FC<{
   ).length;
 
   const totalSpend = orders
-    .filter((order) => order.status !== "İptal Edildi")
+    .filter((order) => order.status !== "Ä°ptal Edildi")
     .reduce(
       (sum, order) => sum + Number(order.price || 0),
       0
@@ -2986,10 +2986,10 @@ const CustomerProfileModal: React.FC<{
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-300">
-                Müşteri profili
+                MÃ¼ÅŸteri profili
               </p>
               <h2 className="mt-1 truncate text-lg font-bold text-white">
-                {customer.name || "Müşteri"}
+                {customer.name || "MÃ¼ÅŸteri"}
               </h2>
             </div>
           </div>
@@ -3005,33 +3005,33 @@ const CustomerProfileModal: React.FC<{
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <InfoItem label="E-posta" value={customer.email || "—"} />
-          <InfoItem label="Telefon" value={customer.phone || "—"} />
+          <InfoItem label="E-posta" value={customer.email || "â€”"} />
+          <InfoItem label="Telefon" value={customer.phone || "â€”"} />
           <InfoItem
-            label="Kayıt tarihi"
+            label="KayÄ±t tarihi"
             value={
               customer.createdAt
                 ? new Date(customer.createdAt).toLocaleDateString("tr-TR")
-                : "—"
+                : "â€”"
             }
           />
-          <InfoItem label="Müşteri ID" value={customer.id} />
+          <InfoItem label="MÃ¼ÅŸteri ID" value={customer.id} />
         </div>
 
         <div className="mt-5 grid grid-cols-3 gap-3">
-          <ProfileMetric label="Toplam sipariş" value={String(orders.length)} />
+          <ProfileMetric label="Toplam sipariÅŸ" value={String(orders.length)} />
           <ProfileMetric label="Teslim edilen" value={String(completedOrders)} />
           <ProfileMetric label="Toplam harcama" value={formatCustomerMoney(totalSpend)} accent />
         </div>
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-[#303036] bg-[#19191E]">
           <div className="border-b border-[#303036] px-4 py-3">
-            <h3 className="text-sm font-bold text-white">Sipariş geçmişi</h3>
+            <h3 className="text-sm font-bold text-white">SipariÅŸ geÃ§miÅŸi</h3>
           </div>
 
           {orders.length === 0 ? (
             <p className="px-4 py-8 text-center text-xs text-[#777777]">
-              Bu müşterinin henüz siparişi bulunmuyor.
+              Bu mÃ¼ÅŸterinin henÃ¼z sipariÅŸi bulunmuyor.
             </p>
           ) : (
             <div className="divide-y divide-[#303036]">
@@ -3148,7 +3148,7 @@ const LiveCourierLocationCard: React.FC<{
         </p>
 
         <p className="mt-1 text-[10px] text-[#666666]">
-          Son güncelleme:{" "}
+          Son gÃ¼ncelleme:{" "}
           {
             formattedDate
           }
@@ -3162,7 +3162,7 @@ const LiveCourierLocationCard: React.FC<{
         className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[#303036] bg-[#19191E] py-2 text-xs font-semibold text-[#D6A84F]"
       >
         <MapPin size={15} />
-        Haritada Aç
+        Haritada AÃ§
       </a>
     </div>
   );
@@ -3222,7 +3222,7 @@ const StatusBadge: React.FC<{
     "Teslim Edildi"
       ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
       : status ===
-        "İptal Edildi"
+        "Ä°ptal Edildi"
       ? "bg-red-500/10 text-red-400 border-red-500/20"
       : status ===
         "Teslimatta"
@@ -3270,9 +3270,9 @@ const OrderRow: React.FC<{
       <p className="mt-1 truncate text-xs text-[#999999]">
         {
           order.customerName ||
-          "Müşteri"
+          "MÃ¼ÅŸteri"
         }{" "}
-        •{" "}
+        â€¢{" "}
         {
           order.pickupAddress
         }
@@ -3399,7 +3399,8 @@ const InfoItem: React.FC<{
     </p>
 
     <p className="mt-1 break-words text-xs text-white">
-      {value || "—"}
+      {value || "â€”"}
     </p>
   </div>
 );
+

@@ -1,4 +1,4 @@
-rules_version = '2';
+﻿rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -39,21 +39,38 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if signedIn();
+
+      allow read: if isAdmin()
+        || (
+          signedIn()
+          && request.auth.uid == userId
+        );
 
       allow create: if signedIn()
         && request.auth.uid == userId;
 
-      allow update: if signedIn()
-        && (
-          request.auth.uid == userId
-          || isAdmin()
+      allow update: if isAdmin()
+        || (
+          signedIn()
+          && request.auth.uid == userId
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name',
+            'email',
+            'phone',
+            'avatar',
+            'vehicle',
+            'plate',
+            'courierStatus',
+            'updatedAt'
+          ])
         );
 
       allow delete: if isAdmin();
     }
 
     match /orders/{orderId} {
+
       allow read: if isAdmin()
         || (
           signedIn()
@@ -65,21 +82,41 @@ service cloud.firestore {
         );
 
       allow create: if signedIn()
-        && request.resource.data.customerId == request.auth.uid;
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.status == 'Kurye Bekleniyor'
+        && request.resource.data.courierId == null;
 
       allow update: if isAdmin()
+
         || (
           signedIn()
           && resource.data.customerId == request.auth.uid
+          && request.resource.data.customerId == resource.data.customerId
+          && request.resource.data.courierId == resource.data.courierId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'updatedAt'
+          ])
+          && request.resource.data.status == 'İptal Edildi'
         )
+
         || (
           signedIn()
           && resource.data.courierId == request.auth.uid
+          && request.resource.data.customerId == resource.data.customerId
+          && request.resource.data.courierId == resource.data.courierId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'updatedAt',
+            'deliveredAt',
+            'courierSeenAt'
+          ])
         );
 
       allow delete: if isAdmin();
 
       match /deliveryProofs/{proofId} {
+
         allow read: if isAdmin()
           || isOrderCustomer(orderId)
           || isOrderCourier(orderId);
@@ -110,19 +147,30 @@ service cloud.firestore {
     }
 
     match /notifications/{notificationId} {
-      allow read: if signedIn();
-      allow create: if signedIn();
+
+      allow read: if isAdmin()
+        || (
+          signedIn()
+          && resource.data.userId == request.auth.uid
+        );
+
+      allow create: if isAdmin();
 
       allow update: if isAdmin()
         || (
           signedIn()
           && resource.data.userId == request.auth.uid
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'read'
+          ])
         );
 
       allow delete: if isAdmin();
     }
 
     match /courierLocations/{courierId} {
+
       allow read: if signedIn();
 
       allow create, update: if isAdmin()
@@ -139,13 +187,38 @@ service cloud.firestore {
     }
 
     match /courierRatings/{ratingId} {
+
       allow read: if signedIn();
-      allow create: if signedIn();
-      allow update: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.orderId != null
+        && get(
+          /databases/$(database)/documents/orders/$(request.resource.data.orderId)
+        ).data.customerId == request.auth.uid
+        && get(
+          /databases/$(database)/documents/orders/$(request.resource.data.orderId)
+        ).data.courierId == request.resource.data.courierId
+        && request.resource.data.score >= 1
+        && request.resource.data.score <= 5;
+
+      allow update: if signedIn()
+        && resource.data.customerId == request.auth.uid
+        && resource.data.orderId == request.resource.data.orderId
+        && resource.data.courierId == request.resource.data.courierId
+        && request.resource.data.customerId == resource.data.customerId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'score',
+          'comment'
+        ])
+        && request.resource.data.score >= 1
+        && request.resource.data.score <= 5;
+
       allow delete: if isAdmin();
     }
 
     match /supportTickets/{ticketId} {
+
       allow read: if isAdmin()
         || (
           signedIn()
@@ -159,6 +232,11 @@ service cloud.firestore {
         || (
           signedIn()
           && resource.data.customerId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'updatedAt'
+          ])
+          && request.resource.data.status == 'kapalı'
         );
 
       allow delete: if isAdmin()
@@ -168,6 +246,7 @@ service cloud.firestore {
         );
 
       match /messages/{messageId} {
+
         allow read: if isAdmin()
           || (
             signedIn()
