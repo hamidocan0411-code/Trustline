@@ -243,12 +243,38 @@ export const CourierPanel: React.FC<Props> = ({
   const [mobileProfileOpen, setMobileProfileOpen] =
     useState(false);
 
-  const [courierStatus, setCourierStatus] =
-    useState<
-      CourierAvailability | "Çevrimdışı"
-    >(
-      currentCourier.courierStatus ||
-        "Müsait"
+  const normalizeCourierStatus = (
+  status?: string
+): CourierAvailability => {
+  if (
+    status === "Ã‡evrimdÄ±ÅŸÄ±" ||
+    status === "ÇevrimdÄ±ÅŸÄ±"
+  ) {
+    return "Çevrimdışı";
+  }
+
+  if (
+    status === "MÃ¼sait" ||
+    status === "Müsait"
+  ) {
+    return "Müsait";
+  }
+
+  if (
+    status === "MeÅŸgul" ||
+    status === "Meşgul"
+  ) {
+    return "Meşgul";
+  }
+
+  return "Çevrimdışı";
+};
+
+const [courierStatus, setCourierStatus] =
+    useState<CourierAvailability>(
+      normalizeCourierStatus(
+        currentCourier.courierStatus
+      )
     );
 
   const [proofOrder, setProofOrder] =
