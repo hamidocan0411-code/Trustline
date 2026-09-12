@@ -36,7 +36,7 @@ export const RouteMap: React.FC<Props> = ({
 
   /*
    * ============================================================
-   * HARÄ°TAYI BAÅLAT
+   * HARİTAYI BAÅLAT
    * ============================================================
    */
   useEffect(() => {
@@ -97,7 +97,7 @@ export const RouteMap: React.FC<Props> = ({
 
   /*
    * ============================================================
-   * MARKER + ROTA GÃœNCELLE
+   * MARKER + ROTA GÜNCELLE
    * ============================================================
    */
   useEffect(() => {
@@ -128,7 +128,7 @@ export const RouteMap: React.FC<Props> = ({
     ) {
       const pickupName =
         pickupCoords.name ||
-        "AlÄ±m NoktasÄ±";
+        "Alım Noktası";
 
       const pickupIcon =
         L.divIcon({
@@ -138,7 +138,7 @@ export const RouteMap: React.FC<Props> = ({
           html:
             '<div style="position:relative;display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);">' +
             '<div style="background:#0B0B0D;border:2px solid #D6A84F;color:#D6A84F;font-size:10px;font-weight:800;padding:3px 7px;border-radius:6px;white-space:nowrap;margin-bottom:4px;box-shadow:0 4px 10px rgba(0,0,0,.5);">' +
-            "AlÄ±m: " +
+            "Alım: " +
             pickupName +
             "</div>" +
             '<div style="width:24px;height:24px;border-radius:50%;background:#D6A84F;border:3px solid #0B0B0D;box-shadow:0 0 12px rgba(214,168,79,.8);display:flex;align-items:center;justify-content:center;">' +
@@ -172,7 +172,7 @@ export const RouteMap: React.FC<Props> = ({
 
     /*
      * ==========================================================
-     * TESLÄ°MAT NOKTASI
+     * TESLİMAT NOKTASI
      * ==========================================================
      */
     if (
@@ -182,7 +182,7 @@ export const RouteMap: React.FC<Props> = ({
     ) {
       const deliveryName =
         deliveryCoords.name ||
-        "Teslimat NoktasÄ±";
+        "Teslimat Noktası";
 
       const deliveryIcon =
         L.divIcon({
@@ -236,7 +236,7 @@ export const RouteMap: React.FC<Props> = ({
     ) {
       const courierName =
         courierCoords.name ||
-        "Kurye CanlÄ±";
+        "Kurye Canlı";
 
       const courierIcon =
         L.divIcon({
@@ -250,7 +250,7 @@ export const RouteMap: React.FC<Props> = ({
             courierName +
             "</div>" +
             '<div style="width:30px;height:30px;border-radius:50%;background:#D6A84F;border:3px solid #0B0B0D;box-shadow:0 0 16px rgba(214,168,79,1);display:flex;align-items:center;justify-content:center;font-size:14px;">' +
-            "ğŸ›µ" +
+            "🏁›µ" +
             "</div>" +
             "</div>",
 
@@ -280,7 +280,7 @@ export const RouteMap: React.FC<Props> = ({
 
     /*
      * ==========================================================
-     * GERÃ‡EK ROTA
+     * GERÇEK ROTA
      * ==========================================================
      */
     if (
@@ -334,8 +334,8 @@ export const RouteMap: React.FC<Props> = ({
       typeof deliveryCoords.lng === "number"
     ) {
       /*
-       * Rota henÃ¼z gelmediyse iki adres
-       * arasÄ±nda geÃ§ici baÄŸlantÄ± gÃ¶ster.
+       * Rota henüz gelmediyse iki adres
+       * arasında geçici bağlantı göster.
        */
       const directPoints:
         [number, number][] = [
@@ -368,7 +368,7 @@ export const RouteMap: React.FC<Props> = ({
 
     /*
      * ==========================================================
-     * HARÄ°TAYI NOKTALARA SIÄDIR
+     * HARİTAYI NOKTALARA SIÄDIR
      * ==========================================================
      */
     if (
@@ -450,10 +450,10 @@ export const RouteMap: React.FC<Props> = ({
           <span className="font-['Space_Grotesk'] font-bold text-[#D6A84F]">
             {
               isTracking
-                ? "Kurye CanlÄ± Konum Takibi"
+                ? "Kurye Canlı Konum Takibi"
                 : hasRoute
-                  ? "CanlÄ± Rota Ã–nizleme"
-                  : "TÃ¼rkiye HaritasÄ±"
+                  ? "Canlı Rota Önizleme"
+                  : "Türkiye Haritası"
             }
           </span>
         </div>
@@ -480,9 +480,9 @@ export const RouteMap: React.FC<Props> = ({
 
             <div className="bg-[#0B0B0D]/85 backdrop-blur-sm border border-[#303036] px-3 py-1.5 rounded-xl text-[10px] text-[#999999] text-center max-w-xs shadow-lg">
 
-              ğŸ“ AlÄ±nacak ve teslim edilecek
-              adresleri girdiÄŸinizde rota
-              otomatik Ã§izilecektir.
+              🏁“ Alınacak ve teslim edilecek
+              adresleri girdiğinizde rota
+              otomatik çizilecektir.
 
             </div>
           </div>
@@ -496,13 +496,13 @@ export const RouteMap: React.FC<Props> = ({
             {pickupCoords && (
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-[#D6A84F]" />
-                AlÄ±m
+                Alım
               </span>
             )}
 
             {courierCoords && (
               <span className="flex items-center gap-1 font-bold text-amber-300">
-                <span>ğŸ›µ</span>
+                <span>🏁›µ</span>
                 Kurye
               </span>
             )}
