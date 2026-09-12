@@ -46,52 +46,36 @@ function getAuthErrorMessage(error: unknown): string {
   switch (code) {
     case "auth/popup-closed-by-user":
       return "Google giriş penceresi kapatıldı.";
-
     case "auth/popup-blocked":
       return "Google giriş penceresi tarayıcı tarafından engellendi. Lütfen tekrar deneyin.";
-
     case "auth/cancelled-popup-request":
       return "Google giriş işlemi iptal edildi. Lütfen tekrar deneyin.";
-
     case "auth/account-exists-with-different-credential":
       return "Bu e-posta adresi başka bir giriş yöntemiyle zaten kayıtlı.";
-
     case "auth/operation-not-allowed":
       return "Google ile giriş Firebase Console'da etkin değil.";
-
     case "auth/operation-not-supported-in-this-environment":
       return "Bu tarayıcıda Google popup kullanılamıyor. Güvenli giriş sayfasına yönlendiriliyorsunuz.";
-
     case "auth/network-request-failed":
       return "Firebase bağlantısı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.";
-
     case "auth/unauthorized-domain":
       return "Bu site Firebase tarafından yetkilendirilmemiş. Firebase Authentication Authorized Domains bölümünü kontrol edin.";
-
     case "auth/internal-error":
       return "Firebase'de geçici bir hata oluştu. Lütfen tekrar deneyin.";
-
     case "auth/too-many-requests":
       return "Çok fazla giriş denemesi yapıldı. Lütfen daha sonra tekrar deneyin.";
-
     case "auth/google-redirect-started":
       return "Google hesabınız seçildi. Trustline Express'e giriş yapılıyor...";
-
     case "auth/invalid-api-key":
       return "Firebase API anahtarı geçersiz.";
-
     case "auth/app-not-authorized":
       return "Bu uygulama Firebase tarafından yetkilendirilmemiş.";
-
     case "auth/invalid-app-credential":
       return "Firebase uygulama doğrulaması başarısız oldu.";
-
     case "auth/quota-exceeded":
       return "Firebase kullanım kotası aşıldı.";
-
     case "auth/user-disabled":
       return "Bu Google hesabı devre dışı bırakılmış.";
-
     default:
       return (
         getErrorMessage(error) ||
@@ -144,12 +128,6 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
 
       const profile = await loginWithGoogle();
 
-      /*
-       * MOBİL REDIRECT DURUMU
-       *
-       * signInWithRedirect() başladıktan sonra Firebase sayfayı
-       * Google'a yönlendirir. Bu durumda profile dönmez.
-       */
       if (!profile) {
         console.log(
           "🔄 Google redirect başlatıldı veya sonuç bekleniyor."
@@ -159,11 +137,6 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
           "Google hesabınızla giriş yapılıyor..."
         );
 
-        /*
-         * Burada onLogin çağırmıyoruz.
-         *
-         * Çünkü Firebase redirect işlemi devam ediyor.
-         */
         return;
       }
 
@@ -184,12 +157,8 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
       );
 
       const code = getErrorCode(err);
-
-      const friendlyMessage =
-        getAuthErrorMessage(err);
-
-      const technicalDetails =
-        getDetailedFirebaseError(err);
+      const friendlyMessage = getAuthErrorMessage(err);
+      const technicalDetails = getDetailedFirebaseError(err);
 
       console.error(
         "❌ GOOGLE FIREBASE HATA KODU:",
@@ -201,12 +170,6 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
         getErrorMessage(err) || "YOK"
       );
 
-      /*
-       * ÇOK ÖNEMLİ:
-       *
-       * Firebase redirect başladıysa bunu hata olarak
-       * login ekranına göstermiyoruz.
-       */
       if (
         code === "auth/google-redirect-started"
       ) {
@@ -218,10 +181,6 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
           "Google hesabınız seçildi. Trustline Express'e giriş yapılıyor..."
         );
 
-        /*
-         * Redirect devam ederken loading'i hata gibi
-         * göstermemek için burada çıkıyoruz.
-         */
         return;
       }
 
@@ -373,15 +332,20 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                       <div className="min-w-0">
                         <p className="text-sm font-black text-red-800">Önemli bakım duyurusu</p>
                         <p className="mt-1 text-xs leading-5 text-slate-700">
-                          Sayfamız 24 saatlik güncelleme ve bakım çalışmasındadır. Siparişlerinizi verirken sorun yaşayabilirsiniz.
+                          13.09.2026 tarihinde başlatılan planlı güncelleme ve bakım çalışması, 15.09.2026 saat 00:00 itibarıyla tamamlanacaktır. Bu süre içerisinde platform üzerinden sipariş oluşturma ve bazı hizmetlerde geçici erişim sorunları yaşanabilir.
                         </p>
-                        <p className="mt-2 text-xs font-semibold leading-5 text-slate-800">
-                          Buradan sipariş veremiyorsanız,{' '}
+                        <p className="mt-2 text-xs leading-5 text-slate-700">
+                          Siparişinizi platform üzerinden oluşturamamanız durumunda, gönderinizi oluşturmak için{' '}
                           <a href="https://wa.me/905549515269" target="_blank" rel="noreferrer" className="font-black text-emerald-700 underline decoration-emerald-400 underline-offset-2 transition hover:text-emerald-900">
                             554 951 52 69
                           </a>{' '}
-                          numaralı telefona WhatsApp üzerinden ulaşarak gönderinizi oluşturabilirsiniz.
+                          numaralı WhatsApp hattımız üzerinden bizimle iletişime geçebilirsiniz.
                         </p>
+                        <div className="mt-3 rounded-xl border border-red-200 bg-white/70 px-3 py-2.5">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-red-700">Planlı çalışma</p>
+                          <p className="mt-1 text-xs font-semibold text-slate-800">Başlangıç: 13.09.2026</p>
+                          <p className="mt-0.5 text-xs font-semibold text-slate-800">Bitiş: 15.09.2026 • 00:00</p>
+                        </div>
                       </div>
                     </div>
                   </div>
