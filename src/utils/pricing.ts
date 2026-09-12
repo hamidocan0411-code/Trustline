@@ -10,29 +10,29 @@ export const DEFAULT_PRICING: PricingConfig = {
 };
 
 /**
- * Trustline Express paket ebat ek Ã¼cretleri
+ * Trustline Express paket ebat ek ücretleri
  */
-export type PackageSize = 'KÃ¼Ã§Ã¼k' | 'Orta' | 'BÃ¼yÃ¼k' | 'Ã‡ok BÃ¼yÃ¼k';
+export type PackageSize = 'Küçük' | 'Orta' | 'Büyük' | 'Çok Büyük';
 
 export const PACKAGE_SIZE_FEES: Record<PackageSize, number> = {
-  'KÃ¼Ã§Ã¼k': 0,
+  'Küçük': 0,
   'Orta': 50,
-  'BÃ¼yÃ¼k': 100,
-  'Ã‡ok BÃ¼yÃ¼k': 200,
+  'Büyük': 100,
+  'Çok Büyük': 200,
 };
 
 /**
  * Calculates delivery price:
- * 1. KM Ã¼creti hesaplanÄ±r
- * 2. Minimum fiyat uygulanÄ±r
- * 3. Kurye tipine gÃ¶re Ã§arpan uygulanÄ±r
- * 4. Paket ebat ek Ã¼creti eklenir
+ * 1. KM ücreti hesaplanır
+ * 2. Minimum fiyat uygulanır
+ * 3. Kurye tipine göre çarpan uygulanır
+ * 4. Paket ebat ek ücreti eklenir
  */
 export function calculateOrderPrice(
   distanceKm: number,
   courierType: CourierType,
   pricing: PricingConfig = DEFAULT_PRICING,
-  packageSize: PackageSize = 'KÃ¼Ã§Ã¼k'
+  packageSize: PackageSize = 'Küçük'
 ): {
   basePrice: number;
   finalPrice: number;
@@ -90,26 +90,26 @@ export function estimateDistanceBetweenAddresses(
   const d = delivery.toLowerCase();
 
   const districtDistances: Record<string, number> = {
-    'kadÄ±kÃ¶y-beÅŸiktaÅŸ': 14,
-    'beÅŸiktaÅŸ-kadÄ±kÃ¶y': 14,
-    'avcÄ±lar-beÅŸiktaÅŸ': 34,
-    'beÅŸiktaÅŸ-avcÄ±lar': 34,
+    'kadıköy-beşiktaş': 14,
+    'beşiktaş-kadıköy': 14,
+    'avcılar-beşiktaş': 34,
+    'beşiktaş-avcılar': 34,
     'maslak-levent': 6,
     'levent-maslak': 6,
-    'Ã¼skÃ¼dar-kadÄ±kÃ¶y': 7,
-    'kadÄ±kÃ¶y-Ã¼skÃ¼dar': 7,
-    'ÅŸiÅŸli-beÅŸiktaÅŸ': 4,
-    'beÅŸiktaÅŸ-ÅŸiÅŸli': 4,
-    'bakÄ±rkÃ¶y-taksim': 16,
-    'taksim-bakÄ±rkÃ¶y': 16,
-    'ataÅŸehir-kadÄ±kÃ¶y': 9,
-    'kadÄ±kÃ¶y-ataÅŸehir': 9,
-    'sarÄ±yer-beÅŸiktaÅŸ': 18,
-    'beÅŸiktaÅŸ-sarÄ±yer': 18,
-    'kartal-kadÄ±kÃ¶y': 22,
-    'kadÄ±kÃ¶y-kartal': 22,
-    'baÅŸakÅŸehir-ÅŸiÅŸli': 26,
-    'ÅŸiÅŸli-baÅŸakÅŸehir': 26,
+    'üsküdar-kadıköy': 7,
+    'kadıköy-üsküdar': 7,
+    'şişli-beşiktaş': 4,
+    'beşiktaş-şişli': 4,
+    'bakırköy-taksim': 16,
+    'taksim-bakırköy': 16,
+    'ataşehir-kadıköy': 9,
+    'kadıköy-ataşehir': 9,
+    'sarıyer-beşiktaş': 18,
+    'beşiktaş-sarıyer': 18,
+    'kartal-kadıköy': 22,
+    'kadıköy-kartal': 22,
+    'başakşehir-şişli': 26,
+    'şişli-başakşehir': 26,
   };
 
   for (const key of Object.keys(districtDistances)) {

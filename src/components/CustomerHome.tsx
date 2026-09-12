@@ -78,13 +78,13 @@ export function CustomerHome({
 
     const basePrice =
       km *
-      (pricing?.perKmPrice ?? 50);
+      (pricing?.perKmPrice ?? 36);
 
     const calculatedPrice =
       basePrice * multiplier;
 
     const minimumPrice =
-      pricing?.minPrice ?? 250;
+      pricing?.minPrice ?? 1.650;
 
     const finalPrice = Math.max(
       calculatedPrice,

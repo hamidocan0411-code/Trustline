@@ -222,7 +222,7 @@ export const DeliveryProofModal: React.FC<
       )
     ) {
       window.alert(
-        "LÃ¼tfen geÃ§erli bir fotoÄŸraf seÃ§in."
+        "Lütfen geçerli bir fotoğraf seçin."
       );
 
       return;
@@ -233,7 +233,7 @@ export const DeliveryProofModal: React.FC<
       10 * 1024 * 1024
     ) {
       window.alert(
-        "FotoÄŸraf boyutu en fazla 10 MB olabilir."
+        "Fotoğraf boyutu en fazla 10 MB olabilir."
       );
 
       return;
@@ -275,7 +275,7 @@ export const DeliveryProofModal: React.FC<
   const handleSubmit = async () => {
     if (!receiverName.trim()) {
       window.alert(
-        "LÃ¼tfen teslim alan kiÅŸinin adÄ±nÄ± girin."
+        "Lütfen teslim alan kişinin adını girin."
       );
 
       return;
@@ -283,7 +283,7 @@ export const DeliveryProofModal: React.FC<
 
     if (!hasSignature) {
       window.alert(
-        "LÃ¼tfen alÄ±cÄ± imzasÄ±nÄ± alÄ±n."
+        "Lütfen alıcı imzasını alın."
       );
 
       return;
@@ -303,12 +303,12 @@ export const DeliveryProofModal: React.FC<
       });
     } catch (error) {
       console.error(
-        "Teslimat kanÄ±tÄ± kaydedilemedi:",
+        "Teslimat kanıtı kaydedilemedi:",
         error
       );
 
       window.alert(
-        "Teslimat bilgileri kaydedilemedi. LÃ¼tfen tekrar deneyin."
+        "Teslimat bilgileri kaydedilemedi. Lütfen tekrar deneyin."
       );
     } finally {
       setIsSaving(false);
@@ -321,11 +321,11 @@ export const DeliveryProofModal: React.FC<
         <div className="flex items-center justify-between border-b border-[#303036] px-5 py-4">
           <div>
             <h2 className="text-base font-bold text-white">
-              TeslimatÄ± Tamamla
+              Teslimatı Tamamla
             </h2>
 
             <p className="mt-0.5 text-[10px] text-[#999999]">
-              SipariÅŸ #{order.id}
+              Sipariş #{order.id}
             </p>
           </div>
 
@@ -349,14 +349,14 @@ export const DeliveryProofModal: React.FC<
 
               <div>
                 <p className="text-xs font-bold text-[#D6A84F]">
-                  Teslimat doÄŸrulamasÄ±
+                  Teslimat doğrulaması
                 </p>
 
                 <p className="mt-1 text-[10px] leading-relaxed text-[#BBBBBB]">
-                  TeslimatÄ± kapatmak iÃ§in
-                  alÄ±cÄ± adÄ± ve imza
-                  zorunludur. FotoÄŸraf
-                  eklemek isteÄŸe baÄŸlÄ±dÄ±r.
+                  Teslimatı kapatmak için
+                  alıcı adı ve imza
+                  zorunludur. Fotoğraf
+                  eklemek isteğe bağlıdır.
                 </p>
               </div>
             </div>
@@ -364,7 +364,7 @@ export const DeliveryProofModal: React.FC<
 
           <div>
             <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#999999]">
-              Teslim Alan KiÅŸi
+              Teslim Alan Kişi
             </label>
 
             <div className="relative">
@@ -390,7 +390,7 @@ export const DeliveryProofModal: React.FC<
           <div>
             <div className="mb-1.5 flex items-center justify-between">
               <label className="text-[10px] font-bold uppercase tracking-wider text-[#999999]">
-                AlÄ±cÄ± Ä°mzasÄ±
+                Alıcı İmzası
               </label>
 
               <button
@@ -433,17 +433,17 @@ export const DeliveryProofModal: React.FC<
             {!hasSignature && (
               <p className="mt-1.5 flex items-center gap-1 text-[9px] text-[#777777]">
                 <PenLine size={11} />
-                ParmaÄŸÄ±nÄ±zla veya
-                mouse ile imza atÄ±n.
+                Parmağınızla veya
+                mouse ile imza atın.
               </p>
             )}
           </div>
 
           <div>
             <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#999999]">
-              Teslimat FotoÄŸrafÄ±
+              Teslimat Fotoğrafı
               <span className="ml-1 font-normal normal-case text-[#666666]">
-                (Ä°steÄŸe baÄŸlÄ±)
+                (İsteğe bağlı)
               </span>
             </label>
 
@@ -462,7 +462,7 @@ export const DeliveryProofModal: React.FC<
               <div className="relative overflow-hidden rounded-xl border border-[#303036] bg-[#0F0F12]">
                 <img
                   src={photoPreview}
-                  alt="Teslimat fotoÄŸrafÄ±"
+                  alt="Teslimat fotoğrafı"
                   className="max-h-56 w-full object-contain"
                 />
 
@@ -497,7 +497,7 @@ export const DeliveryProofModal: React.FC<
                 className="pointer-events-none flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#404047] bg-[#0F0F12] py-6 text-xs font-semibold text-[#999999] opacity-50"
               >
                 <Camera size={18} />
-                FotoÄŸraf Ã‡ek / SeÃ§
+                Fotoğraf Çek / Seç
               </button>
             )}
           </div>
@@ -506,7 +506,7 @@ export const DeliveryProofModal: React.FC<
             <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#999999]">
               Teslimat Notu
               <span className="ml-1 font-normal normal-case text-[#666666]">
-                (Ä°steÄŸe baÄŸlÄ±)
+                (İsteğe bağlı)
               </span>
             </label>
 
@@ -518,7 +518,7 @@ export const DeliveryProofModal: React.FC<
                 )
               }
               rows={3}
-              placeholder="Ã–rn: Resepsiyona teslim edildi."
+              placeholder="Örn: Resepsiyona teslim edildi."
               className="w-full resize-none rounded-xl border border-[#303036] bg-[#0F0F12] px-3 py-3 text-xs text-white outline-none transition focus:border-[#D6A84F]"
             />
           </div>
@@ -564,7 +564,7 @@ export const DeliveryProofModal: React.FC<
             ) : (
               <>
                 <Check size={17} />
-                TeslimatÄ± Tamamla
+                Teslimatı Tamamla
               </>
             )}
           </button>

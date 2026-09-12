@@ -67,10 +67,10 @@ export function App() {
         );
 
         return {
-          perKmPrice: 20,
-          minPrice: 100,
-          urgentMultiplier: 1.5,
-          vipMultiplier: 2,
+          perKmPrice: 36,
+          minPrice: 250,
+          urgentMultiplier: 1.3,
+          vipMultiplier: 1.6,
           requireDeliveryPhoto: false,
           updatedAt:
             new Date().toISOString(),

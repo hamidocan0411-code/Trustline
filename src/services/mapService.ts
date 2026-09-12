@@ -1,4 +1,4 @@
-﻿import type { GeoCoordinate } from "../types";
+import type { GeoCoordinate } from "../types";
 
 export type { GeoCoordinate } from "../types";
 
