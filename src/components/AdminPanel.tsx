@@ -1992,7 +1992,7 @@ export const AdminPanel: React.FC<Props> = ({
                         className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#D6A84F]/25 bg-[#D6A84F]/5 py-2.5 text-xs font-bold text-[#D6A84F] transition hover:bg-[#D6A84F]/10"
                       >
                         <Star size={14} className="fill-current" />
-                        â­ Puan Değerlendirmeleri
+                        ⭐ Puan Değerlendirmeleri
                         <span className="ml-1 rounded-full bg-[#D6A84F]/10 px-1.5 py-0.5 text-[10px]">
                           {courierRatingStats[courier.id]?.count ?? 0}
                         </span>
