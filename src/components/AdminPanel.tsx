@@ -1789,7 +1789,9 @@ export const AdminPanel: React.FC<Props> = ({
                           ? "PAKET ALINDI"
                           : waitingToPickup
                           ? "GÖREV ATANDI"
-                          : courier.courierStatus || "Çevrimdışı";
+                          : (courier.courierStatus === "Ã‡evrimdÄ±ÅŸÄ±" || courier.courierStatus === "Çevrimdışı"
+      ? "Çevrimdışı"
+      : courier.courierStatus || "Çevrimdışı");
 
                         const availabilityLabel = deliveryActive
                           ? "Teslimat yapıyor"
