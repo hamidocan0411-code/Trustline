@@ -109,7 +109,14 @@ service cloud.firestore {
             'status',
             'updatedAt',
             'deliveredAt',
-            'courierSeenAt'
+            'courierSeenAt',
+            'receiverName',
+            'deliveryNote',
+            'signature',
+            'deliveryPhoto',
+            'deliveryProof',
+            'courierName',
+            'courierPhone'
           ])
         );
 
@@ -141,84 +148,85 @@ service cloud.firestore {
       }
     }
 
-    match /pricing/{pricingId} {
-      allow read: if signedIn();
-      allow write: if isAdmin();
+    match /users/{userId}/notifications/{notificationId} {
+      allow read: if isAdmin()
+        || (
+          signedIn()
+          && userId == request.auth.uid
+        );
+
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid;
+
+      allow update, delete: if signedIn()
+        && userId == request.auth.uid;
     }
 
     match /notifications/{notificationId} {
-
       allow read: if isAdmin()
         || (
           signedIn()
           && resource.data.userId == request.auth.uid
         );
 
-      allow create: if isAdmin();
+      allow create: if isAdmin()
+        || (
+          signedIn()
+          && request.resource.data.userId == request.auth.uid
+        );
 
       allow update: if isAdmin()
         || (
           signedIn()
           && resource.data.userId == request.auth.uid
-          && request.resource.data.userId == resource.data.userId
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'read'
-          ])
-        );
-
-      allow delete: if isAdmin();
-    }
-
-    match /courierLocations/{courierId} {
-
-      allow read: if signedIn();
-
-      allow create, update: if isAdmin()
-        || (
-          signedIn()
-          && courierId == request.auth.uid
         );
 
       allow delete: if isAdmin()
         || (
           signedIn()
-          && courierId == request.auth.uid
+          && resource.data.userId == request.auth.uid
         );
     }
 
-    match /courierRatings/{ratingId} {
-
+    match /courierLocations/{courierId} {
       allow read: if signedIn();
 
       allow create: if signedIn()
-        && request.resource.data.customerId == request.auth.uid
-        && request.resource.data.orderId != null
-        && get(
-          /databases/$(database)/documents/orders/$(request.resource.data.orderId)
-        ).data.customerId == request.auth.uid
-        && get(
-          /databases/$(database)/documents/orders/$(request.resource.data.orderId)
-        ).data.courierId == request.resource.data.courierId
-        && request.resource.data.score >= 1
-        && request.resource.data.score <= 5;
+        && request.auth.uid == courierId;
 
       allow update: if signedIn()
-        && resource.data.customerId == request.auth.uid
-        && resource.data.orderId == request.resource.data.orderId
-        && resource.data.courierId == request.resource.data.courierId
-        && request.resource.data.customerId == resource.data.customerId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'score',
-          'comment'
-        ])
-        && request.resource.data.score >= 1
-        && request.resource.data.score <= 5;
+        && request.auth.uid == courierId;
 
-      allow delete: if isAdmin();
+      allow delete: if isAdmin()
+        || (
+          signedIn()
+          && request.auth.uid == courierId
+        );
+    }
+
+    match /pricing/{pricingId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /courierRatings/{ratingId} {
+      allow read: if isAdmin()
+        || (
+          signedIn()
+          && resource.data.customerId == request.auth.uid
+        )
+        || (
+          signedIn()
+          && resource.data.courierId == request.auth.uid
+        );
+
+      allow create: if signedIn()
+        && request.resource.data.customerId == request.auth.uid;
+
+      allow update, delete: if isAdmin();
     }
 
     match /supportTickets/{ticketId} {
-
       allow read: if isAdmin()
         || (
           signedIn()
@@ -232,26 +240,15 @@ service cloud.firestore {
         || (
           signedIn()
           && resource.data.customerId == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status',
-            'updatedAt'
-          ])
-          && request.resource.data.status == 'kapalı'
         );
 
-      allow delete: if isAdmin()
-        || (
-          signedIn()
-          && resource.data.customerId == request.auth.uid
-        );
+      allow delete: if isAdmin();
 
       match /messages/{messageId} {
-
         allow read: if isAdmin()
           || (
             signedIn()
-            &&
-            get(
+            && get(
               /databases/$(database)/documents/supportTickets/$(ticketId)
             ).data.customerId == request.auth.uid
           );
@@ -259,24 +256,11 @@ service cloud.firestore {
         allow create: if isAdmin()
           || (
             signedIn()
-            &&
-            get(
-              /databases/$(database)/documents/supportTickets/$(ticketId)
-            ).data.customerId == request.auth.uid
+            && request.resource.data.senderId == request.auth.uid
           );
 
-        allow update: if isAdmin()
-          || (
-            signedIn()
-            && resource.data.senderId == request.auth.uid
-          );
-
-        allow delete: if isAdmin();
+        allow update, delete: if isAdmin();
       }
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
     }
   }
 }
