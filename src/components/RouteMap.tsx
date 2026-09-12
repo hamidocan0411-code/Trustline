@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+﻿import React, { useEffect, useRef } from "react";
 import L from "leaflet";
 import type { GeoCoordinate } from "../services/mapService";
 import { Sparkles } from "lucide-react";
