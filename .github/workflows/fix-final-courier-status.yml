@@ -1,0 +1,32 @@
+name: Fix final courier status
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-final-courier-status.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix source
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const file = 'src/components/AdminPanel.tsx';
+          let text = fs.readFileSync(file, 'utf8');
+          text = text.replace(/courier\.courierStatus \|\| "[^"\n]*";/g, 'courier.courierStatus || "\u00c7evrimd\u0131\u015f\u0131";');
+          text = text.replace(/\n(\s*)Kurye durumu\n(\s*)<\/span>/g, '\n$1Kurye durumu:\n$2</span>');
+          fs.writeFileSync(file, text, 'utf8');
+          NODE
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/AdminPanel.tsx
+          git diff --cached --quiet || git commit -m "Fix final courier status display"
+          git push
