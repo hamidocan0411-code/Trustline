@@ -193,7 +193,8 @@ export const DeliveryProofCard: React.FC<Props> = ({
   };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-emerald-500/25 bg-[#19191E]">
+    <>
+      <div className="overflow-hidden rounded-2xl border border-emerald-500/25 bg-[#19191E]">
       {hasProof && (
         <>
           <button
@@ -341,8 +342,10 @@ export const DeliveryProofCard: React.FC<Props> = ({
         </>
       )}
 
+      </div>
+
       {canRate && ratingChecked && (
-        <div className="border-t border-[#303036] bg-[#0F0F12] p-4">
+        <div className="mt-3 overflow-hidden rounded-2xl border border-[#D6A84F]/20 bg-[#0F0F12] p-4">
           <div className="rounded-2xl border border-[#D6A84F]/20 bg-[#19191E] p-4">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#D6A84F]/10 text-[#D6A84F]">
@@ -440,6 +443,6 @@ export const DeliveryProofCard: React.FC<Props> = ({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
