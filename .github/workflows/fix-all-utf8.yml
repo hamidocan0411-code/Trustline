@@ -1,0 +1,140 @@
+name: Repair all project UTF-8
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-all-utf8.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Repair all tracked text files
+        run: |
+          npm install --no-save iconv-lite
+          node <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+          const iconv = require('iconv-lite');
+
+          const exts = new Set(['.ts','.tsx','.js','.jsx','.mjs','.cjs','.json','.css','.scss','.html','.md','.txt','.yml','.yaml','.rules']);
+          const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
+            .split('\0')
+            .filter(Boolean)
+            .filter(f => exts.has(require('path').extname(f).toLowerCase()) || f.endsWith('.firebaserc'));
+
+          const special = {
+            '\u20AC':0x80,'\u201A':0x82,'\u0192':0x83,'\u201E':0x84,'\u2026':0x85,
+            '\u2020':0x86,'\u2021':0x87,'\u02C6':0x88,'\u2030':0x89,'\u0160':0x8A,
+            '\u2039':0x8B,'\u0152':0x8C,'\u017D':0x8E,'\u2018':0x91,'\u2019':0x92,
+            '\u201C':0x93,'\u201D':0x94,'\u2022':0x95,'\u2013':0x96,'\u2014':0x97,
+            '\u02DC':0x98,'\u2122':0x99,'\u0161':0x9A,'\u203A':0x9B,'\u0153':0x9C,
+            '\u017E':0x9E,'\u0178':0x9F
+          };
+
+          function bytes1252(s) {
+            const out = [];
+            for (const ch of s) {
+              const cp = ch.codePointAt(0);
+              if (cp <= 0x7F || (cp >= 0xA0 && cp <= 0xFF)) out.push(cp);
+              else if (special[ch] !== undefined) out.push(special[ch]);
+              else return null;
+            }
+            return Buffer.from(out);
+          }
+
+          function score(s) {
+            let n = 0;
+            for (const ch of s) {
+              const cp = ch.codePointAt(0);
+              if ([0xC2,0xC3,0xC4,0xC5,0xC6,0xCB,0xE2,0xEF,0xF0].includes(cp)) n += 2;
+              if ((cp >= 0x80 && cp <= 0x9F) || cp === 0xFFFD) n += 5;
+            }
+            return n;
+          }
+
+          function repair(text) {
+            let best = text.replace(/^\uFEFF/, '');
+            let bestScore = score(best);
+            for (let pass = 0; pass < 8; pass++) {
+              const b = bytes1252(best);
+              if (!b) break;
+              const candidate = b.toString('utf8');
+              if (candidate.includes('\uFFFD')) break;
+              const s = score(candidate);
+              if (s < bestScore) { best = candidate; bestScore = s; }
+              else break;
+            }
+            return best;
+          }
+
+          const direct = [
+            ['Ã‡evrimdÄ±ÅŸÄ±','Çevrimdışı'],
+            ['MÃ¼sait','Müsait'],
+            ['MeÅŸgul','Meşgul'],
+            ['Kurye AtandÄ±','Kurye Atandı'],
+            ['Paket AlÄ±ndÄ±','Paket Alındı'],
+            ['Ä°ptal Edildi','İptal Edildi'],
+            ['TÃ¼mÃ¼','Tümü'],
+            ['GÃ–REV ATANDI','GÖREV ATANDI'],
+            ['TESLÄ°MATTA','TESLİMATTA'],
+            ['Ã‡OK ACÄ°L','ÇOK ACİL'],
+            ['Ã‡ok Acil','Çok Acil']
+          ];
+
+          let changed = 0;
+          for (const file of tracked) {
+            const original = fs.readFileSync(file, 'utf8');
+            let fixed = repair(original);
+            for (const [from,to] of direct) fixed = fixed.split(from).join(to);
+            if (fixed !== original) {
+              fs.writeFileSync(file, fixed, 'utf8');
+              changed++;
+              console.log('FIXED:', file);
+            }
+          }
+
+          const storage = 'src/services/storage.ts';
+          if (fs.existsSync(storage)) {
+            let t = fs.readFileSync(storage, 'utf8');
+            t = t.split('"Ã‡evrimdÄ±ÅŸÄ±"').join('"Çevrimdışı"');
+            t = t.split('"MÃ¼sait"').join('"Müsait"');
+            t = t.split('"MeÅŸgul"').join('"Meşgul"');
+            fs.writeFileSync(storage, t, 'utf8');
+          }
+
+          const admin = 'src/components/AdminPanel.tsx';
+          if (fs.existsSync(admin)) {
+            let t = fs.readFileSync(admin, 'utf8');
+            t = t.replace(/courier\.courierStatus \|\| "[^"\n]*";/g, 'courier.courierStatus || "Çevrimdışı";');
+            t = t.replace(/\n(\s*)Kurye durumu\n(\s*)<\/span>/g, '\n$1Kurye durumu:\n$2</span>');
+            fs.writeFileSync(admin, t, 'utf8');
+          }
+
+          console.log('Changed files:', changed);
+
+          const bad = [];
+          for (const file of tracked) {
+            const t = fs.readFileSync(file, 'utf8');
+            if (score(t) > 0) bad.push(file);
+          }
+          console.log('Remaining mojibake files:', bad);
+          if (bad.length) process.exitCode = 1;
+          NODE
+
+      - name: Commit repaired files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          if git diff --cached --quiet; then
+            echo "No changes needed."
+          else
+            git commit -m "Repair all Turkish UTF-8 text across project"
+            git push
+          fi
