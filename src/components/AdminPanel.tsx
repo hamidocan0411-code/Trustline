@@ -1789,7 +1789,7 @@ export const AdminPanel: React.FC<Props> = ({
                           ? "PAKET ALINDI"
                           : waitingToPickup
                           ? "GÖREV ATANDI"
-                          : courier.courierStatus || "Ã‡EVRÄ°MDIÅI";
+                          : courier.courierStatus || "Çevrimdışı";
 
                         const availabilityLabel = deliveryActive
                           ? "Teslimat yapıyor"
@@ -1819,7 +1819,7 @@ export const AdminPanel: React.FC<Props> = ({
                           <div className={`mb-4 rounded-xl border p-3 ${availabilityClass}`}>
                             <div className="flex items-center justify-between gap-3">
                               <span className="text-xs font-semibold text-[#999999]">
-                                Kurye durumu
+                                Kurye durumu:
                               </span>
                               <span className="text-[10px] font-black uppercase tracking-wide">
                                 {displayStatus}
