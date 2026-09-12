@@ -14,7 +14,11 @@
         "vehicle": { "type": "string", "maxLength": 100 },
         "plate": { "type": "string", "maxLength": 30 },
         "courierStatus": { "type": "string", "enum": ["Müsait", "Meşgul", "Çevrimdışı"] },
-        "createdAt": { "type": "string", "maxLength": 50 }
+        "employmentStatus": { "type": "string", "enum": ["active", "inactive"] },
+        "totalDeliveries": { "type": "number" },
+        "rating": { "type": "number" },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
       },
       "required": ["id", "name", "email", "phone", "role"]
     },
@@ -23,7 +27,7 @@
       "description": "Courier delivery request document.",
       "type": "object",
       "properties": {
-        "id": { "type": "string", "maxLength": 50 },
+        "id": { "type": "string", "maxLength": 128 },
         "customerId": { "type": "string", "maxLength": 128 },
         "customerName": { "type": "string", "maxLength": 100 },
         "customerPhone": { "type": "string", "maxLength": 30 },
@@ -33,12 +37,14 @@
         "pickupAddress": { "type": "string", "maxLength": 300 },
         "deliveryAddress": { "type": "string", "maxLength": 300 },
         "packageType": { "type": "string", "enum": ["Evrak", "Küçük Paket", "Orta Paket", "Büyük Paket", "Diğer"] },
+        "packageCount": { "type": "number" },
         "courierType": { "type": "string", "enum": ["Standart Kurye", "Acil Kurye", "VIP Kurye"] },
         "urgency": { "type": "string", "enum": ["Normal", "Acil", "Çok Acil"] },
         "distanceKm": { "type": "number" },
         "price": { "type": "number" },
         "status": { "type": "string", "enum": ["Kurye Bekleniyor", "Kurye Atandı", "Kurye Kabul Etti", "Paket Alındı", "Teslimatta", "Teslim Edildi", "İptal Edildi"] },
         "note": { "type": "string", "maxLength": 500 },
+        "estimatedDeliveryMinutes": { "type": "number" },
         "deliveryPhoto": { "type": "string" },
         "receiverName": { "type": "string", "maxLength": 100 },
         "deliveryNote": { "type": "string", "maxLength": 500 },
@@ -48,7 +54,7 @@
         "createdAt": { "type": "string", "maxLength": 50 },
         "updatedAt": { "type": "string", "maxLength": 50 }
       },
-      "required": ["id", "customerId", "pickupAddress", "deliveryAddress", "packageType", "courierType", "distanceKm", "price", "status"]
+      "required": ["id", "customerId", "customerName", "customerPhone", "pickupAddress", "deliveryAddress", "packageType", "courierType", "urgency", "distanceKm", "price", "status", "note", "createdAt", "updatedAt"]
     },
     "CourierLocation": {
       "title": "CourierLocation",
@@ -65,7 +71,7 @@
     },
     "PricingConfig": {
       "title": "PricingConfig",
-      "description": "System pricing configuration.",
+      "description": "System pricing configuration stored at pricing/default.",
       "type": "object",
       "properties": {
         "perKmPrice": { "type": "number" },
@@ -92,6 +98,55 @@
         "createdAt": { "type": "string", "maxLength": 50 }
       },
       "required": ["id", "userId", "title", "message", "read"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "Customer live support ticket.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 100 },
+        "customerEmail": { "type": "string", "maxLength": 150 },
+        "status": { "type": "string", "enum": ["bekliyor", "aktif", "kapalı"] },
+        "assignedAdminId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "acceptedAt": { "type": "string", "maxLength": 50 },
+        "closedAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 },
+        "lastMessage": { "type": "string", "maxLength": 2000 },
+        "lastMessageAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "customerId", "customerName", "customerEmail", "status", "createdAt", "updatedAt"]
+    },
+    "SupportMessage": {
+      "title": "SupportMessage",
+      "description": "Message within a live support ticket.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "senderRole": { "type": "string", "enum": ["customer", "admin"] },
+        "text": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "senderId", "senderRole", "text", "createdAt"]
+    },
+    "DeliveryProof": {
+      "title": "DeliveryProof",
+      "description": "Courier delivery completion proof stored under an order.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "maxLength": 128 },
+        "courierId": { "type": "string", "maxLength": 128 },
+        "receiverName": { "type": "string", "maxLength": 100 },
+        "deliveryNote": { "type": "string", "maxLength": 500 },
+        "signature": { "type": "string" },
+        "deliveryPhoto": { "type": "string" },
+        "deliveredAt": {},
+        "status": { "type": "string", "enum": ["Teslim Edildi"] }
+      },
+      "required": ["orderId", "courierId", "receiverName", "signature", "deliveredAt", "status"]
     }
   },
   "firestore": {
@@ -103,7 +158,11 @@
       "schema": "Order",
       "description": "Courier delivery orders."
     },
-    "/pricing/current": {
+    "/orders/{orderId}/deliveryProofs/{proofId}": {
+      "schema": "DeliveryProof",
+      "description": "Delivery proof submitted by the assigned courier."
+    },
+    "/pricing/default": {
       "schema": "PricingConfig",
       "description": "Active pricing configuration settings."
     },
@@ -114,6 +173,18 @@
     "/notifications/{notificationId}": {
       "schema": "NotificationItem",
       "description": "Customer and courier notifications."
+    },
+    "/courierRatings/{ratingId}": {
+      "schema": "CourierRating",
+      "description": "Customer courier ratings keyed by order id."
+    },
+    "/supportTickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Live customer support ticket."
+    },
+    "/supportTickets/{ticketId}/messages/{messageId}": {
+      "schema": "SupportMessage",
+      "description": "Messages within a live support ticket."
     }
   }
 }
