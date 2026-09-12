@@ -6,7 +6,6 @@ import {
   Image as ImageIcon,
   PenLine,
   Star,
-  User,
 } from "lucide-react";
 
 import type { Order } from "../types";
@@ -150,28 +149,22 @@ export const DeliveryProofCard: React.FC<Props> = ({ order }) => {
           </button>
 
           {showDetails && (
-            <div className="space-y-4 border-t border-[#303036] bg-[#222229] p-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3">
-                  <div className="flex items-center gap-2">
-                    <User size={14} className="text-[#D6A84F]" />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#999999]">
-                      Teslim Alan
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xs font-bold text-white">{receiverName || "—"}</p>
-                </div>
-
-                <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 size={14} className="text-emerald-400" />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#999999]">
-                      Teslim Tarihi
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xs font-bold text-white">{formattedDate}</p>
-                </div>
+            <div className="space-y-3 border-t border-[#303036] bg-[#222229] p-4">
+              <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3">
+                <span className="block text-[10px] uppercase tracking-wide text-[#999999]">
+                  Teslim Tarihi
+                </span>
+                <p className="mt-1 text-xs font-bold text-white">{formattedDate}</p>
               </div>
+
+              {receiverName && (
+                <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3">
+                  <span className="block text-[10px] uppercase tracking-wide text-[#999999]">
+                    Teslim Alan
+                  </span>
+                  <p className="mt-1 text-xs font-bold text-white">{receiverName}</p>
+                </div>
+              )}
 
               {deliveryPhoto && (
                 <div>
@@ -215,12 +208,6 @@ export const DeliveryProofCard: React.FC<Props> = ({ order }) => {
                     Teslimat Notu
                   </span>
                   <p className="mt-2 text-xs leading-relaxed text-slate-300">{deliveryNote}</p>
-                </div>
-              )}
-
-              {!deliveryPhoto && !signature && !deliveryNote && (
-                <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3 text-center text-[10px] text-[#777777]">
-                  Teslimat bilgileri mevcut ancak görüntülenecek ek kanıt bulunmuyor.
                 </div>
               )}
             </div>
