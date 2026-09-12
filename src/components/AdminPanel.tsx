@@ -60,18 +60,18 @@ type AdminTab =
 
 const ORDER_STATUSES: OrderStatus[] = [
   "Kurye Bekleniyor",
-  "Kurye AtandÄ±",
+  "Kurye Atandı",
   "Kurye Kabul Etti",
-  "Paket AlÄ±ndÄ±",
+  "Paket Alındı",
   "Teslimatta",
   "Teslim Edildi",
-  "Ä°ptal Edildi",
+  "İptal Edildi",
 ];
 
 const COURIER_STATUSES: CourierAvailability[] = [
-  "MÃ¼sait",
-  "MeÅŸgul",
-  "Ã‡evrimdÄ±ÅŸÄ±",
+  "Müsait",
+  "Meşgul",
+  "Çevrimdışı",
 ];
 
 type CourierWithEmployment = UserProfile & {
@@ -93,7 +93,7 @@ export const AdminPanel: React.FC<Props> = ({
   const [searchTerm, setSearchTerm] = useState("");
 
   const [statusFilter, setStatusFilter] =
-    useState<"TÃ¼mÃ¼" | OrderStatus>("TÃ¼mÃ¼");
+    useState<"Tümü" | OrderStatus>("Tümü");
 
   const [selectedOrder, setSelectedOrder] =
     useState<Order | null>(null);
@@ -443,7 +443,7 @@ export const AdminPanel: React.FC<Props> = ({
     safeOrders.filter(
       (order) =>
         order.status ===
-        "Ä°ptal Edildi"
+        "İptal Edildi"
     ).length;
 
   const waitingOrders =
@@ -457,7 +457,7 @@ export const AdminPanel: React.FC<Props> = ({
     safeOrders.filter(
       (order) =>
         order.status ===
-          "Kurye AtandÄ±" ||
+          "Kurye Atandı" ||
         order.status ===
           "Kurye Kabul Etti"
     ).length;
@@ -466,7 +466,7 @@ export const AdminPanel: React.FC<Props> = ({
     safeOrders.filter(
       (order) =>
         order.status ===
-        "Paket AlÄ±ndÄ±"
+        "Paket Alındı"
     ).length;
 
   const deliveringOrders =
@@ -481,7 +481,7 @@ export const AdminPanel: React.FC<Props> = ({
       .filter(
         (order) =>
           order.status !==
-          "Ä°ptal Edildi"
+          "İptal Edildi"
       )
       .reduce(
         (sum, order) =>
@@ -496,7 +496,7 @@ export const AdminPanel: React.FC<Props> = ({
     activeCouriers.filter(
       (courier) =>
         courier.courierStatus ===
-        "MÃ¼sait"
+        "Müsait"
     ).length;
 
   const urgentOrders =
@@ -511,7 +511,7 @@ export const AdminPanel: React.FC<Props> = ({
         order.status !==
           "Teslim Edildi" &&
         order.status !==
-          "Ä°ptal Edildi"
+          "İptal Edildi"
     );
 
   const filteredOrders =
@@ -557,7 +557,7 @@ export const AdminPanel: React.FC<Props> = ({
 
           const matchesStatus =
             statusFilter ===
-              "TÃ¼mÃ¼" ||
+              "Tümü" ||
             order.status ===
               statusFilter;
 
@@ -778,7 +778,7 @@ export const AdminPanel: React.FC<Props> = ({
 
       if (
         status ===
-        "Ã‡evrimdÄ±ÅŸÄ±"
+        "Çevrimdışı"
       ) {
         void storage
           .setCourierOffline(
@@ -1002,7 +1002,7 @@ export const AdminPanel: React.FC<Props> = ({
   const deleteCancelledOrder = async () => {
     if (
       !selectedOrder ||
-      selectedOrder.status !== "Ä°ptal Edildi" ||
+      selectedOrder.status !== "İptal Edildi" ||
       deletingOrderId
     ) {
       return;
@@ -1255,7 +1255,7 @@ export const AdminPanel: React.FC<Props> = ({
               />
 
               <StatCard
-                title="MÃ¼sait Kurye"
+                title="Müsait Kurye"
                 value={`${availableCouriers}/${activeCouriers.length}`}
                 icon={
                   <Truck size={20} />
@@ -1291,7 +1291,7 @@ export const AdminPanel: React.FC<Props> = ({
               />
 
               <MiniStat
-                title="Paket AlÄ±ndÄ±"
+                title="Paket Alındı"
                 value={
                   pickedUpOrders
                 }
@@ -1349,7 +1349,7 @@ export const AdminPanel: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setStatusFilter("Ä°ptal Edildi");
+                  setStatusFilter("İptal Edildi");
                   setActiveTab("orders");
                 }}
                 className="group rounded-2xl border border-red-500/20 bg-red-500/[0.04] p-4 text-left transition hover:-translate-y-0.5 hover:border-red-400/40 hover:bg-red-500/[0.08]"
@@ -1408,7 +1408,7 @@ export const AdminPanel: React.FC<Props> = ({
                   }
                   className="flex items-center gap-1 text-sm text-[#D6A84F]"
                 >
-                  TÃ¼mÃ¼nÃ¼ GÃ¶r
+                  TümünÃ¼ GÃ¶r
                   <ChevronRight
                     size={16}
                   />
@@ -1482,14 +1482,14 @@ export const AdminPanel: React.FC<Props> = ({
                   setStatusFilter(
                     event.target
                       .value as
-                      | "TÃ¼mÃ¼"
+                      | "Tümü"
                       | OrderStatus
                   )
                 }
                 className="rounded-xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm outline-none"
               >
                 <option>
-                  TÃ¼mÃ¼
+                  Tümü
                 </option>
 
                 {ORDER_STATUSES.map(
@@ -1756,10 +1756,10 @@ export const AdminPanel: React.FC<Props> = ({
                         <span
                           className={`h-3 w-3 shrink-0 rounded-full ${
                             courier.courierStatus ===
-                            "MÃ¼sait"
+                            "Müsait"
                               ? "bg-emerald-400"
                               : courier.courierStatus ===
-                                "MeÅŸgul"
+                                "Meşgul"
                               ? "bg-amber-400"
                               : "bg-slate-600"
                           }`}
@@ -1771,37 +1771,37 @@ export const AdminPanel: React.FC<Props> = ({
                           (order) =>
                             order.courierId === courier.id &&
                             order.status !== "Teslim Edildi" &&
-                            order.status !== "Ä°ptal Edildi"
+                            order.status !== "İptal Edildi"
                         );
 
                         const assigned = Boolean(assignedOrder);
                         const deliveryActive =
                           assignedOrder?.status === "Teslimatta";
                         const packagePickedUp =
-                          assignedOrder?.status === "Paket AlÄ±ndÄ±";
+                          assignedOrder?.status === "Paket Alındı";
                         const waitingToPickup =
-                          assignedOrder?.status === "Kurye AtandÄ±" ||
+                          assignedOrder?.status === "Kurye Atandı" ||
                           assignedOrder?.status === "Kurye Kabul Etti";
 
                         const displayStatus = deliveryActive
-                          ? "TESLÄ°MATTA"
+                          ? "TESLİMATTA"
                           : packagePickedUp
                           ? "PAKET ALINDI"
                           : waitingToPickup
-                          ? "GÃ–REV ATANDI"
+                          ? "GÖREV ATANDI"
                           : courier.courierStatus || "Ã‡EVRÄ°MDIÅI";
 
                         const availabilityLabel = deliveryActive
-                          ? "Teslimat yapÄ±yor"
+                          ? "Teslimat yapıyor"
                           : packagePickedUp
-                          ? "Paket alÄ±ndÄ± â€¢ teslimata hazÄ±rlanÄ±yor"
+                          ? "Paket alındı • teslimata hazırlanıyor"
                           : waitingToPickup
-                          ? "Paket alacak gÃ¶rev Ã¼zerinde"
-                          : courier.courierStatus === "MÃ¼sait"
-                          ? "Paket almaya mÃ¼sait"
-                          : courier.courierStatus === "MeÅŸgul"
-                          ? "MeÅŸgul"
-                          : "Paket almaya uygun deÄŸil";
+                          ? "Paket alacak görev üzerinde"
+                          : courier.courierStatus === "Müsait"
+                          ? "Paket almaya müsait"
+                          : courier.courierStatus === "Meşgul"
+                          ? "Meşgul"
+                          : "Paket almaya uygun değil";
 
                         const availabilityClass = assigned
                           ? deliveryActive
@@ -1809,9 +1809,9 @@ export const AdminPanel: React.FC<Props> = ({
                             : packagePickedUp
                             ? "border-violet-500/20 bg-violet-500/5 text-violet-300"
                             : "border-amber-500/20 bg-amber-500/5 text-amber-300"
-                          : courier.courierStatus === "MÃ¼sait"
+                          : courier.courierStatus === "Müsait"
                           ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-300"
-                          : courier.courierStatus === "MeÅŸgul"
+                          : courier.courierStatus === "Meşgul"
                           ? "border-amber-500/20 bg-amber-500/5 text-amber-300"
                           : "border-[#303036] bg-[#0B0B0D] text-[#999999]";
 
@@ -1890,7 +1890,7 @@ export const AdminPanel: React.FC<Props> = ({
                         <select
                           value={
                             courier.courierStatus ||
-                            "Ã‡evrimdÄ±ÅŸÄ±"
+                            "Çevrimdışı"
                           }
                           onChange={(
                             event
@@ -2110,7 +2110,7 @@ export const AdminPanel: React.FC<Props> = ({
                       .filter(
                         (order) =>
                           order.status !==
-                          "Ä°ptal Edildi"
+                          "İptal Edildi"
                       )
                       .reduce(
                         (
@@ -2546,7 +2546,7 @@ export const AdminPanel: React.FC<Props> = ({
                           â€¢{" "}
                           {
                             courier.courierStatus ||
-                            "Ã‡evrimdÄ±ÅŸÄ±"
+                            "Çevrimdışı"
                           }
                         </option>
                       )
@@ -2649,7 +2649,7 @@ export const AdminPanel: React.FC<Props> = ({
               </button>
 
               {selectedOrder.status ===
-                "Ä°ptal Edildi" && (
+                "İptal Edildi" && (
                 <button
                   type="button"
                   disabled={
@@ -2963,7 +2963,7 @@ const CustomerProfileModal: React.FC<{
   ).length;
 
   const totalSpend = orders
-    .filter((order) => order.status !== "Ä°ptal Edildi")
+    .filter((order) => order.status !== "İptal Edildi")
     .reduce(
       (sum, order) => sum + Number(order.price || 0),
       0
@@ -3222,7 +3222,7 @@ const StatusBadge: React.FC<{
     "Teslim Edildi"
       ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
       : status ===
-        "Ä°ptal Edildi"
+        "İptal Edildi"
       ? "bg-red-500/10 text-red-400 border-red-500/20"
       : status ===
         "Teslimatta"
