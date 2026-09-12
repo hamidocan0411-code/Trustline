@@ -24,6 +24,20 @@ service cloud.firestore {
         );
     }
 
+    function isOrderCustomer(orderId) {
+      return signedIn()
+        && get(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.customerId == request.auth.uid;
+    }
+
+    function isOrderCourier(orderId) {
+      return signedIn()
+        && get(
+          /databases/$(database)/documents/orders/$(orderId)
+        ).data.courierId == request.auth.uid;
+    }
+
     match /users/{userId} {
       allow read: if signedIn();
 
@@ -64,6 +78,30 @@ service cloud.firestore {
         );
 
       allow delete: if isAdmin();
+
+      match /deliveryProofs/{proofId} {
+        allow read: if isAdmin()
+          || isOrderCustomer(orderId)
+          || isOrderCourier(orderId);
+
+        allow create: if isAdmin()
+          || (
+            isOrderCourier(orderId)
+            && request.resource.data.courierId == request.auth.uid
+          );
+
+        allow update: if isAdmin()
+          || (
+            isOrderCourier(orderId)
+            && resource.data.courierId == request.auth.uid
+          );
+
+        allow delete: if isAdmin()
+          || (
+            isOrderCourier(orderId)
+            && resource.data.courierId == request.auth.uid
+          );
+      }
     }
 
     match /pricing/{pricingId} {
