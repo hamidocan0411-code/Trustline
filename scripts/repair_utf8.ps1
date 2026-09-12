@@ -1,9 +1,5 @@
 $ErrorActionPreference = 'Stop'
 
-# TrustLine Express - Turkish UTF-8 / mojibake repair
-# Scans the repository, creates a timestamped backup, repairs broken UTF-8 text,
-# removes UTF-8 BOMs, fixes known pricing fallbacks, then builds the project.
-
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $root
 
@@ -13,6 +9,7 @@ New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
 
 $extensions = @('.ts','.tsx','.js','.jsx','.mjs','.cjs','.json','.md','.html','.css','.scss','.yml','.yaml','.rules','.txt')
 $specialNames = @('.env.example','.firebaserc','firebase.json')
+$excludedNames = @('.git','node_modules','dist','.firebase')
 
 [System.Text.Encoding]::RegisterProvider([System.Text.CodePagesEncodingProvider]::Instance)
 $utf8 = New-Object System.Text.UTF8Encoding($false, $true)
@@ -22,15 +19,9 @@ $cp1252 = [System.Text.Encoding]::GetEncoding(1252)
 function Test-Excluded([string]$fullName) {
     $normalized = $fullName.Replace('/','\')
     $rootNormalized = $root.Replace('/','\').TrimEnd('\')
-    $excludedPrefixes = @(
-        "$rootNormalized\.git\",
-        "$rootNormalized\node_modules\",
-        "$rootNormalized\dist\",
-        "$rootNormalized\.firebase\",
-        "$rootNormalized\backup-utf8-"
-    )
 
-    foreach ($prefix in $excludedPrefixes) {
+    foreach ($name in $excludedNames) {
+        $prefix = $rootNormalized + '\' + $name + '\'
         if ($normalized.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
             return $true
         }
@@ -40,13 +31,26 @@ function Test-Excluded([string]$fullName) {
 }
 
 function Get-MojibakeScore([string]$value) {
-    if ([string]::IsNullOrEmpty($value)) { return 0 }
-    return [regex]::Matches($value, '[ÃÄÅÂâğðï]|[\u0080-\u009F]').Count
+    if ([string]::IsNullOrEmpty($value)) {
+        return 0
+    }
+
+    $score = 0
+    foreach ($ch in $value.ToCharArray()) {
+        $code = [int][char]$ch
+        if (($code -eq 0x00C3) -or ($code -eq 0x00C4) -or ($code -eq 0x00C5) -or ($code -eq 0x00C2) -or ($code -eq 0x00E2) -or ($code -eq 0x00D0) -or ($code -eq 0x00CF) -or ($code -ge 0x0080 -and $code -le 0x009F)) {
+            $score++
+        }
+    }
+
+    return $score
 }
 
 function Try-RepairToken([string]$token) {
     $scoreBefore = Get-MojibakeScore $token
-    if ($scoreBefore -eq 0) { return $token }
+    if ($scoreBefore -eq 0) {
+        return $token
+    }
 
     $best = $token
     $bestScore = $scoreBefore
@@ -55,7 +59,11 @@ function Try-RepairToken([string]$token) {
         try {
             $bytes = $encoding.GetBytes($token)
             $candidate = $utf8.GetString($bytes)
-            if ($candidate.Contains([char]0xFFFD)) { continue }
+
+            if ($candidate.Contains([char]0xFFFD)) {
+                continue
+            }
+
             $score = Get-MojibakeScore $candidate
             if ($score -lt $bestScore) {
                 $best = $candidate
@@ -73,7 +81,10 @@ function Repair-Line([string]$line) {
     $current = $line
 
     for ($pass = 0; $pass -lt 3; $pass++) {
-        if (Get-MojibakeScore $current -eq 0) { break }
+        if ((Get-MojibakeScore $current) -eq 0) {
+            break
+        }
+
         $current = [regex]::Replace($current, '\S+', {
             param($match)
             Try-RepairToken $match.Value
@@ -84,8 +95,11 @@ function Repair-Line([string]$line) {
 }
 
 $files = Get-ChildItem -Path $root -Recurse -File | Where-Object {
-    if (Test-Excluded $_.FullName) { return $false }
-    return ($extensions -contains $_.Extension.ToLowerInvariant()) -or ($specialNames -contains $_.Name)
+    if (Test-Excluded $_.FullName) {
+        return $false
+    }
+
+    return (($extensions -contains $_.Extension.ToLowerInvariant()) -or ($specialNames -contains $_.Name))
 }
 
 $changed = New-Object System.Collections.Generic.List[string]
@@ -102,9 +116,9 @@ foreach ($file in $files) {
         }
 
         $fixed = [string]::Join("`n", $fixedLines)
+        $relative = $file.FullName.Substring($root.Length).TrimStart('\','/')
 
-        if ($fixed -ne $original) {
-            $relative = $file.FullName.Substring($root.Length).TrimStart('\','/')
+        if ($fixed -ne $original -or $text.StartsWith([char]0xFEFF)) {
             $backupPath = Join-Path $backupRoot $relative
             $backupDir = Split-Path $backupPath -Parent
             New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
@@ -112,19 +126,10 @@ foreach ($file in $files) {
 
             [System.IO.File]::WriteAllText($file.FullName, $fixed, $utf8)
             $changed.Add($relative)
-            Write-Host "UTF-8 DÜZELTİLDİ: $relative" -ForegroundColor Green
-        } elseif ($text.StartsWith([char]0xFEFF)) {
-            $relative = $file.FullName.Substring($root.Length).TrimStart('\','/')
-            $backupPath = Join-Path $backupRoot $relative
-            $backupDir = Split-Path $backupPath -Parent
-            New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
-            Copy-Item $file.FullName $backupPath -Force
-            [System.IO.File]::WriteAllText($file.FullName, $original, $utf8)
-            $changed.Add($relative)
-            Write-Host "BOM TEMİZLENDİ: $relative" -ForegroundColor Green
+            Write-Host "FIXED: $relative" -ForegroundColor Green
         }
     } catch {
-        Write-Warning "Dosya atlandı: $($file.FullName) -> $($_.Exception.Message)"
+        Write-Warning "SKIPPED: $($file.FullName) -> $($_.Exception.Message)"
     }
 }
 
@@ -137,15 +142,20 @@ if (Test-Path $appPath) {
     $s = $s.Replace('minPrice: 100,','minPrice: 250,')
     $s = $s.Replace('urgentMultiplier: 1.5,','urgentMultiplier: 1.3,')
     $s = $s.Replace('vipMultiplier: 2,','vipMultiplier: 1.6,')
+
     if ($s -ne $old) {
         $relative = 'src\App.tsx'
         $backupPath = Join-Path $backupRoot $relative
         $backupDir = Split-Path $backupPath -Parent
         New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
-        if (-not (Test-Path $backupPath)) { Copy-Item $appPath $backupPath -Force }
+        if (-not (Test-Path $backupPath)) {
+            Copy-Item $appPath $backupPath -Force
+        }
         [System.IO.File]::WriteAllText($appPath,$s,$utf8)
-        if (-not $changed.Contains($relative)) { $changed.Add($relative) }
-        Write-Host 'FİYAT FALLBACK DÜZELTİLDİ: src\App.tsx' -ForegroundColor Green
+        if (-not $changed.Contains($relative)) {
+            $changed.Add($relative)
+        }
+        Write-Host 'PRICE FALLBACK FIXED: src\App.tsx' -ForegroundColor Green
     }
 }
 
@@ -154,39 +164,46 @@ if (Test-Path $homePath) {
     $s = [System.IO.File]::ReadAllText($homePath, $utf8)
     $old = $s
     $s = $s.Replace('pricing?.perKmPrice ?? 50','pricing?.perKmPrice ?? 36')
+
     if ($s -ne $old) {
         $relative = 'src\components\CustomerHome.tsx'
         $backupPath = Join-Path $backupRoot $relative
         $backupDir = Split-Path $backupPath -Parent
         New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
-        if (-not (Test-Path $backupPath)) { Copy-Item $homePath $backupPath -Force }
+        if (-not (Test-Path $backupPath)) {
+            Copy-Item $homePath $backupPath -Force
+        }
         [System.IO.File]::WriteAllText($homePath,$s,$utf8)
-        if (-not $changed.Contains($relative)) { $changed.Add($relative) }
-        Write-Host 'FİYAT FALLBACK DÜZELTİLDİ: src\components\CustomerHome.tsx' -ForegroundColor Green
+        if (-not $changed.Contains($relative)) {
+            $changed.Add($relative)
+        }
+        Write-Host 'PRICE FALLBACK FIXED: src\components\CustomerHome.tsx' -ForegroundColor Green
     }
 }
 
 Write-Host ''
-Write-Host ('TOPLAM DÜZELTİLEN DOSYA: ' + $changed.Count) -ForegroundColor Cyan
-Write-Host ('YEDEK: ' + $backupRoot) -ForegroundColor DarkGray
+Write-Host ('FILES FIXED: ' + $changed.Count) -ForegroundColor Cyan
+Write-Host ('BACKUP: ' + $backupRoot) -ForegroundColor DarkGray
 
 $remaining = Get-ChildItem -Path $root -Recurse -File | Where-Object {
-    if (Test-Excluded $_.FullName) { return $false }
-    return ($extensions -contains $_.Extension.ToLowerInvariant()) -or ($specialNames -contains $_.Name)
-} | Select-String -Pattern 'Ã|Ä|Å|Â|â|ğŸ|ðŸ|ï¸|[\u0080-\u009F]' -AllMatches -ErrorAction SilentlyContinue
+    if (Test-Excluded $_.FullName) {
+        return $false
+    }
+    return (($extensions -contains $_.Extension.ToLowerInvariant()) -or ($specialNames -contains $_.Name))
+} | Select-String -Pattern 'Ã|Ä|Å|Â|â|ð|ï' -AllMatches -ErrorAction SilentlyContinue
 
 if ($remaining) {
-    Write-Warning 'Hâlâ mojibake izi bulunan dosyalar var. Yukarıdaki listeyi kontrol edin.'
+    Write-Warning 'Mojibake traces still exist in some files. Review the listed files.'
 } else {
-    Write-Host 'MOJIBAKE KONTROLÜ: TEMİZ' -ForegroundColor Green
+    Write-Host 'MOJIBAKE CHECK: CLEAN' -ForegroundColor Green
 }
 
 Write-Host ''
-Write-Host 'Şimdi npm run build çalıştırılıyor...' -ForegroundColor Cyan
+Write-Host 'Running npm run build...' -ForegroundColor Cyan
 npm run build
 if ($LASTEXITCODE -ne 0) {
-    throw 'Build başarısız oldu.'
+    throw 'Build failed.'
 }
 
 Write-Host ''
-Write-Host 'TAMAMLANDI. Türkçe metinler UTF-8 olarak düzeltildi ve build başarılı.' -ForegroundColor Green
+Write-Host 'DONE. Turkish text repair completed and build succeeded.' -ForegroundColor Green
