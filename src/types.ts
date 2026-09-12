@@ -52,10 +52,12 @@ export interface UserProfile {
   plate?: string;
 
   courierStatus?: CourierAvailability;
+  employmentStatus?: 'active' | 'inactive';
   totalDeliveries?: number;
   rating?: number;
 
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface CourierRating {
