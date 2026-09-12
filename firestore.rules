@@ -78,17 +78,35 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    /* SUPPORT */
+    /* SUPPORT TICKETS */
     match /supportTickets/{ticketId} {
       allow read: if isAdmin()
-        || (signedIn() && resource.data.userId == request.auth.uid);
+        || (signedIn() && resource.data.customerId == request.auth.uid);
 
-      allow create: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.customerId == request.auth.uid;
 
       allow update: if isAdmin()
-        || (signedIn() && resource.data.userId == request.auth.uid);
+        || (signedIn() && resource.data.customerId == request.auth.uid);
 
-      allow delete: if isAdmin();
+      allow delete: if isAdmin()
+        || (signedIn() && resource.data.customerId == request.auth.uid);
+
+      /* SUPPORT MESSAGES */
+      match /messages/{messageId} {
+        allow read: if isAdmin()
+          || (signedIn()
+            && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.customerId == request.auth.uid);
+
+        allow create: if isAdmin()
+          || (signedIn()
+            && get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.customerId == request.auth.uid);
+
+        allow update: if isAdmin()
+          || (signedIn() && resource.data.senderId == request.auth.uid);
+
+        allow delete: if isAdmin();
+      }
     }
 
     /* DENY EVERYTHING ELSE */
