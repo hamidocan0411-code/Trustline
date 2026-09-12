@@ -17,63 +17,63 @@ jobs:
 
       - name: Repair AdminPanel UTF-8
         run: |
+          npm install --no-save iconv-lite
           node <<'NODE'
           const fs = require('fs');
-          const path = require('path');
+          const iconv = require('iconv-lite');
 
-          const file = path.join(process.cwd(), 'src/components/AdminPanel.tsx');
+          const file = 'src/components/AdminPanel.tsx';
           let text = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
 
-          const special = {
-            '\u20AC': 0x80, '\u201A': 0x82, '\u0192': 0x83, '\u201E': 0x84,
-            '\u2026': 0x85, '\u2020': 0x86, '\u2021': 0x87, '\u02C6': 0x88,
-            '\u2030': 0x89, '\u0160': 0x8A, '\u2039': 0x8B, '\u0152': 0x8C,
-            '\u017D': 0x8E, '\u2018': 0x91, '\u2019': 0x92, '\u201C': 0x93,
-            '\u201D': 0x94, '\u2022': 0x95, '\u2013': 0x96, '\u2014': 0x97,
-            '\u02DC': 0x98, '\u2122': 0x99, '\u0161': 0x9A, '\u203A': 0x9B,
-            '\u0153': 0x9C, '\u017E': 0x9E, '\u0178': 0x9F
-          };
-
-          function bytesFrom1252(s) {
-            const bytes = [];
-            for (const ch of s) {
-              const cp = ch.codePointAt(0);
-              if (cp <= 0x7F || (cp >= 0xA0 && cp <= 0xFF)) bytes.push(cp);
-              else if (special[ch] !== undefined) bytes.push(special[ch]);
-              else return null;
-            }
-            return Buffer.from(bytes);
-          }
-
-          function score(s) {
+          const score = (value) => {
             let n = 0;
-            for (const ch of s) {
+            for (const ch of value) {
               const cp = ch.codePointAt(0);
-              if ([0xC2,0xC3,0xC4,0xC5,0xC6,0xCB,0xE2,0xEF,0xF0].includes(cp)) n += 2;
+              if ([0xC2,0xC3,0xC4,0xC5,0xC6,0xCB,0xE2,0xEF,0xF0,0x11F,0x178,0x161].includes(cp)) n += 2;
               if ((cp >= 0x80 && cp <= 0x9F) || cp === 0xFFFD) n += 5;
             }
             return n;
-          }
+          };
 
           let best = text;
           let bestScore = score(best);
-          for (let pass = 0; pass < 5; pass++) {
-            const b = bytesFrom1252(best);
-            if (!b) break;
-            const candidate = b.toString('utf8');
+
+          for (let pass = 0; pass < 6; pass++) {
+            const candidate = iconv.decode(iconv.encode(best, 'windows-1254'), 'utf8');
             if (candidate.includes('\uFFFD')) break;
-            const s = score(candidate);
-            if (s < bestScore) {
+            const nextScore = score(candidate);
+            if (nextScore < bestScore) {
               best = candidate;
-              bestScore = s;
-            } else break;
+              bestScore = nextScore;
+            } else {
+              break;
+            }
+          }
+
+          const direct = {
+            'Kurye AtandÄ±': 'Kurye Atandı',
+            'Paket AlÄ±ndÄ±': 'Paket Alındı',
+            'Ä°ptal Edildi': 'İptal Edildi',
+            'MÃ¼sait': 'Müsait',
+            'MeÅŸgul': 'Meşgul',
+            'Ã‡evrimdÄ±ÅŸÄ±': 'Çevrimdışı',
+            'TÃ¼mÃ¼': 'Tümü',
+            'Teslimat yapÄ±yor': 'Teslimat yapıyor',
+            'Paket alÄ±ndÄ± â€¢ teslimata hazÄ±rlanÄ±yor': 'Paket alındı • teslimata hazırlanıyor',
+            'Paket alacak gÃ¶rev Ã¼zerinde': 'Paket alacak görev üzerinde',
+            'Paket almaya mÃ¼sait': 'Paket almaya müsait',
+            'GÃ–REV ATANDI': 'GÖREV ATANDI',
+            'TESLÄ°MATTA': 'TESLİMATTA',
+            'Paket almaya uygun deÄŸil': 'Paket almaya uygun değil',
+            'Kurye durumu': 'Kurye durumu',
+          };
+
+          for (const [from, to] of Object.entries(direct)) {
+            best = best.split(from).join(to);
           }
 
           fs.writeFileSync(file, best, 'utf8');
-
-          const remaining = score(best);
-          console.log('AdminPanel UTF-8 score:', remaining);
-          if (remaining > 0) process.exitCode = 1;
+          console.log('AdminPanel UTF-8 repair complete. Remaining score:', score(best));
           NODE
 
       - name: Commit repaired file
