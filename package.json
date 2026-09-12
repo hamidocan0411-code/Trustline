@@ -1,0 +1,33 @@
+{
+  "name": "trustline-express",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.4.1",
+    "@tailwindcss/vite": "^4.1.7",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "firebase": "^10.12.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.344.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^4.1.7"
+  },
+  "devDependencies": {
+    "@types/express-session": "^1.18.0",
+    "@types/leaflet": "^1.9.20",
+    "@types/node": "^20.11.30",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "esbuild": "^0.20.2",
+    "typescript": "^5.4.3",
+    "vite": "^7.0.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.0"
+  }
+}

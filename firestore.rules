@@ -1,0 +1,99 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.email == 'hamidocan0411@gmail.com';
+    }
+
+    function isCourier() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'courier';
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    /* USERS */
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow update: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    /* ORDERS */
+    match /orders/{orderId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.customerId == request.auth.uid)
+        || (signedIn() && resource.data.courierId == request.auth.uid);
+
+      allow create: if signedIn()
+        && request.resource.data.customerId == request.auth.uid;
+
+      allow update: if isAdmin()
+        || (signedIn() && resource.data.customerId == request.auth.uid)
+        || (signedIn() && resource.data.courierId == request.auth.uid);
+
+      allow delete: if isAdmin();
+    }
+
+    /* PRICING */
+    match /pricing/{pricingId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    /* NOTIFICATIONS */
+    match /notifications/{notificationId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    /* COURIER GPS */
+    match /courierLocations/{courierId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin()
+        || (signedIn() && courierId == request.auth.uid);
+      allow delete: if isAdmin()
+        || (signedIn() && courierId == request.auth.uid);
+    }
+
+    /* COURIER RATINGS */
+    match /courierRatings/{ratingId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn();
+      allow delete: if isAdmin();
+    }
+
+    /* SUPPORT */
+    match /supportTickets/{ticketId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+
+      allow create: if signedIn();
+
+      allow update: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+
+      allow delete: if isAdmin();
+    }
+
+    /* DENY EVERYTHING ELSE */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

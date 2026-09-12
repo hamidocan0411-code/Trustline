@@ -1,0 +1,119 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile containing authentication and role metadata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "role": { "type": "string", "enum": ["customer", "courier", "admin"] },
+        "avatar": { "type": "string", "maxLength": 500 },
+        "vehicle": { "type": "string", "maxLength": 100 },
+        "plate": { "type": "string", "maxLength": 30 },
+        "courierStatus": { "type": "string", "enum": ["Müsait", "Meşgul", "Çevrimdışı"] },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "name", "email", "phone", "role"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Courier delivery request document.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 50 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 100 },
+        "customerPhone": { "type": "string", "maxLength": 30 },
+        "courierId": { "type": "string", "maxLength": 128 },
+        "courierName": { "type": "string", "maxLength": 100 },
+        "courierPhone": { "type": "string", "maxLength": 30 },
+        "pickupAddress": { "type": "string", "maxLength": 300 },
+        "deliveryAddress": { "type": "string", "maxLength": 300 },
+        "packageType": { "type": "string", "enum": ["Evrak", "Küçük Paket", "Orta Paket", "Büyük Paket", "Diğer"] },
+        "courierType": { "type": "string", "enum": ["Standart Kurye", "Acil Kurye", "VIP Kurye"] },
+        "urgency": { "type": "string", "enum": ["Normal", "Acil", "Çok Acil"] },
+        "distanceKm": { "type": "number" },
+        "price": { "type": "number" },
+        "status": { "type": "string", "enum": ["Kurye Bekleniyor", "Kurye Atandı", "Kurye Kabul Etti", "Paket Alındı", "Teslimatta", "Teslim Edildi", "İptal Edildi"] },
+        "note": { "type": "string", "maxLength": 500 },
+        "deliveryPhoto": { "type": "string" },
+        "receiverName": { "type": "string", "maxLength": 100 },
+        "deliveryNote": { "type": "string", "maxLength": 500 },
+        "signature": { "type": "string" },
+        "deliveredAt": { "type": "string", "maxLength": 50 },
+        "deliveryProof": { "type": "object" },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "customerId", "pickupAddress", "deliveryAddress", "packageType", "courierType", "distanceKm", "price", "status"]
+    },
+    "CourierLocation": {
+      "title": "CourierLocation",
+      "description": "Real-time geographical location coordinates shared by an active courier.",
+      "type": "object",
+      "properties": {
+        "courierId": { "type": "string", "maxLength": 128 },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "updatedAt": { "type": "string", "maxLength": 50 },
+        "isSharing": { "type": "boolean" }
+      },
+      "required": ["courierId", "latitude", "longitude", "isSharing"]
+    },
+    "PricingConfig": {
+      "title": "PricingConfig",
+      "description": "System pricing configuration.",
+      "type": "object",
+      "properties": {
+        "perKmPrice": { "type": "number" },
+        "minPrice": { "type": "number" },
+        "urgentMultiplier": { "type": "number" },
+        "vipMultiplier": { "type": "number" },
+        "requireDeliveryPhoto": { "type": "boolean" },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["perKmPrice", "minPrice", "urgentMultiplier", "vipMultiplier"]
+    },
+    "NotificationItem": {
+      "title": "NotificationItem",
+      "description": "In-app notifications for order status and courier assignments.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "orderId": { "type": "string", "maxLength": 50 },
+        "title": { "type": "string", "maxLength": 100 },
+        "message": { "type": "string", "maxLength": 300 },
+        "type": { "type": "string", "enum": ["order_status", "assignment", "system", "info"] },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "title", "message", "read"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Public and internal profiles of customers, couriers, and administrators."
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Courier delivery orders."
+    },
+    "/pricing/current": {
+      "schema": "PricingConfig",
+      "description": "Active pricing configuration settings."
+    },
+    "/courierLocations/{courierId}": {
+      "schema": "CourierLocation",
+      "description": "Active real-time GPS coordinates of couriers who opted into sharing location."
+    },
+    "/notifications/{notificationId}": {
+      "schema": "NotificationItem",
+      "description": "Customer and courier notifications."
+    }
+  }
+}
