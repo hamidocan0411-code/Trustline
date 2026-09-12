@@ -7,9 +7,17 @@ import {
   PenLine,
   Star,
 } from "lucide-react";
+import {
+  collection,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+} from "firebase/firestore";
 
 import type { Order } from "../types";
 import { storage } from "../services/storage";
+import { db } from "../services/firebase";
 import {
   getCourierRatingForOrder,
   submitCourierRating,
@@ -27,13 +35,15 @@ export const DeliveryProofCard: React.FC<Props> = ({ order }) => {
   const [ratingDone, setRatingDone] = useState(false);
   const [ratingError, setRatingError] = useState("");
   const [ratingChecked, setRatingChecked] = useState(false);
+  const [savedProof, setSavedProof] = useState<{
+    receiverName?: string;
+    deliveryNote?: string;
+    signature?: string;
+    deliveryPhoto?: string | null;
+    deliveredAt?: string;
+  } | null>(null);
 
   const proof = order.deliveryProof;
-  const receiverName = proof?.receiverName || order.receiverName || "";
-  const deliveryNote = proof?.deliveryNote || order.deliveryNote || "";
-  const signature = proof?.signature || order.signature || "";
-  const deliveryPhoto = proof?.deliveryPhoto || order.deliveryPhoto || "";
-  const deliveredAt = proof?.deliveredAt || order.deliveredAt || "";
   const currentUser = storage.getCurrentUser();
 
   const canRate = Boolean(
@@ -42,6 +52,58 @@ export const DeliveryProofCard: React.FC<Props> = ({ order }) => {
       currentUser?.role === "customer" &&
       currentUser.id === order.customerId
   );
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSavedProof = async () => {
+      try {
+        if (!order.id) return;
+
+        const proofQuery = query(
+          collection(db, "orders", order.id, "deliveryProofs"),
+          orderBy("deliveredAt", "desc"),
+          limit(1)
+        );
+
+        const snapshot = await getDocs(proofQuery);
+        const latest = snapshot.docs[0]?.data();
+
+        if (mounted && latest) {
+          setSavedProof({
+            receiverName:
+              typeof latest.receiverName === "string"
+                ? latest.receiverName
+                : "",
+            deliveryNote:
+              typeof latest.deliveryNote === "string"
+                ? latest.deliveryNote
+                : "",
+            signature:
+              typeof latest.signature === "string"
+                ? latest.signature
+                : "",
+            deliveryPhoto:
+              typeof latest.deliveryPhoto === "string"
+                ? latest.deliveryPhoto
+                : null,
+            deliveredAt:
+              typeof latest.deliveredAt === "string"
+                ? latest.deliveredAt
+                : "",
+          });
+        }
+      } catch (error) {
+        console.warn("Teslimat kanıtı yüklenemedi:", error);
+      }
+    };
+
+    void loadSavedProof();
+
+    return () => {
+      mounted = false;
+    };
+  }, [order.id]);
 
   useEffect(() => {
     let mounted = true;
@@ -69,6 +131,36 @@ export const DeliveryProofCard: React.FC<Props> = ({ order }) => {
       mounted = false;
     };
   }, [canRate, order.id]);
+
+  const receiverName =
+    proof?.receiverName ||
+    savedProof?.receiverName ||
+    order.receiverName ||
+    "";
+
+  const deliveryNote =
+    proof?.deliveryNote ||
+    savedProof?.deliveryNote ||
+    order.deliveryNote ||
+    "";
+
+  const signature =
+    proof?.signature ||
+    savedProof?.signature ||
+    order.signature ||
+    "";
+
+  const deliveryPhoto =
+    proof?.deliveryPhoto ||
+    savedProof?.deliveryPhoto ||
+    order.deliveryPhoto ||
+    "";
+
+  const deliveredAt =
+    proof?.deliveredAt ||
+    savedProof?.deliveredAt ||
+    order.deliveredAt ||
+    "";
 
   const hasProof = Boolean(
     receiverName || deliveryNote || signature || deliveryPhoto || deliveredAt
@@ -150,13 +242,6 @@ export const DeliveryProofCard: React.FC<Props> = ({ order }) => {
 
           {showDetails && (
             <div className="space-y-3 border-t border-[#303036] bg-[#222229] p-4">
-              <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3">
-                <span className="block text-[10px] uppercase tracking-wide text-[#999999]">
-                  Teslim Tarihi
-                </span>
-                <p className="mt-1 text-xs font-bold text-white">{formattedDate}</p>
-              </div>
-
               {receiverName && (
                 <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3">
                   <span className="block text-[10px] uppercase tracking-wide text-[#999999]">
@@ -165,6 +250,13 @@ export const DeliveryProofCard: React.FC<Props> = ({ order }) => {
                   <p className="mt-1 text-xs font-bold text-white">{receiverName}</p>
                 </div>
               )}
+
+              <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3">
+                <span className="block text-[10px] uppercase tracking-wide text-[#999999]">
+                  Teslim Tarihi
+                </span>
+                <p className="mt-1 text-xs font-bold text-white">{formattedDate}</p>
+              </div>
 
               {deliveryPhoto && (
                 <div>
