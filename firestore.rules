@@ -211,6 +211,7 @@ service cloud.firestore {
 
     match /courierRatings/{ratingId} {
       allow read: if isAdmin()
+        || isOrderCustomer(ratingId)
         || (
           signedIn()
           && resource.data.customerId == request.auth.uid
