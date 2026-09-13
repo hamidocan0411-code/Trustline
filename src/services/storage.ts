@@ -143,13 +143,13 @@ class StorageService {
           );
         } catch (error) {
           console.error(
-            "âŒ Storage kullanıcı profili yüklenemedi:",
+            "❌ Storage kullanıcı profili yüklenemedi:",
             error
           );
         }
       } else {
         console.log(
-          "â„¹ï¸ Storage init sırasında aktif Firebase kullanıcısı yok."
+          "ℹ️ Storage init sırasında aktif Firebase kullanıcısı yok."
         );
       }
 
@@ -189,7 +189,7 @@ class StorageService {
               );
             } catch (error) {
               console.error(
-                "âŒ Storage Auth state işleme hatası:",
+                "❌ Storage Auth state işleme hatası:",
                 error
               );
             }
@@ -203,7 +203,7 @@ class StorageService {
       );
     } catch (error) {
       console.error(
-        "âŒ Storage init hatası:",
+        "❌ Storage init hatası:",
         error
       );
     } finally {
@@ -233,7 +233,7 @@ class StorageService {
 
       if (!profileSnapshot.exists()) {
         console.warn(
-          "âš ï¸ Firebase Auth kullanıcısı var fakat users koleksiyonunda profil henüz bulunamadı:",
+          "⚠️ Firebase Auth kullanıcısı var fakat users koleksiyonunda profil henüz bulunamadı:",
           uid
         );
 
@@ -291,7 +291,7 @@ class StorageService {
       this.emit();
     } catch (error) {
       console.error(
-        "âŒ Kullanıcı profili yüklenemedi:",
+        "❌ Kullanıcı profili yüklenemedi:",
         error
       );
 
@@ -393,14 +393,14 @@ class StorageService {
               this.emit();
             } catch (error) {
               console.error(
-                "âŒ Admin users snapshot işleme hatası:",
+                "❌ Admin users snapshot işleme hatası:",
                 error
               );
             }
           },
           (error) => {
             console.error(
-              "âŒ Admin users listener hatası:",
+              "❌ Admin users listener hatası:",
               error
             );
           }
@@ -426,7 +426,7 @@ class StorageService {
               !snapshot.exists()
             ) {
               console.warn(
-                "âš ï¸ Kullanıcı profili artık mevcut değil:",
+                "⚠️ Kullanıcı profili artık mevcut değil:",
                 uid
               );
 
@@ -491,14 +491,14 @@ class StorageService {
             this.emit();
           } catch (error) {
             console.error(
-              "âŒ Kullanıcı snapshot işleme hatası:",
+              "❌ Kullanıcı snapshot işleme hatası:",
               error
             );
           }
         },
         (error) => {
           console.error(
-            "âŒ Kullanıcı profil listener hatası:",
+            "❌ Kullanıcı profil listener hatası:",
             error
           );
         }
@@ -594,14 +594,14 @@ class StorageService {
             this.emit();
           } catch (error) {
             console.error(
-              "âŒ Orders snapshot işleme hatası:",
+              "❌ Orders snapshot işleme hatası:",
               error
             );
           }
         },
         (error) => {
           console.error(
-            "âŒ Orders listener hatası:",
+            "❌ Orders listener hatası:",
             error
           );
         }
@@ -648,14 +648,14 @@ class StorageService {
             this.emit();
           } catch (error) {
             console.error(
-              "âŒ Notification snapshot işleme hatası:",
+              "❌ Notification snapshot işleme hatası:",
               error
             );
           }
         },
         (error) => {
           console.error(
-            "âŒ Notifications listener hatası:",
+            "❌ Notifications listener hatası:",
             error
           );
         }
@@ -696,14 +696,14 @@ class StorageService {
             this.emit();
           } catch (error) {
             console.error(
-              "âŒ Pricing snapshot işleme hatası:",
+              "❌ Pricing snapshot işleme hatası:",
               error
             );
           }
         },
         (error) => {
           console.error(
-            "âŒ Pricing listener hatası:",
+            "❌ Pricing listener hatası:",
             error
           );
         }
@@ -748,14 +748,14 @@ class StorageService {
               this.emit();
             } catch (error) {
               console.error(
-                "âŒ Courier location snapshot işleme hatası:",
+                "❌ Courier location snapshot işleme hatası:",
                 error
               );
             }
           },
           (error) => {
             console.error(
-              "âŒ Courier locations listener hatası:",
+              "❌ Courier locations listener hatası:",
               error
             );
           }
@@ -813,14 +813,14 @@ class StorageService {
               this.emit();
             } catch (error) {
               console.error(
-                "âŒ Kurye konum snapshot işleme hatası:",
+                "❌ Kurye konum snapshot işleme hatası:",
                 error
               );
             }
           },
           (error) => {
             console.error(
-              "âŒ Kurye konum listener hatası:",
+              "❌ Kurye konum listener hatası:",
               error
             );
           }
@@ -845,7 +845,7 @@ class StorageService {
         unsubscribe();
       } catch (error) {
         console.warn(
-          "âš ï¸ Listener kapatma hatası:",
+          "⚠️ Listener kapatma hatası:",
           error
         );
       }
@@ -928,7 +928,7 @@ class StorageService {
         ];
       } catch (error) {
         console.error(
-          "âŒ Kurye GPS kapatılırken konum güncellenemedi:",
+          "❌ Kurye GPS kapatılırken konum güncellenemedi:",
           error
         );
       }
@@ -950,7 +950,7 @@ class StorageService {
       );
     } catch (error) {
       console.error(
-        "âŒ Kurye çevrimdışı yapılamadı:",
+        "❌ Kurye çevrimdışı yapılamadı:",
         error
       );
 
@@ -1007,7 +1007,7 @@ class StorageService {
         );
       } catch (error) {
         console.error(
-          "âš ï¸ Logout sırasında kurye GPS kapatılamadı:",
+          "⚠️ Logout sırasında kurye GPS kapatılamadı:",
           error
         );
       }
@@ -1074,7 +1074,7 @@ class StorageService {
       callback();
     } catch (error) {
       console.error(
-        "âŒ Storage subscriber ilk çağrı hatası:",
+        "❌ Storage subscriber ilk çağrı hatası:",
         error
       );
     }
@@ -1095,7 +1095,7 @@ class StorageService {
         callback();
       } catch (error) {
         console.error(
-          "âŒ Storage subscriber emit hatası:",
+          "❌ Storage subscriber emit hatası:",
           error
         );
       }
@@ -1611,7 +1611,7 @@ class StorageService {
       return profile;
     } catch (error: any) {
       console.error(
-        "âŒ Kurye oluşturma hatası:",
+        "❌ Kurye oluşturma hatası:",
         error
       );
 
@@ -2362,7 +2362,7 @@ void storage
   .catch(
     (error) => {
       console.error(
-        "âŒ Storage başlangıç hatası:",
+        "❌ Storage başlangıç hatası:",
         error
       );
     }

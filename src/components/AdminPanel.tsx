@@ -1948,7 +1948,7 @@ export const AdminPanel: React.FC<Props> = ({
                           <p className="mt-1 font-bold text-[#D6A84F]">
                             {courierRatingStats[courier.id]?.count
                               ? courierRatingStats[courier.id].average.toFixed(1)
-                              : "””"}
+                              : "—"}
                           </p>
                         </div>
                       </div>
@@ -2476,7 +2476,7 @@ export const AdminPanel: React.FC<Props> = ({
                     label="Telefon"
                     value={
                       selectedOrder.customerPhone ||
-                      "””"
+                      "—"
                     }
                   />
 
@@ -2705,8 +2705,8 @@ export const AdminPanel: React.FC<Props> = ({
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <InfoItem label="E-posta" value={selectedCourierProfile.email || "””"} />
-              <InfoItem label="Telefon" value={selectedCourierProfile.phone || "””"} />
+              <InfoItem label="E-posta" value={selectedCourierProfile.email || "—"} />
+              <InfoItem label="Telefon" value={selectedCourierProfile.phone || "—"} />
             </div>
 
             <div className="mt-5 space-y-4 rounded-2xl border border-[#303036] bg-[#19191E] p-4">
@@ -2915,14 +2915,14 @@ const CourierRatingAdminDetails: React.FC<{
                       {rating.customerName || "Müşteri"}
                     </p>
                     <p className="mt-1 text-[10px] text-[#666666]">
-                      Sipariş: {rating.orderId || "””"}
+                      Sipariş: {rating.orderId || "—"}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="text-sm font-black text-[#D6A84F]">
                       {Number(rating.score || 0).toFixed(1)}
                     </span>
-                    <span className="text-[#D6A84F]">â˜…</span>
+                    <span className="text-[#D6A84F]">★</span>
                   </div>
                 </div>
 
@@ -3007,14 +3007,14 @@ const CustomerProfileModal: React.FC<{
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <InfoItem label="E-posta" value={customer.email || "””"} />
-          <InfoItem label="Telefon" value={customer.phone || "””"} />
+          <InfoItem label="E-posta" value={customer.email || "—"} />
+          <InfoItem label="Telefon" value={customer.phone || "—"} />
           <InfoItem
             label="Kayıt tarihi"
             value={
               customer.createdAt
                 ? new Date(customer.createdAt).toLocaleDateString("tr-TR")
-                : "””"
+                : "—"
             }
           />
           <InfoItem label="Müşteri ID" value={customer.id} />
@@ -3401,7 +3401,7 @@ const InfoItem: React.FC<{
     </p>
 
     <p className="mt-1 break-words text-xs text-white">
-      {value || "””"}
+      {value || "—"}
     </p>
   </div>
 );

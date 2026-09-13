@@ -156,7 +156,7 @@ export function App() {
         storage.setCurrentUser(null);
       } catch (error) {
         console.warn(
-          "âš ï¸ Pasif hesap için storage temizlenemedi:",
+          "⚠️ Pasif hesap için storage temizlenemedi:",
           error
         );
       }
@@ -172,7 +172,7 @@ export function App() {
         await signOut(auth);
       } catch (error) {
         console.warn(
-          "âš ï¸ Pasif kurye Firebase oturumu kapatılamadı:",
+          "⚠️ Pasif kurye Firebase oturumu kapatılamadı:",
           error
         );
       }
@@ -197,7 +197,7 @@ export function App() {
       );
     } catch (error) {
       console.warn(
-        "âš ï¸ Storage kullanıcı ayarlanamadı:",
+        "⚠️ Storage kullanıcı ayarlanamadı:",
         error
       );
     }
@@ -221,7 +221,7 @@ export function App() {
       );
     } catch (error) {
       console.warn(
-        "âš ï¸ Bildirimler yüklenemedi:",
+        "⚠️ Bildirimler yüklenemedi:",
         error
       );
 
@@ -301,7 +301,7 @@ export function App() {
               true;
 
             console.log(
-              "â„¹ï¸ Firebase Auth kullanıcısı yok. Login ekranına geçiliyor."
+              "ℹ️ Firebase Auth kullanıcısı yok. Login ekranına geçiliyor."
             );
 
             if (
@@ -309,7 +309,7 @@ export function App() {
               currentUser !== null
             ) {
               console.log(
-                "âš ï¸ Kullanıcı zaten doğrulandı. Auth null geçici olarak yok sayılıyor."
+                "⚠️ Kullanıcı zaten doğrulandı. Auth null geçici olarak yok sayılıyor."
               );
 
               return;
@@ -400,7 +400,7 @@ export function App() {
             !firebaseUser.emailVerified
           ) {
             console.warn(
-              "âš ï¸ E-posta doğrulanmamış."
+              "⚠️ E-posta doğrulanmamış."
             );
 
             try {
@@ -473,7 +473,7 @@ export function App() {
             }
 
             console.log(
-              "âœ… Firestore kullanıcı profili hazır:",
+              "✅ Firestore kullanıcı profili hazır:",
               {
                 uid:
                   profile.id,
@@ -508,7 +508,7 @@ export function App() {
             }
 
             console.error(
-              "âŒ Kullanıcı profili hazırlanamadı:",
+              "❌ Kullanıcı profili hazırlanamadı:",
               error
             );
 
@@ -641,7 +641,7 @@ export function App() {
             );
           } else {
             console.log(
-              "â„¹ï¸ Google redirect sonucu bulunamadı."
+              "ℹ️ Google redirect sonucu bulunamadı."
             );
           }
         } catch (error) {
@@ -652,7 +652,7 @@ export function App() {
           }
 
           console.error(
-            "âŒ Google redirect işlemi başarısız:",
+            "❌ Google redirect işlemi başarısız:",
             error
           );
         } finally {
