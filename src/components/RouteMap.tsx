@@ -473,7 +473,7 @@ export const RouteMap: React.FC<Props> = ({
           )}
       </div>
 
-      {/* BOÅ DURUM */}
+      {/* BOŞ DURUM */}
       {!hasRoute &&
         !isTracking && (
           <div className="absolute bottom-2.5 left-2.5 right-2.5 z-10 pointer-events-none flex items-center justify-center">

@@ -247,21 +247,21 @@ export const CourierPanel: React.FC<Props> = ({
   status?: string
 ): CourierAvailability => {
   if (
-    status === "Ã‡evrimdÄ±ÅŸÄ±" ||
-    status === "ÇevrimdÄ±ÅŸÄ±"
+    status === "Çevrimdışı" ||
+    status === "Çevrimdışı"
   ) {
     return "Çevrimdışı";
   }
 
   if (
-    status === "MÃ¼sait" ||
+    status === "Müsait" ||
     status === "Müsait"
   ) {
     return "Müsait";
   }
 
   if (
-    status === "MeÅŸgul" ||
+    status === "Meşgul" ||
     status === "Meşgul"
   ) {
     return "Meşgul";

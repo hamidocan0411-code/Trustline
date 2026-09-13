@@ -626,7 +626,7 @@ export const AdminPanel: React.FC<Props> = ({
   };
 
   /*
-   * SIPARIÅ GÜNCELLEME
+   * SİPARİŞ GÜNCELLEME
    *
    * Tüm Firestore işlemleri async olarak
    * await edilir.
@@ -1789,7 +1789,7 @@ export const AdminPanel: React.FC<Props> = ({
                           ? "PAKET ALINDI"
                           : waitingToPickup
                           ? "GÖREV ATANDI"
-                          : (courier.courierStatus === "Ã‡evrimdÄ±ÅŸÄ±" || courier.courierStatus === "Çevrimdışı"
+                          : (courier.courierStatus === "Çevrimdışı" || courier.courierStatus === "Çevrimdışı"
       ? "Çevrimdışı"
       : courier.courierStatus || "Çevrimdışı");
 
@@ -2287,7 +2287,7 @@ export const AdminPanel: React.FC<Props> = ({
                 </p>
 
                 <p className="mt-1 text-lg font-bold text-[#D6A84F]">
-                  KM Ã—{" "}
+                  KM ×{" "}
                   {
                     perKmPrice
                   }{" "}
