@@ -626,7 +626,7 @@ export const AdminPanel: React.FC<Props> = ({
   };
 
   /*
-   * SİPARİŞ GÜNCELLEME
+   * SİPARİŞ GÜNCELLEME
    *
    * Tüm Firestore işlemleri async olarak
    * await edilir.
@@ -1674,7 +1674,7 @@ export const AdminPanel: React.FC<Props> = ({
               {liveCouriers.length ===
               0 ? (
                 <div className="rounded-xl border border-dashed border-[#303036] bg-[#0B0B0D] p-6 text-center text-sm text-[#777777]">
-                  Åu anda canlı GPS
+                  Şu anda canlı GPS
                   paylaşan aktif kurye
                   yok.
                 </div>

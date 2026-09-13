@@ -36,7 +36,7 @@ export const RouteMap: React.FC<Props> = ({
 
   /*
    * ============================================================
-   * HARİTAYI BAÅLAT
+   * HARİTAYI BAŞLAT
    * ============================================================
    */
   useEffect(() => {
@@ -368,7 +368,7 @@ export const RouteMap: React.FC<Props> = ({
 
     /*
      * ==========================================================
-     * HARİTAYI NOKTALARA SIÄDIR
+     * HARİTAYI NOKTALARA SIĞDIR
      * ==========================================================
      */
     if (
@@ -473,7 +473,7 @@ export const RouteMap: React.FC<Props> = ({
           )}
       </div>
 
-      {/* BOŞ DURUM */}
+      {/* BOŞ DURUM */}
       {!hasRoute &&
         !isTracking && (
           <div className="absolute bottom-2.5 left-2.5 right-2.5 z-10 pointer-events-none flex items-center justify-center">

@@ -565,7 +565,7 @@ class StorageService {
         );
 
       console.log(
-        "👤 MÜÅTERİ siparişleri dinliyor."
+        "👤 MÜŞTERİ siparişleri dinliyor."
       );
     }
 
@@ -1505,7 +1505,7 @@ class StorageService {
       data.password.length < 6
     ) {
       throw new Error(
-        "Åifre en az 6 karakter olmalıdır."
+        "Şifre en az 6 karakter olmalıdır."
       );
     }
 
@@ -1656,7 +1656,7 @@ class StorageService {
         "auth/weak-password"
       ) {
         throw new Error(
-          "Åifre en az 6 karakter olmalıdır."
+          "Şifre en az 6 karakter olmalıdır."
         );
       }
 
