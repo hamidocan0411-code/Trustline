@@ -630,23 +630,9 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
             <div className="flex items-center gap-2 text-sm font-black text-white">
               <FileText size={16} className="text-[#D6A84F]" /> Reçete / gerekli belge
             </div>
-            <p className="mt-1 text-xs text-[#777780]">
-              PDF, JPG, PNG veya WEBP • Maksimum 10 MB • İsteğe bağlı
+            <p className="mt-2 text-xs leading-5 text-[#777780]">
+              Reçete veya belge yükleme özelliği yakında eklenecek.
             </p>
-            <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[#3A3A43] bg-[#17171C] px-4 py-3 text-xs font-bold text-[#B7B7C0] hover:border-[#D6A84F]/60 hover:text-white">
-              <Upload size={15} />
-              <span>
-                {prescriptionFile ? prescriptionFile.name : "Belge seç"}
-              </span>
-              <input
-                type="file"
-                accept="application/pdf,image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={(event) =>
-                  handleFileChange(event.target.files?.[0] || null)
-                }
-              />
-            </label>
           </div>
 
           <div className="rounded-2xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-4 text-sm text-[#CFCFD5] space-y-3">
