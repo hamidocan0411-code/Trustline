@@ -1,4 +1,4 @@
-export type UserRole = 'customer' | 'courier' | 'admin';
+﻿export type UserRole = 'customer' | 'courier' | 'admin';
 
 export type OrderType = 'standard' | 'pharmacy';
 
@@ -109,6 +109,11 @@ export interface Order {
   // Eczane siparişi alanları
   pharmacyName?: string;
   pharmacyAddress?: string;
+  pharmacyPhone?: string;
+  pharmacyLatitude?: number;
+  pharmacyLongitude?: number;
+  pharmacyPlaceId?: string;
+  pharmacyOpeningHours?: string;
   pharmacyProduct?: string;
   pharmacyProductDescription?: string;
   pharmacyQuantity?: number;
@@ -171,3 +176,4 @@ export interface GeoCoordinate {
   lng: number;
   name?: string;
 }
+

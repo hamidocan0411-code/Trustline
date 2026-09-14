@@ -2,11 +2,14 @@
 import {
   AlertCircle,
   CheckCircle2,
+  Clock,
   FileText,
   Loader2,
   MapPin,
+  Phone,
   Pill,
-  Upload,
+  RefreshCw,
+  Search,
   X,
 } from "lucide-react";
 import { getStorage, ref, uploadBytes } from "firebase/storage";
@@ -22,6 +25,10 @@ import { calculateOrderPrice, type PackageSize } from "../utils/pricing";
 import { storage } from "../services/storage";
 import { mapService } from "../services/mapService";
 import { app } from "../services/firebase";
+import {
+  pharmacyService,
+  type NearbyPharmacy,
+} from "../services/pharmacyService";
 
 interface Props {
   isOpen: boolean;
@@ -50,6 +57,11 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
 }) => {
   const [pharmacyName, setPharmacyName] = useState("");
   const [pharmacyAddress, setPharmacyAddress] = useState("");
+  const [nearbyPharmacies, setNearbyPharmacies] = useState<NearbyPharmacy[]>([]);
+  const [selectedPharmacy, setSelectedPharmacy] = useState<NearbyPharmacy | null>(null);
+  const [pharmacySearch, setPharmacySearch] = useState("");
+  const [isLoadingPharmacies, setIsLoadingPharmacies] = useState(false);
+  const [pharmacyLocationError, setPharmacyLocationError] = useState("");
   const [productName, setProductName] = useState("");
   const [productDescription, setProductDescription] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -82,6 +94,72 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
     packageSize
   ).finalPrice;
 
+  const loadNearbyPharmacies = async () => {
+    if (!navigator.geolocation) {
+      setPharmacyLocationError(
+        "Yakınınızdaki eczaneleri gösterebilmemiz için konum izni vermeniz gerekiyor."
+      );
+      return;
+    }
+
+    setIsLoadingPharmacies(true);
+    setPharmacyLocationError("");
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const pharmacies = await pharmacyService.findNearbyPharmacies({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+
+          setNearbyPharmacies(pharmacies);
+
+          if (pharmacies.length === 0) {
+            setPharmacyLocationError(
+              "Konumunuza yakın bir eczane bulunamadı. Eczane adını ve adresini manuel olarak girebilirsiniz."
+            );
+          }
+        } catch {
+          setNearbyPharmacies([]);
+          setPharmacyLocationError(
+            "Yakındaki eczaneler yüklenemedi. Lütfen tekrar deneyin veya eczane bilgilerini manuel girin."
+          );
+        } finally {
+          setIsLoadingPharmacies(false);
+        }
+      },
+      () => {
+        setNearbyPharmacies([]);
+        setIsLoadingPharmacies(false);
+        setPharmacyLocationError(
+          "Yakınınızdaki eczaneleri gösterebilmemiz için konum izni vermeniz gerekiyor."
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000,
+      }
+    );
+  };
+
+  const handleSelectPharmacy = (pharmacy: NearbyPharmacy) => {
+    setSelectedPharmacy(pharmacy);
+    setPharmacyName(pharmacy.name);
+    setPharmacyAddress(pharmacy.address);
+    setPharmacyLocationError("");
+    setPharmacySearch("");
+  };
+
+  const handleChangePharmacy = () => {
+    setSelectedPharmacy(null);
+    setPharmacyName("");
+    setPharmacyAddress("");
+    setPharmacySearch("");
+    setPharmacyLocationError("");
+    loadNearbyPharmacies();
+  };
   useEffect(() => {
     if (!isOpen) {
       setSuccessOrder(null);
@@ -276,6 +354,21 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
           deliveryType === "Acil Teslimat" ? 35 : 60,
         pharmacyName: pharmacyName.trim(),
         pharmacyAddress: pharmacyAddress.trim(),
+        ...(selectedPharmacy?.phone
+          ? { pharmacyPhone: selectedPharmacy.phone }
+          : {}),
+        ...(typeof selectedPharmacy?.latitude === "number"
+          ? { pharmacyLatitude: selectedPharmacy.latitude }
+          : {}),
+        ...(typeof selectedPharmacy?.longitude === "number"
+          ? { pharmacyLongitude: selectedPharmacy.longitude }
+          : {}),
+        ...(selectedPharmacy?.id
+          ? { pharmacyPlaceId: selectedPharmacy.id }
+          : {}),
+        ...(selectedPharmacy?.openingHours
+          ? { pharmacyOpeningHours: selectedPharmacy.openingHours }
+          : {}),
         pharmacyProduct: productName.trim(),
         pharmacyProductDescription: description,
         pharmacyQuantity: quantity,
@@ -452,6 +545,167 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
           onSubmit={handleSubmit}
           className="max-h-[80vh] space-y-5 overflow-y-auto p-5 sm:p-6"
         >
+          <div className="space-y-3 rounded-2xl border border-[#303036] bg-[#101014] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-black text-white">
+                  Yakınınızdaki Eczaneler
+                </div>
+                <div className="mt-1 text-xs text-[#888]">
+                  Konumunuza göre yakın eczaneleri seçebilirsiniz.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={loadNearbyPharmacies}
+                disabled={isLoadingPharmacies}
+                className="flex items-center gap-2 rounded-xl border border-[#303036] px-3 py-2 text-xs font-bold text-white hover:border-[#D6A84F] disabled:opacity-50"
+              >
+                <RefreshCw
+                  size={15}
+                  className={isLoadingPharmacies ? "animate-spin" : ""}
+                />
+                Yenile
+              </button>
+            </div>
+
+            {selectedPharmacy ? (
+              <div className="rounded-2xl border border-[#D6A84F]/40 bg-[#D6A84F]/10 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-black text-white">
+                      {selectedPharmacy.name}
+                    </div>
+
+                    <div className="mt-1 text-xs leading-5 text-[#B8B8B8]">
+                      {selectedPharmacy.address}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#D6A84F]">
+                      <span className="rounded-full bg-[#D6A84F]/10 px-2 py-1">
+                        {selectedPharmacy.distanceKm.toFixed(1)} km
+                      </span>
+
+                      {selectedPharmacy.phone ? (
+                        <span className="flex items-center gap-1 rounded-full bg-[#D6A84F]/10 px-2 py-1">
+                          <Phone size={12} />
+                          {selectedPharmacy.phone}
+                        </span>
+                      ) : null}
+
+                      {selectedPharmacy.openingHours ? (
+                        <span className="flex items-center gap-1 rounded-full bg-[#D6A84F]/10 px-2 py-1">
+                          <Clock size={12} />
+                          {selectedPharmacy.openingHours}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleChangePharmacy}
+                    className="shrink-0 rounded-xl border border-[#303036] px-3 py-2 text-xs font-black text-white hover:border-[#D6A84F]"
+                  >
+                    Eczaneyi Değiştir
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <Search
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[#777]"
+                  />
+
+                  <input
+                    value={pharmacySearch}
+                    onChange={(event) => setPharmacySearch(event.target.value)}
+                    className="w-full rounded-xl border border-[#303036] bg-[#19191E] py-3 pl-10 pr-4 text-sm text-white outline-none focus:border-[#D6A84F]"
+                    placeholder="Eczane ara..."
+                  />
+                </div>
+
+                {isLoadingPharmacies ? (
+                  <div className="rounded-xl border border-[#303036] p-4 text-center text-sm text-[#999]">
+                    Yakınınızdaki eczaneler aranıyor...
+                  </div>
+                ) : null}
+
+                {pharmacyLocationError ? (
+                  <div className="rounded-xl border border-[#6B4F24] bg-[#D6A84F]/5 p-3 text-xs leading-5 text-[#D6A84F]">
+                    {pharmacyLocationError}
+                  </div>
+                ) : null}
+
+                {!isLoadingPharmacies &&
+                nearbyPharmacies
+                  .filter((pharmacy) =>
+                    pharmacy.name
+                      .toLocaleLowerCase("tr-TR")
+                      .includes(
+                        pharmacySearch.trim().toLocaleLowerCase("tr-TR")
+                      )
+                  )
+                  .length > 0 ? (
+                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                    {nearbyPharmacies
+                      .filter((pharmacy) =>
+                        pharmacy.name
+                          .toLocaleLowerCase("tr-TR")
+                          .includes(
+                            pharmacySearch.trim().toLocaleLowerCase("tr-TR")
+                          )
+                      )
+                      .map((pharmacy) => (
+                        <button
+                          key={pharmacy.id}
+                          type="button"
+                          onClick={() => handleSelectPharmacy(pharmacy)}
+                          className="w-full rounded-2xl border border-[#303036] bg-[#19191E] p-4 text-left transition hover:border-[#D6A84F]"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-black text-white">
+                                {pharmacy.name}
+                              </div>
+
+                              <div className="mt-1 text-xs leading-5 text-[#999]">
+                                {pharmacy.address}
+                              </div>
+                            </div>
+
+                            <span className="shrink-0 rounded-full bg-[#D6A84F]/10 px-2 py-1 text-[11px] font-bold text-[#D6A84F]">
+                              {pharmacy.distanceKm.toFixed(1)} km
+                            </span>
+                          </div>
+
+                          {(pharmacy.phone || pharmacy.openingHours) ? (
+                            <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-[#888]">
+                              {pharmacy.phone ? (
+                                <span className="flex items-center gap-1">
+                                  <Phone size={12} />
+                                  {pharmacy.phone}
+                                </span>
+                              ) : null}
+
+                              {pharmacy.openingHours ? (
+                                <span className="flex items-center gap-1">
+                                  <Clock size={12} />
+                                  {pharmacy.openingHours}
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </button>
+                      ))}
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
               <span className="text-xs font-black uppercase tracking-wide text-[#999999]">
@@ -459,7 +713,7 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
               </span>
               <input
                 value={pharmacyName}
-                onChange={(event) => setPharmacyName(event.target.value)}
+                onChange={(event) => { setSelectedPharmacy(null); setPharmacyName(event.target.value); }}
                 className="w-full rounded-xl border border-[#303036] bg-[#101014] px-4 py-3 text-sm text-white outline-none focus:border-[#D6A84F]"
                 placeholder="Eczane adı"
               />
@@ -471,7 +725,7 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
               </span>
               <input
                 value={pharmacyAddress}
-                onChange={(event) => setPharmacyAddress(event.target.value)}
+                onChange={(event) => { setSelectedPharmacy(null); setPharmacyAddress(event.target.value); }}
                 className="w-full rounded-xl border border-[#303036] bg-[#101014] px-4 py-3 text-sm text-white outline-none focus:border-[#D6A84F]"
                 placeholder="Ürünün alınacağı eczane adresi"
               />
@@ -679,4 +933,10 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
     </div>
   );
 };
+
+
+
+
+
+
 
