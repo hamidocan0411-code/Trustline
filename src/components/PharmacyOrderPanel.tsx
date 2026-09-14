@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -64,6 +64,7 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
   const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [paymentAccepted, setPaymentAccepted] = useState(false);
   const [successOrder, setSuccessOrder] = useState<Order | null>(null);
   const [uploadWarning, setUploadWarning] = useState("");
   const calculationRef = useRef(0);
@@ -85,6 +86,7 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
     if (!isOpen) {
       setSuccessOrder(null);
       setErrorMsg("");
+      setPaymentAccepted(false);
       setUploadWarning("");
       return;
     }
@@ -330,6 +332,12 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setErrorMsg("");
+    if (!paymentAccepted) {
+      setErrorMsg(
+        "Siparişi oluşturabilmek için nakit ödeme bilgisini okuyup onaylamanız gerekiyor."
+      );
+      return;
+    }
 
     if (!currentUser.id) {
       setErrorMsg(
@@ -641,9 +649,23 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
             </label>
           </div>
 
-          <div className="rounded-2xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-4 text-sm text-[#CFCFD5]">
-            Bu sürümde ödeme yöntemi <span className="font-black text-[#D6A84F]">nakit</span> olarak uygulanmaktadır.
-          </div>
+          <div className="rounded-2xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-4 text-sm text-[#CFCFD5] space-y-3">
+  <div>
+    Bu sürümde ödeme yöntemi <span className="font-black text-[#D6A84F]">nakit</span> olarak uygulanmaktadır.
+  </div>
+
+  <label className="flex items-start gap-3 cursor-pointer">
+    <input
+      type="checkbox"
+      checked={paymentAccepted}
+      onChange={(event) => setPaymentAccepted(event.target.checked)}
+      className="mt-1 h-4 w-4 accent-[#D6A84F]"
+    />
+    <span>
+      Nakit ödeme yapılacağını okudum ve kabul ediyorum.
+    </span>
+  </label>
+</div>
 
           {errorMsg && (
             <div className="flex gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
@@ -671,3 +693,4 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
     </div>
   );
 };
+

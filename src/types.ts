@@ -1,5 +1,7 @@
 export type UserRole = 'customer' | 'courier' | 'admin';
 
+export type OrderType = 'standard' | 'pharmacy';
+
 export type PackageType =
   | 'Evrak'
   | 'Küçük Paket'
@@ -81,6 +83,7 @@ export interface DeliveryProof {
 
 export interface Order {
   id: string;
+  orderType?: OrderType;
   customerId: string;
   customerName: string;
   customerPhone: string;
@@ -103,6 +106,19 @@ export interface Order {
   price: number;
   status: OrderStatus;
   note: string;
+  // Eczane siparişi alanları
+  pharmacyName?: string;
+  pharmacyAddress?: string;
+  pharmacyProduct?: string;
+  pharmacyProductDescription?: string;
+  pharmacyQuantity?: number;
+  pharmacyRecipientName?: string;
+  pharmacyRecipientPhone?: string;
+  pharmacyDeliveryType?: 'Standart Teslimat' | 'Acil Teslimat';
+  pharmacyPaymentMethod?: 'Nakit';
+  pharmacyPrescriptionPath?: string;
+  pharmacyPrescriptionFileName?: string;
+
 
   estimatedDeliveryMinutes?: number;
 

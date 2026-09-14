@@ -1,4 +1,4 @@
-rules_version = '2';
+﻿rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
@@ -35,6 +35,20 @@ service firebase.storage {
       allow delete: if isAdmin();
     }
 
+
+    match /pharmacy-prescriptions/{orderId}/{fileName} {
+      allow read: if signedIn();
+
+      allow create, update:
+        if signedIn()
+        && request.resource.size <= 10 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/pdf'
+        );
+
+      allow delete: if isAdmin();
+    }
     match /{allPaths=**} {
       allow read, write: if false;
     }

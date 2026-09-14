@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useEffect,
   useRef,
   useState,
@@ -31,6 +31,7 @@ import { CourierPanel } from "./components/CourierPanel";
 import { AdminPanel } from "./components/AdminPanel";
 import { ProfileView } from "./components/ProfileView";
 import { NewOrderModal } from "./components/NewOrderModal";
+import { PharmacyOrderPanel } from "./components/PharmacyOrderPanel";
 import { NotificationDrawer } from "./components/NotificationDrawer";
 import { AuthScreen } from "./components/AuthScreen";
 import { LiveSupport } from "./components/LiveSupport";
@@ -92,6 +93,8 @@ export function App() {
 
   const [isNewOrderOpen, setIsNewOrderOpen] =
     useState(false);
+
+  const [isPharmacyOrderOpen, setIsPharmacyOrderOpen] = useState(false);
 
   const [newOrderPrefill, setNewOrderPrefill] =
     useState<Partial<Order> | undefined>();
@@ -822,6 +825,11 @@ export function App() {
     );
   };
 
+  const handleOpenPharmacyOrder = () => {
+    if (currentUser?.role !== "customer") return;
+    setIsPharmacyOrderOpen(true);
+  };
+
   const handleTransferFromAI = (
     draft: Partial<Order>
   ) => {
@@ -1116,6 +1124,9 @@ export function App() {
                     onOpenNewOrder={
                       handleOpenNewOrder
                     }
+                    onOpenPharmacyOrder={
+                      handleOpenPharmacyOrder
+                    }
                     onOpenAI={() =>
                       setActiveTab(
                         "ai"
@@ -1303,6 +1314,17 @@ export function App() {
           setSelectedOrderId(
             order.id
           );
+        }}
+      />
+
+      <PharmacyOrderPanel
+        isOpen={isPharmacyOrderOpen}
+        onClose={() => setIsPharmacyOrderOpen(false)}
+        currentUser={currentUser}
+        pricing={pricing}
+        onOrderCreated={(order) => {
+          setActiveTab("orders");
+          setSelectedOrderId(order.id);
         }}
       />
 

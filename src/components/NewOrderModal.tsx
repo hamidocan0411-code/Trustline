@@ -474,6 +474,8 @@ export const NewOrderModal: React.FC<Props> = ({
         await storage.createOrder({
           id: generatedOrderId,
 
+          orderType: "standard",
+
           customerId:
             currentUser.id,
 

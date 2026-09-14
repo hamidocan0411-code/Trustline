@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import {
   ArrowRight,
   Bot,
@@ -12,6 +12,7 @@ import {
   Sparkles,
   Truck,
   Zap,
+  Pill,
 } from "lucide-react";
 
 import type {
@@ -23,7 +24,8 @@ interface Props {
   onOpenNewOrder: (
     prefill?: Partial<Order>
   ) => void;
-  onOpenAI: () => void;
+    onOpenPharmacyOrder: () => void;
+onOpenAI: () => void;
   onGoToOrders: () => void;
   activeOrders: Order[];
   pricing: PricingConfig;
@@ -31,6 +33,7 @@ interface Props {
 
 export function CustomerHome({
   onOpenNewOrder,
+  onOpenPharmacyOrder,
   onOpenAI,
   onGoToOrders,
   activeOrders,
@@ -287,6 +290,15 @@ export function CustomerHome({
                   />
 
                   Trustline AI
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={onOpenPharmacyOrder}
+                  className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-6 text-sm font-black text-emerald-300 transition hover:border-emerald-400/50 hover:bg-emerald-500/10"
+                >
+                  <Pill size={18} />
+                  Eczane Siparişi
                 </button>
               </div>
             </div>
@@ -973,3 +985,4 @@ export function CustomerHome({
 }
 
 export default CustomerHome;
+
