@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 
 import { loginWithGoogle } from "../services/auth";
 
@@ -310,6 +310,36 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
               </div>
             </div>
 
+            <div className="relative mb-4 overflow-hidden rounded-[24px] border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.10] via-white/[0.04] to-emerald-400/[0.05] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:p-5">
+              <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-amber-400/10 blur-3xl" />
+
+              <div className="relative flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-400/[0.10] text-xl">
+                  💊
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-black tracking-tight text-white">
+                      TrustLine Express Eczane Teslimatları
+                    </p>
+
+                    <span className="rounded-full border border-amber-400/20 bg-amber-400/[0.08] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-300">
+                      Yakında
+                    </span>
+                  </div>
+
+                  <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-300">
+                    Eczanenizden ihtiyaçlarınıza, hızlı ve güvenilir teslimat.
+                  </p>
+
+                  <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                    Eczane ürünlerinin güvenli ve hızlı şekilde teslim edilmesi için
+                    TrustLine Express çok yakında yanınızda.
+                  </p>
+                </div>
+              </div>
+            </div>
             <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.97] shadow-[0_35px_100px_rgba(0,0,0,0.6)] backdrop-blur-xl">
               <div className="h-1 w-full bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
               <div className="pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full bg-amber-400/10 blur-3xl" />
@@ -526,3 +556,4 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
 export { AuthScreen };
 
 export default AuthScreen;
+
