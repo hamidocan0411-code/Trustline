@@ -324,8 +324,8 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                       TrustLine Express Eczane Teslimatları
                     </p>
 
-                    <span className="rounded-full border border-amber-400/20 bg-amber-400/[0.08] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-300">
-                      Yakında
+                    <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-300">
+                      AKTİF
                     </span>
                   </div>
 
@@ -334,8 +334,8 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
                   </p>
 
                   <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                    Eczane ürünlerinin güvenli ve hızlı şekilde teslim edilmesi için
-                    TrustLine Express çok yakında yanınızda.
+                    Eczane ürünlerini güvenli ve hızlı şekilde teslim etmek için
+                    TrustLine Express artık eczane teslimatlarında yanınızda.
                   </p>
                 </div>
               </div>
@@ -556,4 +556,5 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
 export { AuthScreen };
 
 export default AuthScreen;
+
 
