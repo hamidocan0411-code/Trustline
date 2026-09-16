@@ -41,3 +41,4 @@ jobs:
           git add src/App.tsx
           git commit -m "perf: lazy load AuthScreen"
           git push origin main
+
