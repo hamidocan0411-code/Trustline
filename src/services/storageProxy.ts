@@ -1,5 +1,6 @@
-import type { StorageService } from "./storage";
 import type { PricingConfig, Order } from "../types";
+
+type Storage = typeof import("./storage")["storage"];
 
 const DEFAULT_PRICING: PricingConfig = {
   perKmPrice: 20,
@@ -10,20 +11,15 @@ const DEFAULT_PRICING: PricingConfig = {
   updatedAt: new Date().toISOString(),
 };
 
-let storagePromise: Promise<StorageService> | null = null;
+let storagePromise: Promise<Storage> | null = null;
 
-function loadStorage(): Promise<StorageService> {
+function loadStorage(): Promise<Storage> {
   if (!storagePromise) {
     storagePromise = import("./storage").then(({ storage }) => storage);
   }
   return storagePromise;
 }
 
-/**
- * App ilk ekranda yalnızca yerel başlangıç verisine ihtiyaç duyuyor.
- * Ağ/Firebase tabanlı StorageService, kullanıcı oturumu oluştuktan sonra
- * gerçekten ihtiyaç olduğunda yüklenir.
- */
 export const storage = {
   getOrders(): Order[] {
     return [];
@@ -37,9 +33,7 @@ export const storage = {
     return null;
   },
 
-  async getService(): Promise<StorageService> {
+  async getService(): Promise<Storage> {
     return loadStorage();
   },
-} as Pick<StorageService, "getOrders" | "getPricing" | "getCurrentUser"> & {
-  getService: () => Promise<StorageService>;
 };
