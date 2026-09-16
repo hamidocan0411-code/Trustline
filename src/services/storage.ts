@@ -2357,14 +2357,3 @@ class StorageService {
 export const storage =
   new StorageService();
 
-void storage
-  .init()
-  .catch(
-    (error) => {
-      console.error(
-        "❌ Storage başlangıç hatası:",
-        error
-      );
-    }
-  );
-
