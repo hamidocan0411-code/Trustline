@@ -61,16 +61,23 @@ jobs:
           if (!authStatePattern.test(text)) throw new Error('authLoading initializer not found');
           text = text.replace(authStatePattern, 'const [authLoading, setAuthLoading] = useState(false);');
 
-          const mainAnchor = '  return (\\n    <div\\n      className={`flex min-h-screen flex-col bg-[#0B0B0D] text-white';
-          if (!text.includes(mainAnchor)) throw new Error('Main application return anchor not found');
-          text = text.replace(
-            mainAnchor,
-            '  return (\\n    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0B0B0D] text-white"><div className="text-sm font-bold text-[#D6A84F]">TrustLine yükleniyor...</div></div>}>\\n      <div\\n      className={`flex min-h-screen flex-col bg-[#0B0B0D] text-white'
-          );
+          const classMarker = 'className={`flex min-h-screen flex-col bg-[#0B0B0D]';
+          const classPos = text.indexOf(classMarker);
+          if (classPos < 0) throw new Error('Main application class marker not found');
+          const returnPos = text.lastIndexOf('  return (', classPos);
+          if (returnPos < 0) throw new Error('Main application return not found');
+          const divPos = text.indexOf('<div', returnPos);
+          if (divPos < 0 || divPos > classPos) throw new Error('Main application div not found');
 
-          const end = '    </div>\\n  );\\n}\\n\\nexport default App;';
-          if (!text.endsWith(end)) throw new Error('App closing anchor not found');
-          text = text.slice(0, -end.length) + '      </div>\\n    </Suspense>\\n  );\\n}\\n\\nexport default App;';
+          const suspenseFallback = '<Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0B0B0D] text-white"><div className="text-sm font-bold text-[#D6A84F]">TrustLine yükleniyor...</div></div>}>\\n      ';
+          text = text.slice(0, returnPos) + '  return (\\n    ' + suspenseFallback + text.slice(divPos);
+
+          const closeAnchor = '\\n  );\\n}\\n\\nexport default App;';
+          const closePos = text.lastIndexOf(closeAnchor);
+          if (closePos < 0) throw new Error('App closing anchor not found');
+          const rootClosePos = text.lastIndexOf('\\n    </div>', closePos);
+          if (rootClosePos < 0) throw new Error('Root application div closing tag not found');
+          text = text.slice(0, rootClosePos + '\\n    </div>'.length) + '\\n    </Suspense>' + text.slice(rootClosePos + '\\n    </div>'.length);
 
           fs.writeFileSync(path, text, 'utf8');
           console.log('App loading optimization applied.');
