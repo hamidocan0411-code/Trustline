@@ -1,0 +1,35 @@
+name: Perf Stage 12
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  optimize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Optimize Storage subscriber
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/App.tsx')
+          s = p.read_text(encoding='utf-8')
+          old = '''  useEffect(() => {\n    let mounted = true; let unsubscribe: (() => void) | undefined;\n    try { unsubscribe = storage.subscribe(() => { if (!mounted) return; try { const nextOrders = storage.getOrders(); setOrders(Array.isArray(nextOrders) ? nextOrders : []); } catch (error) { console.error("Orders listener hatası:", error); } try { const nextPricing = storage.getPricing(); if (nextPricing) setPricing(nextPricing); } catch (error) { console.error("Pricing listener hatası:", error); } if (currentUser) { try { const nextNotifications = storage.getNotifications(currentUser.id); setNotifications(Array.isArray(nextNotifications) ? nextNotifications : []); } catch (error) { console.error("Notification listener hatası:", error); } } else setNotifications([]); }); } catch (error) { console.error("Storage listener başlatılamadı:", error); }\n    return () => { mounted = false; try { unsubscribe?.(); } catch (error) { console.warn("Storage listener kapatılamadı:", error); } };\n  }, [currentUser?.id]);'''
+          new = '''  useEffect(() => {\n    if (!currentUser) {\n      setOrders([]);\n      setNotifications([]);\n      return;\n    }\n\n    let mounted = true; let unsubscribe: (() => void) | undefined;\n    try { unsubscribe = storage.subscribe(() => { if (!mounted) return; try { const nextOrders = storage.getOrders(); setOrders(Array.isArray(nextOrders) ? nextOrders : []); } catch (error) { console.error("Orders listener hatası:", error); } try { const nextPricing = storage.getPricing(); if (nextPricing) setPricing(nextPricing); } catch (error) { console.error("Pricing listener hatası:", error); } try { const nextNotifications = storage.getNotifications(currentUser.id); setNotifications(Array.isArray(nextNotifications) ? nextNotifications : []); } catch (error) { console.error("Notification listener hatası:", error); setNotifications([]); } }); } catch (error) { console.error("Storage listener başlatılamadı:", error); }\n    return () => { mounted = false; try { unsubscribe?.(); } catch (error) { console.warn("Storage listener kapatılamadı:", error); } };\n  }, [currentUser?.id]);'''
+          if old not in s:
+              raise SystemExit('Target Storage subscriber block not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Production build
+        run: |
+          npm install --ignore-scripts
+          npm run build
+      - name: Commit optimization
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx
+          git diff --cached --quiet || git commit -m "perf: defer Storage subscriber until authenticated user"
+          git push origin main
