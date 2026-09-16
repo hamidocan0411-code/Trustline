@@ -8,6 +8,21 @@ export default defineConfig({
     tailwindcss(),
   ],
 
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) return 'react-vendor';
+          if (id.includes('/firebase/')) return 'firebase-vendor';
+          if (id.includes('/leaflet/')) return 'map-vendor';
+          if (id.includes('/lucide-react/')) return 'icons-vendor';
+          return undefined;
+        },
+      },
+    },
+  },
+
   resolve: {
     alias: {
       '@': '.',

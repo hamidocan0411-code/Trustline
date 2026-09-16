@@ -1,4 +1,6 @@
 ﻿import React, {
+  lazy,
+  Suspense,
   useEffect,
   useRef,
   useState,
@@ -22,19 +24,19 @@ import type {
   UserProfile,
 } from "./types";
 
-import { Navbar } from "./components/Navbar";
-import { BottomNavigation } from "./components/BottomNavigation";
-import { CustomerHome } from "./components/CustomerHome";
-import { CustomerOrders } from "./components/CustomerOrders";
-import { TrustlineAI } from "./components/TrustlineAI";
-import { CourierPanel } from "./components/CourierPanel";
-import { AdminPanel } from "./components/AdminPanel";
-import { ProfileView } from "./components/ProfileView";
-import { NewOrderModal } from "./components/NewOrderModal";
-import { PharmacyOrderPanel } from "./components/PharmacyOrderPanel";
-import { NotificationDrawer } from "./components/NotificationDrawer";
+const Navbar = lazy(() => import("./components/Navbar").then((m) => ({ default: m.Navbar })));
+const BottomNavigation = lazy(() => import("./components/BottomNavigation").then((m) => ({ default: m.BottomNavigation })));
+const CustomerHome = lazy(() => import("./components/CustomerHome").then((m) => ({ default: m.CustomerHome })));
+const CustomerOrders = lazy(() => import("./components/CustomerOrders").then((m) => ({ default: m.CustomerOrders })));
+const TrustlineAI = lazy(() => import("./components/TrustlineAI").then((m) => ({ default: m.TrustlineAI })));
+const CourierPanel = lazy(() => import("./components/CourierPanel").then((m) => ({ default: m.CourierPanel })));
+const AdminPanel = lazy(() => import("./components/AdminPanel").then((m) => ({ default: m.AdminPanel })));
+const ProfileView = lazy(() => import("./components/ProfileView").then((m) => ({ default: m.ProfileView })));
+const NewOrderModal = lazy(() => import("./components/NewOrderModal").then((m) => ({ default: m.NewOrderModal })));
+const PharmacyOrderPanel = lazy(() => import("./components/PharmacyOrderPanel").then((m) => ({ default: m.PharmacyOrderPanel })));
+const NotificationDrawer = lazy(() => import("./components/NotificationDrawer").then((m) => ({ default: m.NotificationDrawer })));
 import { AuthScreen } from "./components/AuthScreen";
-import { LiveSupport } from "./components/LiveSupport";
+const LiveSupport = lazy(() => import("./components/LiveSupport").then((m) => ({ default: m.LiveSupport })));
 
 export function App() {
   const [currentUser, setCurrentUser] =
@@ -82,8 +84,7 @@ export function App() {
   const [notifications, setNotifications] =
     useState<NotificationItem[]>([]);
 
-  const [authLoading, setAuthLoading] =
-    useState(true);
+  const [authLoading, setAuthLoading] = useState(false);
 
   const [profileLoading, setProfileLoading] =
     useState(false);
@@ -1064,7 +1065,8 @@ export function App() {
     ).length;
 
   return (
-    <div
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0B0B0D] text-white"><div className="text-sm font-bold text-[#D6A84F]">TrustLine yükleniyor...</div></div>}>
+      <div
       className={`flex min-h-screen flex-col bg-[#0B0B0D] text-white ${
         isIPhoneMode
           ? "items-center justify-center px-2 py-4"
@@ -1366,6 +1368,7 @@ export function App() {
       />
 
     </div>
+    </Suspense>
   );
 }
 
