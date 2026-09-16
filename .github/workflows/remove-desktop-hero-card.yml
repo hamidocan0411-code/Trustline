@@ -18,44 +18,7 @@ jobs:
       - name: Remove desktop-only tracking card
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("src/components/AuthScreen.tsx")
-          text = path.read_text(encoding="utf-8")
-          marker = '          <div className="relative hidden min-h-[540px] lg:block">'
-          start = text.find(marker)
-
-          if start == -1:
-              print("Desktop hero card already removed; nothing to do.")
-              raise SystemExit(0)
-
-          section_end = text.find("        </section>", start)
-          if section_end == -1:
-              raise SystemExit("Could not locate the end of the hero section.")
-
-          block = text[start:section_end]
-          depth = 0
-          i = 0
-          while i < len(block):
-              if block.startswith("<div", i):
-                  depth += 1
-                  i += 4
-                  continue
-              if block.startswith("</div>", i):
-                  depth -= 1
-                  i += 6
-                  if depth == 0:
-                      end = start + i
-                      text = text[:start] + text[end:]
-                      path.write_text(text, encoding="utf-8")
-                      print("Removed desktop hero tracking card. Mobile layout untouched.")
-                      break
-                  continue
-              i += 1
-          else:
-              raise SystemExit("Could not balance the desktop hero div block.")
-          PY
+          python3 -c 'from pathlib import Path; p=Path("src/components/AuthScreen.tsx"); s=p.read_text(encoding="utf-8"); marker="          <div className=\"relative hidden min-h-[540px] lg:block\">"; a=s.find(marker); b=s.find("        </section>", a); assert a != -1, "Desktop hero card marker not found"; assert b != -1, "Hero section end not found"; p.write_text(s[:a]+s[b:], encoding="utf-8")'
 
       - name: Build verification
         run: |
