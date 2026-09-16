@@ -92,8 +92,14 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (!currentUser) {
+      setOrders([]);
+      setNotifications([]);
+      return;
+    }
+
     let mounted = true; let unsubscribe: (() => void) | undefined;
-    try { unsubscribe = storage.subscribe(() => { if (!mounted) return; try { const nextOrders = storage.getOrders(); setOrders(Array.isArray(nextOrders) ? nextOrders : []); } catch (error) { console.error("Orders listener hatası:", error); } try { const nextPricing = storage.getPricing(); if (nextPricing) setPricing(nextPricing); } catch (error) { console.error("Pricing listener hatası:", error); } if (currentUser) { try { const nextNotifications = storage.getNotifications(currentUser.id); setNotifications(Array.isArray(nextNotifications) ? nextNotifications : []); } catch (error) { console.error("Notification listener hatası:", error); } } else setNotifications([]); }); } catch (error) { console.error("Storage listener başlatılamadı:", error); }
+    try { unsubscribe = storage.subscribe(() => { if (!mounted) return; try { const nextOrders = storage.getOrders(); setOrders(Array.isArray(nextOrders) ? nextOrders : []); } catch (error) { console.error("Orders listener hatası:", error); } try { const nextPricing = storage.getPricing(); if (nextPricing) setPricing(nextPricing); } catch (error) { console.error("Pricing listener hatası:", error); } try { const nextNotifications = storage.getNotifications(currentUser.id); setNotifications(Array.isArray(nextNotifications) ? nextNotifications : []); } catch (error) { console.error("Notification listener hatası:", error); setNotifications([]); } }); } catch (error) { console.error("Storage listener başlatılamadı:", error); }
     return () => { mounted = false; try { unsubscribe?.(); } catch (error) { console.warn("Storage listener kapatılamadı:", error); } };
   }, [currentUser?.id]);
 
