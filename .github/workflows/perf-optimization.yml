@@ -54,7 +54,8 @@ jobs:
             const escapedPath = modulePath.replaceAll('/', '\\/');
             const importRe = new RegExp(`import \\{ ${name} \\} from "${escapedPath}";\\n`);
             if (!importRe.test(text)) throw new Error(`Expected import not found: ${name}`);
-            text = text.replace(importRe, `const ${name} = lazy(() => import("${modulePath}").then((m) => ({ default: m.${name} })));\\n`);
+            const declaration = `const ${name} = lazy(() => import("${modulePath}").then((m) => ({ default: m.${name} })));` + '\n';
+            text = text.replace(importRe, declaration);
           }
 
           const authStatePattern = /const \[authLoading, setAuthLoading\] =\s*useState\(true\);/;
