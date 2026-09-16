@@ -1,0 +1,74 @@
+name: Remove desktop hero tracking card
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  remove-card:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Remove desktop-only tracking card
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("src/components/AuthScreen.tsx")
+          text = path.read_text(encoding="utf-8")
+          marker = '          <div className="relative hidden min-h-[540px] lg:block">'
+
+          start = text.find(marker)
+          if start == -1:
+              print("Desktop hero card already removed; nothing to do.")
+              raise SystemExit(0)
+
+          section_end = text.find("        </section>", start)
+          if section_end == -1:
+              raise SystemExit("Could not locate the end of the hero section.")
+
+          block = text[start:section_end]
+          depth = 0
+          in_tag = False
+          i = 0
+          while i < len(block):
+              if block.startswith("<div", i):
+                  depth += 1
+                  i += 4
+                  continue
+              if block.startswith("</div>", i):
+                  depth -= 1
+                  i += 6
+                  if depth == 0:
+                      end = start + i
+                      text = text[:start] + text[end:]
+                      path.write_text(text, encoding="utf-8")
+                      print("Removed desktop hero tracking card. Mobile layout untouched.")
+                      break
+                  continue
+              i += 1
+          else:
+              raise SystemExit("Could not balance the desktop hero div block.")
+
+      - name: Build verification
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/AuthScreen.tsx
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "feat: remove desktop hero tracking card"
+          git push
