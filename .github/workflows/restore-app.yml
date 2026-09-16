@@ -1,0 +1,30 @@
+name: Restore App source
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    if: ${{ github.event.head_commit.message != 'chore: restore App.tsx from known-good commit' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore App.tsx
+        run: |
+          git checkout 6a4dcf5805146e42cb23287cc5cf95868811af0a -- src/App.tsx
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx
+          git commit -m "chore: restore App.tsx from known-good commit"
+          git push
+      - name: Remove temporary workflow
+        run: |
+          git rm .github/workflows/restore-app.yml
+          git commit -m "chore: remove temporary restore workflow"
+          git push
