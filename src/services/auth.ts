@@ -16,9 +16,7 @@ import {
 } from "firebase/auth";
 
 import { doc, getDoc, setDoc } from "firebase/firestore";
-
 import { auth, db } from "./firebase";
-
 import type { UserProfile } from "../types";
 
 const googleProvider = new GoogleAuthProvider();
@@ -72,10 +70,23 @@ export async function ensureUserProfile(firebaseUser: User): Promise<UserProfile
   return profile;
 }
 
+const GOOGLE_REDIRECT_FLAG = "trustline:google-redirect";
+
+function markGoogleRedirect(): void {
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage.setItem(GOOGLE_REDIRECT_FLAG, "1");
+    } catch {
+      // Storage kapalıysa Firebase'in normal redirect akışı yine devam eder.
+    }
+  }
+}
+
 export async function loginWithGoogle(): Promise<UserProfile | null> {
   await ensurePersistence();
 
   if (isMobileBrowser()) {
+    markGoogleRedirect();
     await signInWithRedirect(auth, googleProvider, browserPopupRedirectResolver);
     return null;
   }
@@ -93,6 +104,7 @@ export async function loginWithGoogle(): Promise<UserProfile | null> {
 
     if (!authError?.code || !redirectCodes.includes(authError.code)) throw error;
 
+    markGoogleRedirect();
     await signInWithRedirect(auth, googleProvider, browserPopupRedirectResolver);
     return null;
   }
@@ -100,13 +112,7 @@ export async function loginWithGoogle(): Promise<UserProfile | null> {
 
 let redirectResultPromise: Promise<UserProfile | null> | null = null;
 
-/**
- * Google redirect kontrolü yalnızca login akışının gerçekten redirect başlattığını
- * gösteren sessionStorage işareti varsa çalıştırılır. Normal ziyaretçide Firebase
- * getRedirectResult çağrısı yapılmaz; bu ilk açılışta gereksiz Auth/redirect işini azaltır.
- */
-const GOOGLE_REDIRECT_FLAG = "trustline:google-redirect";
-
+/** Normal ziyaretçide getRedirectResult çalıştırılmaz; yalnızca kendi redirect akışımızdan dönüyorsak kontrol edilir. */
 export function handleGoogleRedirectResult(): Promise<UserProfile | null> {
   if (redirectResultPromise) return redirectResultPromise;
 
@@ -116,7 +122,11 @@ export function handleGoogleRedirectResult(): Promise<UserProfile | null> {
 
   if (!shouldCheckRedirect) return Promise.resolve(null);
 
-  window.sessionStorage.removeItem(GOOGLE_REDIRECT_FLAG);
+  try {
+    window.sessionStorage.removeItem(GOOGLE_REDIRECT_FLAG);
+  } catch {
+    // Ignore storage access errors.
+  }
 
   redirectResultPromise = (async () => {
     try {
@@ -138,7 +148,6 @@ export async function registerWithEmail(email: string, password: string, name: s
   await ensurePersistence();
   const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
   const firebaseUser = credential.user;
-
   if (name.trim()) await updateProfile(firebaseUser, { displayName: name.trim() });
 
   try {
