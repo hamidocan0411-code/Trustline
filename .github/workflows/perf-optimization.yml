@@ -1,0 +1,116 @@
+name: TrustLine performance optimization
+
+on:
+  push:
+    paths:
+      - '.github/workflows/perf-optimization.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  optimize-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Optimize App loading order
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'src/App.tsx';
+          let text = fs.readFileSync(path, 'utf8');
+
+          text = text.replace(
+            'import React, {\n  useEffect,\n  useRef,\n  useState,\n} from "react";',
+            'import React, {\n  lazy,\n  Suspense,\n  useEffect,\n  useRef,\n  useState,\n} from "react";'
+          );
+
+          const components = [
+            ['Navbar', './components/Navbar'],
+            ['BottomNavigation', './components/BottomNavigation'],
+            ['CustomerHome', './components/CustomerHome'],
+            ['CustomerOrders', './components/CustomerOrders'],
+            ['TrustlineAI', './components/TrustlineAI'],
+            ['CourierPanel', './components/CourierPanel'],
+            ['AdminPanel', './components/AdminPanel'],
+            ['ProfileView', './components/ProfileView'],
+            ['NewOrderModal', './components/NewOrderModal'],
+            ['PharmacyOrderPanel', './components/PharmacyOrderPanel'],
+            ['NotificationDrawer', './components/NotificationDrawer'],
+            ['LiveSupport', './components/LiveSupport'],
+          ];
+
+          for (const [name, modulePath] of components) {
+            const escapedPath = modulePath.replaceAll('/', '\\/');
+            const importRe = new RegExp(`import \\{ ${name} \\} from "${escapedPath}";\\n`);
+            if (!importRe.test(text)) throw new Error(`Expected import not found: ${name}`);
+            text = text.replace(importRe, `const ${name} = lazy(() => import("${modulePath}").then((m) => ({ default: m.${name} })));\\n`);
+          }
+
+          const authStatePattern = /const \[authLoading, setAuthLoading\] =\s*useState\(true\);/;
+          if (!authStatePattern.test(text)) throw new Error('authLoading initializer not found');
+          text = text.replace(authStatePattern, 'const [authLoading, setAuthLoading] = useState(false);');
+
+          const mainAnchor = '  return (\\n    <div\\n      className={`flex min-h-screen flex-col bg-[#0B0B0D] text-white ${';
+          if (!text.includes(mainAnchor)) throw new Error('Main application return anchor not found');
+          text = text.replace(mainAnchor, '  return (\\n    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0B0B0D] text-white"><div className="text-sm font-bold text-[#D6A84F]">TrustLine yükleniyor...</div></div>}>\\n      <div\\n      className={`flex min-h-screen flex-col bg-[#0B0B0D] text-white ${');
+
+          const end = '    </div>\\n  );\\n}\\n\\nexport default App;';
+          if (!text.endsWith(end)) throw new Error('App closing anchor not found');
+          text = text.slice(0, -end.length) + '      </div>\\n    </Suspense>\\n  );\\n}\\n\\nexport default App;';
+
+          fs.writeFileSync(path, text, 'utf8');
+          console.log('App loading optimization applied.');
+          NODE
+
+      - name: Add stable vendor chunks
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'vite.config.ts';
+          let text = fs.readFileSync(path, 'utf8');
+
+          if (!text.includes('rollupOptions')) {
+            text = text.replace(
+              '  resolve: {',
+              `  build: {\n    rollupOptions: {\n      output: {\n        manualChunks(id) {\n          if (!id.includes('node_modules')) return undefined;\n          if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) return 'react-vendor';\n          if (id.includes('/firebase/')) return 'firebase-vendor';\n          if (id.includes('/leaflet/')) return 'map-vendor';\n          if (id.includes('/lucide-react/')) return 'icons-vendor';\n          return undefined;\n        },\n      },\n    },\n  },\n\n  resolve: {`
+            );
+          }
+
+          fs.writeFileSync(path, text, 'utf8');
+          console.log('Vendor chunk optimization applied.');
+          NODE
+
+      - name: Production build
+        run: npm run build
+
+      - name: Report bundle sizes
+        shell: bash
+        run: |
+          echo '=== BUILD ARTIFACTS ==='
+          find dist/assets -maxdepth 1 -type f -printf '%f %k KB\n' | sort -k2 -nr | head -30
+          echo '=== BUILD COMPLETE ==='
+
+      - name: Commit only if build passed
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx vite.config.ts
+          if git diff --cached --quiet; then
+            echo 'No optimization changes were necessary.'
+          else
+            git commit -m "perf: lazy-load application features"
+            git push
+          fi
