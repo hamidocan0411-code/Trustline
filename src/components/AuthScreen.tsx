@@ -339,33 +339,6 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
             </div>
           </div>
 
-          <div className="relative hidden min-h-[540px] lg:block">
-            <div className="absolute inset-0 rounded-[38px] border border-white/10 bg-gradient-to-br from-white/[0.07] via-white/[0.02] to-orange-500/[0.08] shadow-[0_30px_100px_rgba(0,0,0,0.38)]" />
-            <div className="absolute inset-6 rounded-[30px] border border-orange-400/10 bg-[radial-gradient(circle_at_30%_25%,rgba(249,115,22,0.20),transparent_34%),radial-gradient(circle_at_75%_70%,rgba(251,191,36,0.12),transparent_38%),linear-gradient(145deg,#111111,#090909)] overflow-hidden">
-              <div className="absolute inset-0 opacity-40" style={{ backgroundImage: "radial-gradient(circle at 20% 30%, rgba(255,255,255,.16) 1px, transparent 1px), radial-gradient(circle at 75% 60%, rgba(255,255,255,.12) 1px, transparent 1px)", backgroundSize: "28px 28px, 34px 34px" }} />
-              <div className="absolute left-[13%] top-[22%] h-px w-[70%] rotate-[8deg] bg-gradient-to-r from-transparent via-orange-300/80 to-transparent" />
-              <div className="absolute left-[26%] top-[40%] h-px w-[54%] rotate-[-6deg] bg-gradient-to-r from-transparent via-orange-500/70 to-transparent motion-safe:animate-[routeMove_7s_linear_infinite]" />
-              <div className="absolute left-[30%] top-[62%] h-px w-[52%] rotate-[5deg] bg-gradient-to-r from-transparent via-amber-300/65 to-transparent motion-safe:animate-[routeMoveReverse_8s_linear_infinite]" />
-
-              <div className="absolute left-[10%] top-[16%] rounded-2xl border border-white/10 bg-black/55 px-4 py-3 backdrop-blur-xl">
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-orange-300">Gönderiniz yolda</p>
-                <p className="mt-1 text-xs font-bold text-white">TrustLine Express</p>
-              </div>
-
-              <div className="absolute bottom-[18%] right-[9%] rounded-2xl border border-white/10 bg-black/55 px-4 py-3 backdrop-blur-xl">
-                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-orange-300">Konum</p>
-                <p className="mt-1 text-xs font-bold text-white">İstanbul · canlı operasyon</p>
-              </div>
-
-              <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center">
-                <div className="absolute h-52 w-52 rounded-full border border-orange-400/20 motion-safe:animate-ping" />
-                <div className="absolute h-32 w-32 rounded-full border border-orange-400/25" />
-                <div className="relative flex h-24 w-24 items-center justify-center rounded-[28px] border border-orange-300/40 bg-orange-500/10 shadow-[0_0_80px_rgba(249,115,22,0.32)] backdrop-blur-xl">
-                  <span className="text-4xl">🛵</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </section>
 
         <section id="why" className="scroll-mt-20 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
