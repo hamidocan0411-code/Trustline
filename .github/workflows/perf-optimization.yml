@@ -61,9 +61,12 @@ jobs:
           if (!authStatePattern.test(text)) throw new Error('authLoading initializer not found');
           text = text.replace(authStatePattern, 'const [authLoading, setAuthLoading] = useState(false);');
 
-          const mainAnchor = '  return (\\n    <div\\n      className={`flex min-h-screen flex-col bg-[#0B0B0D] text-white ${';
+          const mainAnchor = '  return (\\n    <div\\n      className={`flex min-h-screen flex-col bg-[#0B0B0D] text-white';
           if (!text.includes(mainAnchor)) throw new Error('Main application return anchor not found');
-          text = text.replace(mainAnchor, '  return (\\n    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0B0B0D] text-white"><div className="text-sm font-bold text-[#D6A84F]">TrustLine yükleniyor...</div></div>}>\\n      <div\\n      className={`flex min-h-screen flex-col bg-[#0B0B0D] text-white ${');
+          text = text.replace(
+            mainAnchor,
+            '  return (\\n    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0B0B0D] text-white"><div className="text-sm font-bold text-[#D6A84F]">TrustLine yükleniyor...</div></div>}>\\n      <div\\n      className={`flex min-h-screen flex-col bg-[#0B0B0D] text-white'
+          );
 
           const end = '    </div>\\n  );\\n}\\n\\nexport default App;';
           if (!text.endsWith(end)) throw new Error('App closing anchor not found');
