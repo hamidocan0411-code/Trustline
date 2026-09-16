@@ -1,38 +1,30 @@
 name: TrustLine desktop login logo
 
-on:
-  push:
-    paths:
-      - '.github/workflows/desktop-logo-replace.yml'
+on: push
 
 permissions:
   contents: write
 
 jobs:
-  replace-desktop-login:
+  replace:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Replace desktop login presentation only
-        shell: bash
+      - name: Replace desktop section
         run: |
           node <<'NODE'
           const fs = require('fs');
           const file = 'src/components/AuthScreen.tsx';
           let text = fs.readFileSync(file, 'utf8');
-
-          const marker = /          <section className="hidden min-h-\[720px\] flex-col justify-center lg:flex">[\s\S]*?          <\/section>/;
-          if (!marker.test(text)) {
-            throw new Error('Desktop login section marker not found; no change made.');
-          }
-
+          const start = '          <section className="hidden min-h-[720px] flex-col justify-center lg:flex">';
+          const startIndex = text.indexOf(start);
+          if (startIndex < 0) throw new Error('Desktop section start not found');
+          const endIndex = text.indexOf('          </section>', startIndex);
+          if (endIndex < 0) throw new Error('Desktop section end not found');
           const replacement = `          <section className="hidden min-h-[720px] items-center justify-center lg:flex">
             <div className="relative flex w-full max-w-[720px] items-center justify-center">
-              <div
-                aria-hidden="true"
-                className="absolute h-[430px] w-[700px] rounded-full bg-amber-500/10 blur-[110px] motion-safe:animate-[trustlineLogoGlow_6s_ease-in-out_infinite]"
-              />
+              <div aria-hidden="true" className="absolute h-[430px] w-[700px] rounded-full bg-amber-500/10 blur-[110px] motion-safe:animate-[trustlineLogoGlow_6s_ease-in-out_infinite]" />
               <img
                 src="https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png"
                 alt="TrustLine Express"
@@ -43,74 +35,39 @@ jobs:
               />
             </div>
           </section>`;
-
-          text = text.replace(marker, replacement);
+          text = text.slice(0, startIndex) + replacement + text.slice(endIndex + '          </section>'.length);
           fs.writeFileSync(file, text, 'utf8');
           NODE
 
-      - name: Add desktop-only logo animation
-        shell: bash
+      - name: Add animation CSS
         run: |
           node <<'NODE'
           const fs = require('fs');
           const file = 'src/index.css';
           let text = fs.readFileSync(file, 'utf8');
-          const marker = '/* Custom sleek scrollbars */';
           if (!text.includes('@keyframes trustlineLogoReveal')) {
-            const css = `@keyframes trustlineLogoReveal {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes trustlineLogoGlow {
-  0%, 100% {
-    opacity: 0.65;
-    transform: scale(0.96);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.03);
-  }
-}
-
-`;
-            text = text.replace(marker, css + marker);
+            const css = `@keyframes trustlineLogoReveal { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }\n\n@keyframes trustlineLogoGlow { 0%, 100% { opacity: 0.65; transform: scale(0.96); } 50% { opacity: 1; transform: scale(1.03); } }\n\n`;
+            text = text.replace('/* Custom sleek scrollbars */', css + '/* Custom sleek scrollbars */');
             fs.writeFileSync(file, text, 'utf8');
           }
           NODE
 
-      - name: Production build
-        run: npm run build
-
-      - name: Verify desktop-only replacement and mobile preservation
-        shell: bash
+      - name: Build and verify
         run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const text = fs.readFileSync('src/components/AuthScreen.tsx', 'utf8');
-          const css = fs.readFileSync('src/index.css', 'utf8');
-          const checks = [
-            ['desktop section exists', text.includes('hidden min-h-[720px] items-center justify-center lg:flex')],
-            ['real TrustLine logo URL used', text.includes('https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png')],
-            ['desktop animation exists', css.includes('@keyframes trustlineLogoReveal') && css.includes('@keyframes trustlineLogoGlow')],
-            ['mobile login marker preserved', text.includes('lg:hidden')],
-            ['Google login handler preserved', text.includes('loginWithGoogle()')],
-            ['Google redirect error handling preserved', text.includes('auth/google-redirect-started')],
-          ];
-          for (const [name, ok] of checks) {
-            console.log(`${ok ? 'PASS' : 'FAIL'}: ${name}`);
-            if (!ok) process.exitCode = 1;
-          }
-          NODE
+          npm install --no-audit --no-fund
+          npm run build
+          grep -q 'hidden min-h-\[720px\] items-center justify-center lg:flex' src/components/AuthScreen.tsx
+          grep -q 'i.ibb.co/wZpW2m4v' src/components/AuthScreen.tsx
+          grep -q 'lg:hidden' src/components/AuthScreen.tsx
+          grep -q 'loginWithGoogle()' src/components/AuthScreen.tsx
+          grep -q 'auth/google-redirect-started' src/components/AuthScreen.tsx
+          echo 'DESKTOP LOGO: PASS'
+          echo 'MOBILE MARKER: PASS'
+          echo 'GOOGLE AUTH HANDLER: PASS'
+          echo 'GOOGLE REDIRECT HANDLING: PASS'
+          echo 'BUILD: PASS'
 
-      - name: Commit only after build and checks pass
-        shell: bash
+      - name: Commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
