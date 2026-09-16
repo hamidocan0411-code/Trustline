@@ -69,15 +69,15 @@ jobs:
           const divPos = text.indexOf('<div', returnPos);
           if (divPos < 0 || divPos > classPos) throw new Error('Main application div not found');
 
-          const suspenseFallback = '<Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0B0B0D] text-white"><div className="text-sm font-bold text-[#D6A84F]">TrustLine yükleniyor...</div></div>}>\\n      ';
-          text = text.slice(0, returnPos) + '  return (\\n    ' + suspenseFallback + text.slice(divPos);
+          const suspenseFallback = '<Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0B0B0D] text-white"><div className="text-sm font-bold text-[#D6A84F]">TrustLine yükleniyor...</div></div>}>\n      ';
+          text = text.slice(0, returnPos) + '  return (\n    ' + suspenseFallback + text.slice(divPos);
 
-          const closeAnchor = '\\n  );\\n}\\n\\nexport default App;';
+          const closeAnchor = '\n  );\n}\n\nexport default App;';
           const closePos = text.lastIndexOf(closeAnchor);
           if (closePos < 0) throw new Error('App closing anchor not found');
-          const rootClosePos = text.lastIndexOf('\\n    </div>', closePos);
+          const rootClosePos = text.lastIndexOf('\n    </div>', closePos);
           if (rootClosePos < 0) throw new Error('Root application div closing tag not found');
-          text = text.slice(0, rootClosePos + '\\n    </div>'.length) + '\\n    </Suspense>' + text.slice(rootClosePos + '\\n    </div>'.length);
+          text = text.slice(0, rootClosePos + '\n    </div>'.length) + '\n    </Suspense>' + text.slice(rootClosePos + '\n    </div>'.length);
 
           fs.writeFileSync(path, text, 'utf8');
           console.log('App loading optimization applied.');
