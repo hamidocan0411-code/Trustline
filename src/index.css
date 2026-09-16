@@ -2,7 +2,7 @@
 
 @layer base {
   body {
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
 }
 
@@ -10,7 +10,6 @@
 
 @keyframes trustlineLogoGlow { 0%, 100% { opacity: 0.65; transform: scale(0.96); } 50% { opacity: 1; transform: scale(1.03); } }
 
-/* Custom sleek scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -26,7 +25,6 @@
   background: #D6A84F;
 }
 
-/* iOS safe area insets */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 16px);
 }
