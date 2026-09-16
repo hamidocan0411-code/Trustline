@@ -223,71 +223,19 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1380px] items-center px-4 py-6 sm:px-6 lg:px-10">
         <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,520px)] lg:gap-12 xl:gap-16">
-          <section className="hidden min-h-[720px] flex-col justify-center lg:flex">
-            <div className="max-w-[680px]">
-              <div className="mb-8 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.045] px-4 py-2.5 backdrop-blur-xl">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70 motion-safe:animate-ping" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                </span>
-                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-300">
-                  TrustLine operasyon ağı
-                </span>
-              </div>
-
-              <div className="mb-8 flex items-center gap-5">
-                <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-[24px] border border-white/15 bg-white p-2 shadow-[0_0_55px_rgba(245,158,11,0.18)]">
-                  <div className="absolute inset-[-30px] bg-amber-400/10 blur-2xl" />
-                  <div className="relative flex h-full w-full items-center justify-center rounded-2xl bg-white">
-                    <span className="text-3xl font-black text-slate-950">T</span>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-300">
-                    Trustline
-                  </p>
-                  <h1 className="mt-1 text-4xl font-black tracking-tight text-white xl:text-6xl">
-                    Express
-                  </h1>
-                </div>
-              </div>
-
-              <h2 className="max-w-2xl text-4xl font-black leading-[1.05] tracking-tight text-white xl:text-6xl">
-                Teslimatı daha hızlı,
-                <span className="block text-amber-400">daha güvenli</span>
-                ve daha profesyonel yönetin.
-              </h2>
-
-              <p className="mt-6 max-w-xl text-base leading-7 text-slate-400 xl:text-lg">
-                Kuryeler, işletmeler ve teslimat süreçleri için modern bir operasyon altyapısı.
-                Tek girişten güvenli erişim, kontrollü operasyon ve sürdürülebilir teslimat deneyimi.
-              </p>
-
-              <div className="mt-9 grid max-w-xl grid-cols-3 gap-3">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl">
-                  <div className="text-xl">📦</div>
-                  <p className="mt-2 text-[11px] font-black uppercase tracking-wider text-slate-300">Sipariş</p>
-                  <p className="mt-1 text-[10px] leading-4 text-slate-500">Merkezi operasyon</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl">
-                  <div className="text-xl">🛵</div>
-                  <p className="mt-2 text-[11px] font-black uppercase tracking-wider text-slate-300">Kurye</p>
-                  <p className="mt-1 text-[10px] leading-4 text-slate-500">Akıllı yönlendirme</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl">
-                  <div className="text-xl">📍</div>
-                  <p className="mt-2 text-[11px] font-black uppercase tracking-wider text-slate-300">Teslimat</p>
-                  <p className="mt-1 text-[10px] leading-4 text-slate-500">Takip edilebilir süreç</p>
-                </div>
-              </div>
-
-              <div className="mt-8 flex flex-wrap gap-2">
-                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-1.5 text-[10px] font-bold text-emerald-300">Güvenli giriş</span>
-                <span className="rounded-full border border-amber-400/20 bg-amber-400/[0.06] px-3 py-1.5 text-[10px] font-bold text-amber-300">Canlı operasyon</span>
-                <span className="rounded-full border border-sky-400/20 bg-sky-400/[0.06] px-3 py-1.5 text-[10px] font-bold text-sky-300">Kurumsal altyapı</span>
-              </div>
-            </div>
-          </section>
+          <section className="hidden min-h-[720px] items-center justify-center lg:flex">
+  <div className="relative flex w-full max-w-[720px] items-center justify-center">
+    <div aria-hidden="true" className="absolute h-[430px] w-[700px] rounded-full bg-amber-500/10 blur-[110px] motion-safe:animate-[trustlineLogoGlow_6s_ease-in-out_infinite]" />
+    <img
+      src="https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png"
+      alt="TrustLine Express"
+      className="relative z-10 h-auto w-full max-w-[700px] object-contain motion-safe:animate-[trustlineLogoReveal_800ms_cubic-bezier(0.22,1,0.36,1)_both]"
+      loading="eager"
+      decoding="async"
+      draggable={false}
+    />
+  </div>
+</section>
 
           <section className="w-full">
             <div className="mb-4 text-center lg:hidden">
