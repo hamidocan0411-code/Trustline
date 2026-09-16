@@ -1,0 +1,44 @@
+name: Apply storage lazy bridge
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ github.event.head_commit.message != 'perf: route App through lazy storage bridge' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Replace App storage import
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/App.tsx')
+          s = p.read_text(encoding='utf-8')
+          old = 'import { storage } from "./services/storage";'
+          new = 'import { storage } from "./services/storageProxy";'
+          if old not in s:
+              raise SystemExit('Expected App storage import was not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Build production
+        run: |
+          npm install --ignore-scripts
+          npm run build
+
+      - name: Commit optimization
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx
+          git commit -m "perf: route App through lazy storage bridge"
+          git push
