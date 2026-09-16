@@ -15,16 +15,34 @@
     <link rel="icon" type="image/png" href="https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png" />
     <link rel="apple-touch-icon" href="https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png" />
 
-    <!-- Harita CSS'i yalnızca gerektiğinde aktif olur; ilk ekranı bloklamaz. -->
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      media="print"
-      onload="this.media='all'"
-    />
-    <noscript>
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    </noscript>
+    <script>
+      (() => {
+        const leafletCssUrl = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+
+        const loadLeafletCssIfNeeded = () => {
+          if (!document.querySelector(".leaflet-container")) return;
+          if (document.querySelector('link[data-trustline-leaflet="true"]')) return;
+
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = leafletCssUrl;
+          link.dataset.trustlineLeaflet = "true";
+          document.head.appendChild(link);
+
+          observer.disconnect();
+        };
+
+        const observer = new MutationObserver(loadLeafletCssIfNeeded);
+        observer.observe(document.documentElement, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+
+        loadLeafletCssIfNeeded();
+      })();
+    </script>
   </head>
 
   <body class="bg-[#0B0B0D] text-white antialiased selection:bg-[#D6A84F]/30 selection:text-[#D6A84F] overflow-x-hidden min-h-screen">
