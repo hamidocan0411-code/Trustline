@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 
 import { loginWithGoogle } from "../services/auth";
 
@@ -46,36 +46,52 @@ function getAuthErrorMessage(error: unknown): string {
   switch (code) {
     case "auth/popup-closed-by-user":
       return "Google giriş penceresi kapatıldı.";
+
     case "auth/popup-blocked":
       return "Google giriş penceresi tarayıcı tarafından engellendi. Lütfen tekrar deneyin.";
+
     case "auth/cancelled-popup-request":
       return "Google giriş işlemi iptal edildi. Lütfen tekrar deneyin.";
+
     case "auth/account-exists-with-different-credential":
       return "Bu e-posta adresi başka bir giriş yöntemiyle zaten kayıtlı.";
+
     case "auth/operation-not-allowed":
       return "Google ile giriş Firebase Console'da etkin değil.";
+
     case "auth/operation-not-supported-in-this-environment":
       return "Bu tarayıcıda Google popup kullanılamıyor. Güvenli giriş sayfasına yönlendiriliyorsunuz.";
+
     case "auth/network-request-failed":
       return "Firebase bağlantısı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.";
+
     case "auth/unauthorized-domain":
       return "Bu site Firebase tarafından yetkilendirilmemiş. Firebase Authentication Authorized Domains bölümünü kontrol edin.";
+
     case "auth/internal-error":
       return "Firebase'de geçici bir hata oluştu. Lütfen tekrar deneyin.";
+
     case "auth/too-many-requests":
       return "Çok fazla giriş denemesi yapıldı. Lütfen daha sonra tekrar deneyin.";
+
     case "auth/google-redirect-started":
       return "Google hesabınız seçildi. Trustline Express'e giriş yapılıyor...";
+
     case "auth/invalid-api-key":
       return "Firebase API anahtarı geçersiz.";
+
     case "auth/app-not-authorized":
       return "Bu uygulama Firebase tarafından yetkilendirilmemiş.";
+
     case "auth/invalid-app-credential":
       return "Firebase uygulama doğrulaması başarısız oldu.";
+
     case "auth/quota-exceeded":
       return "Firebase kullanım kotası aşıldı.";
+
     case "auth/user-disabled":
       return "Bu Google hesabı devre dışı bırakılmış.";
+
     default:
       return (
         getErrorMessage(error) ||
@@ -128,6 +144,12 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
 
       const profile = await loginWithGoogle();
 
+      /*
+       * MOBİL REDIRECT DURUMU
+       *
+       * signInWithRedirect() başladıktan sonra Firebase sayfayı
+       * Google'a yönlendirir. Bu durumda profile dönmez.
+       */
       if (!profile) {
         console.log(
           "🔄 Google redirect başlatıldı veya sonuç bekleniyor."
@@ -137,6 +159,11 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
           "Google hesabınızla giriş yapılıyor..."
         );
 
+        /*
+         * Burada onLogin çağırmıyoruz.
+         *
+         * Çünkü Firebase redirect işlemi devam ediyor.
+         */
         return;
       }
 
@@ -157,8 +184,12 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
       );
 
       const code = getErrorCode(err);
-      const friendlyMessage = getAuthErrorMessage(err);
-      const technicalDetails = getDetailedFirebaseError(err);
+
+      const friendlyMessage =
+        getAuthErrorMessage(err);
+
+      const technicalDetails =
+        getDetailedFirebaseError(err);
 
       console.error(
         "❌ GOOGLE FIREBASE HATA KODU:",
@@ -170,6 +201,12 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
         getErrorMessage(err) || "YOK"
       );
 
+      /*
+       * ÇOK ÖNEMLİ:
+       *
+       * Firebase redirect başladıysa bunu hata olarak
+       * login ekranına göstermiyoruz.
+       */
       if (
         code === "auth/google-redirect-started"
       ) {
@@ -181,6 +218,10 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
           "Google hesabınız seçildi. Trustline Express'e giriş yapılıyor..."
         );
 
+        /*
+         * Redirect devam ederken loading'i hata gibi
+         * göstermemek için burada çıkıyoruz.
+         */
         return;
       }
 
@@ -195,405 +236,394 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#05070a] text-white">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-40 -top-40 h-[520px] w-[520px] rounded-full bg-amber-400/10 blur-[120px]" />
-        <div className="absolute -bottom-48 -right-40 h-[620px] w-[620px] rounded-full bg-amber-500/10 blur-[140px]" />
-        <div className="absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/[0.025] blur-[100px]" />
+    <div className="relative min-h-screen overflow-x-hidden bg-[#050505] text-white selection:bg-orange-400/30">
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute -left-40 -top-40 h-[32rem] w-[32rem] rounded-full bg-orange-500/10 blur-[140px]" />
+        <div className="absolute right-[-12rem] top-[18%] h-[30rem] w-[30rem] rounded-full bg-amber-400/10 blur-[140px]" />
+        <div className="absolute bottom-[-12rem] left-[28%] h-[34rem] w-[34rem] rounded-full bg-orange-600/[0.08] blur-[150px]" />
         <div
-          className="absolute inset-0 opacity-[0.07]"
+          className="absolute inset-0 opacity-[0.055]"
           style={{
             backgroundImage:
-              "linear-gradient(rgba(255,255,255,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.18) 1px, transparent 1px)",
+              "linear-gradient(rgba(255,255,255,0.20) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.20) 1px, transparent 1px)",
             backgroundSize: "72px 72px",
           }}
         />
-        <div className="absolute left-[-15%] top-[23%] h-px w-[130%] rotate-[7deg] bg-gradient-to-r from-transparent via-amber-400/25 to-transparent" />
-        <div className="absolute left-[-15%] top-[67%] h-px w-[130%] rotate-[-6deg] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-        <div className="absolute left-[-20%] top-[28%] h-[2px] w-[32%] rotate-[7deg] bg-gradient-to-r from-transparent via-amber-300 to-transparent opacity-70 blur-[1px] motion-safe:animate-[routeMove_7s_linear_infinite]" />
-        <div className="absolute right-[-20%] top-[68%] h-[2px] w-[30%] rotate-[-6deg] bg-gradient-to-r from-transparent via-amber-300 to-transparent opacity-50 blur-[1px] motion-safe:animate-[routeMoveReverse_9s_linear_infinite]" />
-        <span className="absolute left-[8%] top-[22%] h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_24px_rgba(251,191,36,0.8)] motion-safe:animate-pulse" />
-        <span className="absolute right-[11%] top-[33%] h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_24px_rgba(251,191,36,0.8)] motion-safe:animate-pulse [animation-delay:1s]" />
-        <span className="absolute left-[18%] bottom-[22%] h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_24px_rgba(251,191,36,0.8)] motion-safe:animate-pulse [animation-delay:2s]" />
-        <div className="absolute left-[6%] top-[48%] text-4xl opacity-[0.07] motion-safe:animate-bounce">📦</div>
-        <div className="absolute right-[6%] top-[55%] text-4xl opacity-[0.07] motion-safe:animate-bounce [animation-delay:1.5s]">📍</div>
-        <div className="absolute bottom-[10%] left-[44%] text-3xl opacity-[0.05] motion-safe:animate-pulse">🛵</div>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(5,7,10,0.28)_42%,rgba(5,7,10,0.94)_100%)]" />
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1380px] items-center px-4 py-6 sm:px-6 lg:px-10">
-        <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,520px)] lg:gap-12 xl:gap-16">
-          <section className="hidden min-h-[720px] flex-col justify-center lg:flex">
-            <div className="max-w-[680px]">
-              <div className="mb-8 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.045] px-4 py-2.5 backdrop-blur-xl">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70 motion-safe:animate-ping" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                </span>
-                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-300">
-                  TrustLine operasyon ağı
-                </span>
+      <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#050505]/85 backdrop-blur-2xl">
+        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <a href="#top" className="flex items-center gap-3" aria-label="TrustLine Express ana sayfa">
+            <img
+              src="https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png"
+              alt="TrustLine Express"
+              className="h-10 w-auto object-contain"
+              loading="eager"
+            />
+          </a>
+
+          <nav className="hidden items-center gap-6 md:flex" aria-label="Ana navigasyon">
+            <a href="#services" className="text-sm font-semibold text-slate-300 transition hover:text-orange-300">Hizmetlerimiz</a>
+            <a href="#how-it-works" className="text-sm font-semibold text-slate-300 transition hover:text-orange-300">Nasıl Çalışır?</a>
+            <a href="#corporate" className="text-sm font-semibold text-slate-300 transition hover:text-orange-300">Kurumsal</a>
+            <a href="#contact" className="text-sm font-semibold text-slate-300 transition hover:text-orange-300">İletişim</a>
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <a
+              href="#login"
+              className="hidden rounded-full border border-orange-400/50 px-4 py-2 text-xs font-black text-orange-200 transition hover:border-orange-300 hover:bg-orange-400/10 sm:inline-flex"
+            >
+              Giriş Yap
+            </a>
+            <a
+              href="#login"
+              className="rounded-full bg-orange-500 px-4 py-2 text-xs font-black text-white shadow-[0_12px_35px_rgba(249,115,22,0.26)] transition hover:-translate-y-0.5 hover:bg-orange-400"
+            >
+              Google ile Giriş Yap
+            </a>
+          </div>
+        </div>
+      </header>
+
+      <main id="top" className="relative z-10">
+        <section className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-24">
+          <div className="max-w-3xl">
+            <div className="mb-7 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 backdrop-blur-xl motion-safe:animate-[fadeUp_0.7s_ease-out_both]">
+              <span className="h-2.5 w-2.5 rounded-full bg-orange-400 shadow-[0_0_22px_rgba(251,146,60,0.8)]" />
+              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-orange-200">Güvenli teslimat ağı</span>
+            </div>
+
+            <p className="text-xs font-black uppercase tracking-[0.34em] text-orange-300/90 motion-safe:animate-[fadeUp_0.7s_0.08s_ease-out_both] [animation-fill-mode:both]">
+              Daha fazla hareket · daha güçlü yarınlar
+            </p>
+            <h1 className="mt-5 text-5xl font-black leading-[0.98] tracking-tight text-white sm:text-6xl lg:text-7xl motion-safe:animate-[fadeUp_0.8s_0.14s_ease-out_both] [animation-fill-mode:both]">
+              Hızlı.
+              <br />
+              Güvenilir.
+              <br />
+              <span className="text-orange-500">Profesyonel.</span>
+            </h1>
+            <p className="mt-7 max-w-xl text-base leading-7 text-slate-300 sm:text-lg motion-safe:animate-[fadeUp_0.8s_0.22s_ease-out_both] [animation-fill-mode:both]">
+              İstanbul'un her noktasında gönderileriniz için güvenilir teslimat çözümü.
+            </p>
+
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row motion-safe:animate-[fadeUp_0.8s_0.30s_ease-out_both] [animation-fill-mode:both]">
+              <a
+                href="#why"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-500 px-6 py-3.5 text-sm font-black text-white shadow-[0_14px_40px_rgba(249,115,22,0.30)] transition hover:-translate-y-0.5 hover:bg-orange-400"
+              >
+                Keşfet
+                <span aria-hidden="true">↓</span>
+              </a>
+              <a
+                href="#login"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-6 py-3.5 text-sm font-black text-white transition hover:border-orange-300/50 hover:bg-orange-400/10"
+              >
+                Google ile Giriş Yap
+                <span aria-hidden="true">→</span>
+              </a>
+            </div>
+
+            <div className="mt-10 grid max-w-2xl grid-cols-3 gap-3 motion-safe:animate-[fadeUp_0.8s_0.38s_ease-out_both] [animation-fill-mode:both]">
+              {[
+                ["01", "Hızlı Teslimat"],
+                ["02", "Güvenli Taşıma"],
+                ["03", "Takip Edilebilir Süreç"],
+              ].map(([num, label]) => (
+                <div key={num} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-300">{num}</p>
+                  <p className="mt-2 text-xs font-bold leading-5 text-slate-200">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative hidden min-h-[540px] lg:block">
+            <div className="absolute inset-0 rounded-[38px] border border-white/10 bg-gradient-to-br from-white/[0.07] via-white/[0.02] to-orange-500/[0.08] shadow-[0_30px_100px_rgba(0,0,0,0.38)]" />
+            <div className="absolute inset-6 rounded-[30px] border border-orange-400/10 bg-[radial-gradient(circle_at_30%_25%,rgba(249,115,22,0.20),transparent_34%),radial-gradient(circle_at_75%_70%,rgba(251,191,36,0.12),transparent_38%),linear-gradient(145deg,#111111,#090909)] overflow-hidden">
+              <div className="absolute inset-0 opacity-40" style={{ backgroundImage: "radial-gradient(circle at 20% 30%, rgba(255,255,255,.16) 1px, transparent 1px), radial-gradient(circle at 75% 60%, rgba(255,255,255,.12) 1px, transparent 1px)", backgroundSize: "28px 28px, 34px 34px" }} />
+              <div className="absolute left-[13%] top-[22%] h-px w-[70%] rotate-[8deg] bg-gradient-to-r from-transparent via-orange-300/80 to-transparent" />
+              <div className="absolute left-[26%] top-[40%] h-px w-[54%] rotate-[-6deg] bg-gradient-to-r from-transparent via-orange-500/70 to-transparent motion-safe:animate-[routeMove_7s_linear_infinite]" />
+              <div className="absolute left-[30%] top-[62%] h-px w-[52%] rotate-[5deg] bg-gradient-to-r from-transparent via-amber-300/65 to-transparent motion-safe:animate-[routeMoveReverse_8s_linear_infinite]" />
+
+              <div className="absolute left-[10%] top-[16%] rounded-2xl border border-white/10 bg-black/55 px-4 py-3 backdrop-blur-xl">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-orange-300">Gönderiniz yolda</p>
+                <p className="mt-1 text-xs font-bold text-white">TrustLine Express</p>
               </div>
 
-              <div className="mb-8 flex items-center gap-5">
-                <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-[24px] border border-white/15 bg-white p-2 shadow-[0_0_55px_rgba(245,158,11,0.18)]">
-                  <div className="absolute inset-[-30px] bg-amber-400/10 blur-2xl" />
-                  <div className="relative flex h-full w-full items-center justify-center rounded-2xl bg-white">
-                    <span className="text-3xl font-black text-slate-950">T</span>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-300">
-                    Trustline
-                  </p>
-                  <h1 className="mt-1 text-4xl font-black tracking-tight text-white xl:text-6xl">
-                    Express
-                  </h1>
-                </div>
+              <div className="absolute bottom-[18%] right-[9%] rounded-2xl border border-white/10 bg-black/55 px-4 py-3 backdrop-blur-xl">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-orange-300">Konum</p>
+                <p className="mt-1 text-xs font-bold text-white">İstanbul · canlı operasyon</p>
               </div>
 
-              <h2 className="max-w-2xl text-4xl font-black leading-[1.05] tracking-tight text-white xl:text-6xl">
-                Teslimatı daha hızlı,
-                <span className="block text-amber-400">daha güvenli</span>
-                ve daha profesyonel yönetin.
+              <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center">
+                <div className="absolute h-52 w-52 rounded-full border border-orange-400/20 motion-safe:animate-ping" />
+                <div className="absolute h-32 w-32 rounded-full border border-orange-400/25" />
+                <div className="relative flex h-24 w-24 items-center justify-center rounded-[28px] border border-orange-300/40 bg-orange-500/10 shadow-[0_0_80px_rgba(249,115,22,0.32)] backdrop-blur-xl">
+                  <span className="text-4xl">🛵</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="why" className="scroll-mt-20 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Neden TrustLine Express?</p>
+              <h2 className="mt-4 text-4xl font-black leading-tight tracking-tight text-white sm:text-5xl">
+                Gönderiniz.
+                <br />
+                Bizim sorumluluğumuz.
               </h2>
+            </div>
+            <p className="max-w-2xl text-base leading-7 text-slate-400">
+              Teslimat sürecini sadeleştiren, operasyonu merkezileştiren ve müşterinin gönderisini güvenle takip edebilmesini hedefleyen modern bir deneyim.
+            </p>
+          </div>
 
-              <p className="mt-6 max-w-xl text-base leading-7 text-slate-400 xl:text-lg">
-                Kuryeler, işletmeler ve teslimat süreçleri için modern bir operasyon altyapısı.
-                Tek girişten güvenli erişim, kontrollü operasyon ve sürdürülebilir teslimat deneyimi.
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            {[
+              ["⚡", "Hızlı Teslimat", "Gönderilerinizi mümkün olan en kısa sürede doğru noktaya ulaştırmaya odaklanan operasyon akışı."],
+              ["🛡️", "Güvenli Taşıma", "Gönderiniz teslim edilene kadar kontrollü ve takip edilebilir bir teslimat süreci."],
+              ["📍", "Anlık Takip", "Gönderinizin durumunu süreç boyunca daha kolay takip edebileceğiniz bir yapı."],
+            ].map(([icon, title, body]) => (
+              <article key={title} className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 transition duration-300 hover:-translate-y-1 hover:border-orange-400/30 hover:bg-white/[0.055]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500/10 text-2xl">{icon}</div>
+                <h3 className="mt-5 text-xl font-black text-white">{title}</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-400">{body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="login" className="scroll-mt-20 border-y border-white/[0.06] bg-gradient-to-r from-orange-500/[0.04] via-transparent to-orange-500/[0.04]">
+          <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_520px] lg:items-center lg:px-8 lg:py-24">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Devam etmek için giriş yapın</p>
+              <h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">Hesabınıza devam edin</h2>
+              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-400">
+                TrustLine Express deneyimine devam etmek için Google hesabınızla güvenli şekilde giriş yapın.
               </p>
 
-              <div className="mt-9 grid max-w-xl grid-cols-3 gap-3">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl">
-                  <div className="text-xl">📦</div>
-                  <p className="mt-2 text-[11px] font-black uppercase tracking-wider text-slate-300">Sipariş</p>
-                  <p className="mt-1 text-[10px] leading-4 text-slate-500">Merkezi operasyon</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl">
-                  <div className="text-xl">🛵</div>
-                  <p className="mt-2 text-[11px] font-black uppercase tracking-wider text-slate-300">Kurye</p>
-                  <p className="mt-1 text-[10px] leading-4 text-slate-500">Akıllı yönlendirme</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl">
-                  <div className="text-xl">📍</div>
-                  <p className="mt-2 text-[11px] font-black uppercase tracking-wider text-slate-300">Teslimat</p>
-                  <p className="mt-1 text-[10px] leading-4 text-slate-500">Takip edilebilir süreç</p>
-                </div>
-              </div>
-
-              <div className="mt-8 flex flex-wrap gap-2">
-                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-1.5 text-[10px] font-bold text-emerald-300">Güvenli giriş</span>
-                <span className="rounded-full border border-amber-400/20 bg-amber-400/[0.06] px-3 py-1.5 text-[10px] font-bold text-amber-300">Canlı operasyon</span>
-                <span className="rounded-full border border-sky-400/20 bg-sky-400/[0.06] px-3 py-1.5 text-[10px] font-bold text-sky-300">Kurumsal altyapı</span>
-              </div>
-            </div>
-          </section>
-
-          <section className="w-full">
-            <div className="mb-4 text-center lg:hidden">
-              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-[24px] border border-white/15 bg-white p-2 shadow-[0_0_45px_rgba(245,158,11,0.16)]">
-                <div className="flex h-full w-full items-center justify-center rounded-2xl bg-slate-950">
-                  <span className="text-3xl font-black text-amber-400">T</span>
-                </div>
-              </div>
-              <h1 className="text-3xl font-black tracking-tight text-white">Trustline <span className="text-amber-400">Express</span></h1>
-              <p className="mt-2 text-sm text-slate-400">Teslimatın güvenilir adresi</p>
-            </div>
-
-            <div className="relative mb-4 overflow-hidden rounded-[24px] border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.10] via-white/[0.04] to-emerald-400/[0.05] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:p-5">
-              <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-amber-400/10 blur-3xl" />
-
-              <div className="relative flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-400/[0.10] text-xl">
-                  💊
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-black tracking-tight text-white">
-                      TrustLine Express Eczane Teslimatları
-                    </p>
-
-                    <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-300">
-                      AKTİF
-                    </span>
+              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                {[
+                  ["🔐", "Güvenli giriş"],
+                  ["🧭", "Kolay erişim"],
+                  ["⚡", "Hızlı başlangıç"],
+                ].map(([icon, label]) => (
+                  <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                    <div className="text-xl">{icon}</div>
+                    <p className="mt-2 text-xs font-bold text-slate-200">{label}</p>
                   </div>
-
-                  <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-300">
-                    Eczanenizden ihtiyaçlarınıza, hızlı ve güvenilir teslimat.
-                  </p>
-
-                  <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                    Eczane ürünlerini güvenli ve hızlı şekilde teslim etmek için
-                    TrustLine Express artık eczane teslimatlarında yanınızda.
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.97] shadow-[0_35px_100px_rgba(0,0,0,0.6)] backdrop-blur-xl">
-              <div className="h-1 w-full bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
-              <div className="pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full bg-amber-400/10 blur-3xl" />
-
-              <div className="relative p-5 sm:p-7 lg:p-8">
-                <div className="mb-7 text-center">
-                  <div className="mb-2 flex items-center justify-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-600">Hesap erişimi</p>
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                  </div>
-                  <h2 className="text-2xl font-black tracking-tight text-slate-950">Trustline Express'e Hoş Geldin</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">Güvenli erişim için Google hesabınızla devam edin.</p>
-                </div>
-
-                <div className="mb-4 rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:p-5">
-                  <div className="mb-4 flex items-start gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-400/15 text-xl">
-                      🕘
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
-                        Hizmet Saatlerimiz
-                      </p>
-                      <h3 className="mt-1 text-base font-black text-slate-900">
-                        TrustLine Express çalışma saatleri
-                      </h3>
-                    </div>
-                  </div>
-
-                  <p className="text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
-                    TrustLine Express olarak standart kurye ve teslimat hizmetlerimizi her gün
-                    <span className="font-black text-slate-900"> 09:00 – 21:00 </span>
-                    saatleri arasında gerçekleştiriyoruz.
-                  </p>
-
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-lg">
-                          🚚
-                        </div>
-                        <div>
-                          <p className="text-xs font-black text-slate-700">
-                            Standart Kurye Hizmeti
-                          </p>
-                          <p className="mt-0.5 text-lg font-black tracking-tight text-slate-950">
-                            09:00 – 21:00
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-lg">
-                          💊
-                        </div>
-                        <div>
-                          <p className="text-xs font-black text-emerald-800">
-                            Eczane Ürünleri Teslimatı
-                          </p>
-                          <p className="mt-0.5 text-lg font-black tracking-tight text-emerald-700">
-                            7/24
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
-                    <p className="text-xs font-black text-emerald-900">
-                      💊 Eczane Ürünleri İçin 7/24 Hizmet
-                    </p>
-                    <p className="mt-1 text-[11px] leading-5 text-emerald-800 sm:text-xs">
-                      Eczane ürünleri teslimatlarında müşterilerimizin ihtiyaçlarının saat
-                      sınırlaması olmadan karşılanabilmesi için 7 gün 24 saat hizmet sunuyoruz.
-                    </p>
-                    <p className="mt-2 text-[11px] leading-5 text-emerald-800 sm:text-xs">
-                      Eczane ürünleri için oluşturulan teslimat talepleri 7/24 alınabilir ve
-                      ilgili teslimat süreci eczane hizmet akışına göre yönetilir.
-                    </p>
-                  </div>
-
-                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-xs font-black text-slate-800">
-                      📌 Kısaca
-                    </p>
-                    <div className="mt-3 space-y-2 text-[11px] leading-5 text-slate-600 sm:text-xs">
-                      <p>
-                        🚚 <span className="font-bold text-slate-800">Standart Kurye Hizmeti:</span>{' '}
-                        <span className="font-black text-slate-900">09:00 – 21:00</span>
-                      </p>
-                      <p>
-                        💊 <span className="font-bold text-slate-800">Eczane Ürünleri Teslimatı:</span>{' '}
-                        <span className="font-black text-emerald-700">7/24</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="mt-4 text-[11px] leading-5 text-slate-500 sm:text-xs">
-                    TrustLine Express olarak hızlı, güvenilir ve profesyonel teslimat deneyimi sunmaya devam ediyoruz.
-                  </p>
-                </div>
-                <div className="space-y-4">
-                  <div className="rounded-2xl border-2 border-red-300 bg-red-50 p-4 shadow-sm">
-                    <div className="flex items-start gap-3">
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400/20 text-sm font-black text-amber-700">✦</div>
-                      <div>
-                        <p className="text-xs font-black text-slate-800">TrustLine Express gelişiyor.</p>
-                        <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                          Platformumuz yeni olduğu için zaman zaman küçük teknik aksaklıklarla karşılaşabilirsiniz. Sistemimizi sürekli geliştiriyor, güncelliyor ve sizden gelen geri bildirimlerle daha iyi hale getiriyoruz.
-                        </p>
-                        <p className="mt-2 text-[11px] font-semibold text-amber-700">Anlayışınız için teşekkür ederiz.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <details className="group rounded-2xl border border-slate-200 bg-slate-50 shadow-sm">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
-                      <span className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-950 text-sm font-black text-amber-400">↗</span>
-                        <span>
-                          <span className="block text-xs font-black text-slate-800">Platformun amacı</span>
-                          <span className="mt-0.5 block text-[10px] text-slate-500">TrustLine Express nasıl çalışır?</span>
-                        </span>
-                      </span>
-                      <span className="text-slate-400 transition-transform duration-300 group-open:rotate-180">⌄</span>
-                    </summary>
-                    <div className="border-t border-slate-200 px-4 pb-4 pt-3">
-                      <p className="text-[11px] leading-5 text-slate-500">
-                        TrustLine Express'in amacı; kuryeler ile esnafları aynı dijital platform üzerinde buluşturan, güvenli, hızlı ve kurumsal bir teslimat ağı oluşturmaktır.
-                      </p>
-                      <p className="mt-2 text-[11px] leading-5 text-slate-500">
-                        Esnafların ihtiyaç duyduğu güvenilir kurye hizmetine kolayca ulaşmasını, kuryelerin ise düzenli teslimat fırsatlarına erişmesini sağlayarak iki taraf arasında güçlü ve sürdürülebilir bir iş ağı oluşturmayı hedefliyoruz.
-                      </p>
-                      <p className="mt-2 text-[11px] leading-5 text-slate-500">
-                        Gelecekte kurye yönetimi, işletme panelleri, canlı konum takibi ve teslimat süreçlerinin dijital yönetimi gibi birçok özelliği ekleyerek kapsamlı bir teslimat ekosistemi oluşturmayı hedefliyoruz.
-                      </p>
-                    </div>
-                  </details>
-
-                  <details className="group rounded-2xl border border-amber-200 bg-amber-50/70 shadow-sm">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
-                      <span className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-400/20 text-sm">🛵</span>
-                        <span>
-                          <span className="block text-xs font-black text-slate-800">Kuryeler için Çalış, Kazan</span>
-                          <span className="mt-0.5 block text-[10px] text-slate-500">Kurye sistemi hakkında bilgi</span>
-                        </span>
-                      </span>
-                      <span className="text-amber-700 transition-transform duration-300 group-open:rotate-180">⌄</span>
-                    </summary>
-                    <div className="border-t border-amber-200 px-4 pb-4 pt-3">
-                      <p className="text-[11px] leading-5 text-slate-500">
-                        TrustLine Express'te kurye olmak için platformumuza başvurmanız ve başvuru değerlendirme sürecinin tamamlanması gerekir.
-                      </p>
-                      <p className="mt-2 text-[11px] leading-5 text-slate-500">
-                        Kurye olarak sisteme dahil olduktan sonra teslimatlarınızı kendiniz seçerek ilerlemezsiniz. İşletmeler tarafından oluşturulan teslimat talepleri, TrustLine Express operasyon sistemi tarafından değerlendirilir ve uygun görülen teslimatlar çalışma durumunuza ve operasyonel kriterlere göre yönlendirilir.
-                      </p>
-                      <p className="mt-2 text-[11px] leading-5 text-slate-500">
-                        Amacımız kuryeleri ve esnafları merkezi bir operasyon sistemi içerisinde buluşturmak, kuryelere düzenli teslimat fırsatları sunmak ve gerçekleştirilen teslimatlar üzerinden kazanç elde edilebilen bir çalışma modeli oluşturmaktır.
-                      </p>
-                      <p className="mt-2 text-[11px] font-semibold leading-5 text-amber-700">Başvur → Değerlendirme → Sisteme Dahil Ol → Teslimatlarını TrustLine Express yönlendirsin.</p>
-                    </div>
-                  </details>
-
-                  {error && (
-                    <div role="alert" className="whitespace-pre-line rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm leading-5 text-red-700 shadow-sm motion-safe:animate-[shake_0.35s_ease-in-out]">
-                      <div className="flex gap-3">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100 font-black">!</span>
-                        <span>{error}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {success && (
-                    <div role="status" className="whitespace-pre-line rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-sm leading-6 text-emerald-700 shadow-sm motion-safe:animate-[popIn_0.35s_ease-out]">
-                      <div className="flex gap-3">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-black">✓</span>
-                        <span>{success}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={handleGoogle}
-                    disabled={loading}
-                    className="group relative flex w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-black text-slate-700 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-                  >
-                    <span className="absolute inset-0 -translate-x-full skew-x-[-20deg] bg-gradient-to-r from-transparent via-slate-100/90 to-transparent transition-transform duration-700 group-hover:translate-x-[150%]" />
-                    {loading ? (
-                      <>
-                        <span className="relative h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-800" />
-                        <span className="relative">Google ile bağlanılıyor...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="relative flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-base font-black shadow-sm">
-                          <span className="text-[#4285F4]">G</span>
-                        </span>
-                        <span className="relative">Google ile devam et</span>
-                      </>
-                    )}
-                  </button>
-
-                  <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-sm font-black text-amber-400 shadow-sm">✓</div>
-                      <div>
-                        <p className="text-xs font-black text-slate-700">Güvenli Google girişi</p>
-                        <p className="mt-1 text-[11px] leading-5 text-slate-500">Google hesabınız ile güvenli şekilde giriş yapabilir ve Trustline Express hesabınıza erişebilirsiniz.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="pt-1 text-center text-[10px] leading-5 text-slate-400">
-                    Google ile devam ederek Trustline Express hesabınıza güvenli giriş yaparsınız.
-                  </p>
-                </div>
+                ))}
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center backdrop-blur-xl">
-                <div className="text-lg">📦</div>
-                <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">Sipariş</p>
+            <div className="rounded-[32px] border border-orange-400/20 bg-[#0b0b0b] p-5 shadow-[0_30px_90px_rgba(0,0,0,0.48)] sm:p-7">
+              <div className="mb-6 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.24em] text-orange-300">Google ile giriş</p>
+                  <h3 className="mt-2 text-2xl font-black text-white">Hoş geldin</h3>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-orange-400/20 bg-orange-400/10 text-xl">T</div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center backdrop-blur-xl">
-                <div className="text-lg">🛵</div>
-                <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">Kurye</p>
+
+              <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <p className="text-sm font-black text-slate-100">Tek giriş yöntemi: Google</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">E-posta veya şifre formu yok. Mevcut Google Authentication akışınız aynen korunur.</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-center backdrop-blur-xl">
-                <div className="text-lg">📍</div>
-                <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">Teslimat</p>
+
+              {error && (
+                <div role="alert" className="mb-4 whitespace-pre-line rounded-2xl border border-red-400/20 bg-red-500/[0.08] px-4 py-3.5 text-sm leading-5 text-red-200 motion-safe:animate-[shake_0.35s_ease-in-out]">
+                  <div className="flex gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500/15 font-black">!</span>
+                    <span>{error}</span>
+                  </div>
+                </div>
+              )}
+
+              {success && (
+                <div role="status" className="mb-4 whitespace-pre-line rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.08] px-4 py-3.5 text-sm leading-6 text-emerald-200 motion-safe:animate-[popIn_0.35s_ease-out]">
+                  <div className="flex gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 font-black">✓</span>
+                    <span>{success}</span>
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleGoogle}
+                disabled={loading}
+                className="group relative flex w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-orange-400/30 bg-orange-500 px-5 py-4 text-sm font-black text-white shadow-[0_18px_45px_rgba(249,115,22,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-orange-400 hover:shadow-[0_22px_55px_rgba(249,115,22,0.34)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+              >
+                <span className="absolute inset-0 -translate-x-full skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-[160%]" />
+                {loading ? (
+                  <>
+                    <span className="relative h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    <span className="relative">Google ile bağlanılıyor...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg viewBox="0 0 24 24" className="relative h-5 w-5" aria-hidden="true">
+                      <path fill="#4285F4" d="M21.35 12.27c0-.71-.06-1.39-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.95 2.94v2.45h3.16c1.85-1.7 2.9-4.2 2.9-7.22Z"/>
+                      <path fill="#34A853" d="M12 21.7c2.64 0 4.86-.87 6.48-2.36l-3.16-2.45c-.88.59-2 1-3.32 1-2.56 0-4.73-1.73-5.5-4.05H3.23v2.53A9.8 9.8 0 0 0 12 21.7Z"/>
+                      <path fill="#FBBC05" d="M6.5 13.84A5.9 5.9 0 0 1 6.19 12c0-.64.11-1.27.31-1.84V7.63H3.23A9.8 9.8 0 0 0 2.2 12c0 1.58.38 3.08 1.03 4.37l3.27-2.53Z"/>
+                      <path fill="#EA4335" d="M12 6.11c1.44 0 2.72.5 3.73 1.48l2.8-2.8C16.85 3.24 14.64 2.3 12 2.3a9.8 9.8 0 0 0-8.77 5.33l3.27 2.53C7.27 7.84 9.44 6.11 12 6.11Z"/>
+                    </svg>
+                    <span className="relative">Google ile Giriş Yap</span>
+                  </>
+                )}
+              </button>
+
+              <div className="mt-4 rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.06] p-4">
+                <p className="text-xs font-black text-emerald-200">Güvenli Google girişi</p>
+                <p className="mt-1 text-[11px] leading-5 text-emerald-100/60">Mevcut Google giriş akışınız, mobil redirect ve masaüstü popup davranışı değiştirilmeden kullanılır.</p>
               </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-orange-300">🚚 Standart Kurye</p>
+                  <p className="mt-1 text-sm font-black text-white">09:00 – 21:00</p>
+                </div>
+                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">💊 Eczane Ürünleri</p>
+                  <p className="mt-1 text-sm font-black text-emerald-200">7/24</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="services" className="scroll-mt-20 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Hizmetlerimiz</p>
+              <h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">İhtiyacınıza uygun teslimat çözümü</h2>
+            </div>
+            <p className="max-w-xl text-sm leading-6 text-slate-400">Standart gönderiden eczane teslimatına kadar farklı teslimat ihtiyaçlarını aynı deneyimde buluşturuyoruz.</p>
+          </div>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["📦", "Standart Gönderi", "Belge, paket ve günlük gönderiler için teslimat akışı."],
+              ["⚡", "Acil Teslimat", "Zaman kritik gönderiler için hızlı teslimat seçeneği."],
+              ["💊", "Eczane Teslimatı", "Eczane ürünleri için 7/24 teslimat hizmeti."],
+              ["🏢", "Kurumsal Çözümler", "İşletmelerin düzenli kurye ihtiyaçları için operasyon odaklı yapı."],
+            ].map(([icon, title, body]) => (
+              <article key={title} className="group rounded-3xl border border-white/10 bg-white/[0.035] p-5 transition duration-300 hover:-translate-y-1 hover:border-orange-400/30 hover:bg-orange-400/[0.04]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500/10 text-xl">{icon}</div>
+                <h3 className="mt-5 text-lg font-black text-white">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-400">{body}</p>
+                <span className="mt-5 inline-flex items-center text-xs font-black text-orange-300 transition group-hover:translate-x-1">Detaylar →</span>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="how-it-works" className="scroll-mt-20 border-y border-white/[0.06] bg-[#080808]">
+          <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+            <div className="max-w-2xl">
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Nasıl çalışır?</p>
+              <h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">Sadece birkaç adımda gönderiniz yola çıksın.</h2>
             </div>
 
-            <div className="mt-5 pb-2 text-center">
-              <p className="text-xs text-slate-500">© {new Date().getFullYear()} Trustline Express</p>
-              <p className="mt-1 text-[10px] tracking-wide text-slate-600">GÜVENLİ • HIZLI • PROFESYONEL</p>
+            <div className="relative mt-14">
+              <div className="absolute left-[8%] right-[8%] top-7 hidden h-px bg-gradient-to-r from-orange-500/10 via-orange-500 to-orange-500/10 lg:block" />
+              <div className="grid gap-8 lg:grid-cols-5">
+                {[
+                  ["01", "Siparişini oluştur"],
+                  ["02", "Kurye atanır"],
+                  ["03", "Gönderin teslim alınır"],
+                  ["04", "Canlı takip"],
+                  ["05", "Güvenli teslimat"],
+                ].map(([num, label], index) => (
+                  <div key={num} className="relative text-center lg:text-left">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-orange-400/40 bg-[#080808] text-sm font-black text-orange-300 shadow-[0_0_30px_rgba(249,115,22,0.12)] lg:mx-0">
+                      {index === 0 ? "✦" : num}
+                    </div>
+                    <p className="mt-4 text-sm font-black text-white">{label}</p>
+                    <p className="mt-2 text-xs leading-5 text-slate-500">Teslimat adımının sıradaki aşaması.</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </section>
+          </div>
+        </section>
+
+        <section id="corporate" className="scroll-mt-20 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+          <div className="rounded-[34px] border border-white/10 bg-gradient-to-br from-white/[0.045] via-white/[0.02] to-orange-500/[0.06] p-6 sm:p-8 lg:p-10">
+            <div className="grid gap-10 lg:grid-cols-[1fr_1.2fr] lg:items-center">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Kurumsal avantajlar</p>
+                <h2 className="mt-4 text-4xl font-black tracking-tight text-white">Güven, teslimatla büyür.</h2>
+                <p className="mt-4 max-w-xl text-sm leading-6 text-slate-400">İşletmelerin düzenli teslimat ihtiyaçlarını daha kontrollü ve izlenebilir bir operasyon deneyimiyle yönetmesine yardımcı olan bir yapı.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  ["01", "Operasyon odaklı", "Teslimat akışını tek noktadan yönetmeye yardımcı olur."],
+                  ["02", "Takip edilebilir", "Süreç boyunca gönderi durumunun izlenmesini destekler."],
+                  ["03", "Eczane 7/24", "Eczane ürünleri için günün her saatinde teslimat hizmeti."],
+                  ["04", "Mobil uyumlu", "Farklı ekranlarda erişilebilir ve sade kullanım."],
+                ].map(([num, title, body]) => (
+                  <div key={num} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-[10px] font-black tracking-[0.2em] text-orange-300">{num}</p>
+                    <p className="mt-2 text-sm font-black text-white">{title}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="contact" className="scroll-mt-20 border-t border-white/[0.06] bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.14),transparent_48%)]">
+          <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 py-20 text-center sm:px-6 lg:px-8 lg:py-28">
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">TrustLine Express</p>
+            <h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-6xl">Gönderiniz hazır mı?</h2>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-400">TrustLine Express ile güvenli ve hızlı teslimat deneyimine devam edin.</p>
+            <div className="mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+              <a href="#login" className="inline-flex items-center justify-center rounded-full bg-orange-500 px-7 py-3.5 text-sm font-black text-white shadow-[0_18px_45px_rgba(249,115,22,0.28)] transition hover:-translate-y-0.5 hover:bg-orange-400">Google ile Giriş Yap →</a>
+              <a href="#services" className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/[0.03] px-7 py-3.5 text-sm font-black text-white transition hover:border-orange-300/40 hover:bg-orange-400/10">Hizmetlerimizi Keşfet</a>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-white/[0.06] bg-black/40">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div>
+            <img src="https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png" alt="TrustLine Express" className="h-9 w-auto object-contain" loading="lazy" />
+            <p className="mt-2 text-xs text-slate-500">Hızlı. Güvenilir. Profesyonel.</p>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-500">
+            <a href="#services" className="transition hover:text-orange-300">Hizmetler</a>
+            <a href="#corporate" className="transition hover:text-orange-300">Kurumsal</a>
+            <a href="#how-it-works" className="transition hover:text-orange-300">Nasıl Çalışır?</a>
+            <a href="#contact" className="transition hover:text-orange-300">İletişim</a>
+          </div>
+          <p className="text-xs text-slate-600">© {new Date().getFullYear()} TrustLine Express</p>
         </div>
-      </div>
+      </footer>
 
       <style>{`
+        @keyframes fadeUp {
+          0% { opacity: 0; transform: translateY(18px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
         @keyframes routeMove {
-          0% { transform: translateX(-35vw) rotate(7deg); opacity: 0; }
-          18% { opacity: 0.7; }
-          75% { opacity: 0.45; }
-          100% { transform: translateX(140vw) rotate(7deg); opacity: 0; }
+          0% { transform: translateX(-45vw) rotate(-6deg); opacity: 0; }
+          15% { opacity: 0.72; }
+          75% { opacity: 0.32; }
+          100% { transform: translateX(130vw) rotate(-6deg); opacity: 0; }
         }
         @keyframes routeMoveReverse {
-          0% { transform: translateX(35vw) rotate(-6deg); opacity: 0; }
-          18% { opacity: 0.55; }
-          75% { opacity: 0.35; }
-          100% { transform: translateX(-140vw) rotate(-6deg); opacity: 0; }
+          0% { transform: translateX(40vw) rotate(5deg); opacity: 0; }
+          15% { opacity: 0.60; }
+          75% { opacity: 0.28; }
+          100% { transform: translateX(-120vw) rotate(5deg); opacity: 0; }
         }
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
@@ -606,16 +636,18 @@ function AuthScreen({ onLogin }: AuthScreenProps) {
           100% { opacity: 1; transform: translateY(0) scale(1); }
         }
         @media (prefers-reduced-motion: reduce) {
-          *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+          *, *::before, *::after {
+            animation-duration: 0.001ms !important;
+            animation-iteration-count: 1 !important;
+            scroll-behavior: auto !important;
+          }
         }
       `}</style>
     </div>
   );
 }
 
+
 export { AuthScreen };
 
 export default AuthScreen;
-
-
-
