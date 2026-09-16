@@ -1,0 +1,118 @@
+name: TrustLine desktop login logo
+
+on:
+  push:
+    paths:
+      - '.github/workflows/desktop-logo-replace.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  replace-desktop-login:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Replace desktop login presentation only
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const file = 'src/components/AuthScreen.tsx';
+          let text = fs.readFileSync(file, 'utf8');
+
+          const marker = /          <section className="hidden min-h-\[720px\] flex-col justify-center lg:flex">[\s\S]*?          <\/section>/;
+          if (!marker.test(text)) {
+            throw new Error('Desktop login section marker not found; no change made.');
+          }
+
+          const replacement = `          <section className="hidden min-h-[720px] items-center justify-center lg:flex">
+            <div className="relative flex w-full max-w-[720px] items-center justify-center">
+              <div
+                aria-hidden="true"
+                className="absolute h-[430px] w-[700px] rounded-full bg-amber-500/10 blur-[110px] motion-safe:animate-[trustlineLogoGlow_6s_ease-in-out_infinite]"
+              />
+              <img
+                src="https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png"
+                alt="TrustLine Express"
+                className="relative z-10 h-auto w-full max-w-[700px] object-contain motion-safe:animate-[trustlineLogoReveal_800ms_cubic-bezier(0.22,1,0.36,1)_both]"
+                loading="eager"
+                decoding="async"
+                draggable={false}
+              />
+            </div>
+          </section>`;
+
+          text = text.replace(marker, replacement);
+          fs.writeFileSync(file, text, 'utf8');
+          NODE
+
+      - name: Add desktop-only logo animation
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const file = 'src/index.css';
+          let text = fs.readFileSync(file, 'utf8');
+          const marker = '/* Custom sleek scrollbars */';
+          if (!text.includes('@keyframes trustlineLogoReveal')) {
+            const css = `@keyframes trustlineLogoReveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes trustlineLogoGlow {
+  0%, 100% {
+    opacity: 0.65;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+`;
+            text = text.replace(marker, css + marker);
+            fs.writeFileSync(file, text, 'utf8');
+          }
+          NODE
+
+      - name: Production build
+        run: npm run build
+
+      - name: Verify desktop-only replacement and mobile preservation
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const text = fs.readFileSync('src/components/AuthScreen.tsx', 'utf8');
+          const css = fs.readFileSync('src/index.css', 'utf8');
+          const checks = [
+            ['desktop section exists', text.includes('hidden min-h-[720px] items-center justify-center lg:flex')],
+            ['real TrustLine logo URL used', text.includes('https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png')],
+            ['desktop animation exists', css.includes('@keyframes trustlineLogoReveal') && css.includes('@keyframes trustlineLogoGlow')],
+            ['mobile login marker preserved', text.includes('lg:hidden')],
+            ['Google login handler preserved', text.includes('loginWithGoogle()')],
+            ['Google redirect error handling preserved', text.includes('auth/google-redirect-started')],
+          ];
+          for (const [name, ok] of checks) {
+            console.log(`${ok ? 'PASS' : 'FAIL'}: ${name}`);
+            if (!ok) process.exitCode = 1;
+          }
+          NODE
+
+      - name: Commit only after build and checks pass
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/AuthScreen.tsx src/index.css
+          git diff --cached --quiet || (git commit -m "feat: replace desktop login tracking panel with logo" && git push)
