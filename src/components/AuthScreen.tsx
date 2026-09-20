@@ -73,6 +73,20 @@ type ServiceDetail = {
   ctaHref: string;
 };
 
+type BrandPartner = {
+  name: string;
+  logo: string;
+  description: string;
+};
+
+const BRAND_PARTNERS: BrandPartner[] = [
+  {
+    name: "Mavi Reklam",
+    logo: "/brands/mavi-reklam.png",
+    description: "Güçlü markalar, daha güçlü teslimatlar.",
+  },
+];
+
 const SERVICE_DETAILS: ServiceDetail[] = [
   {
     id: "standard",
@@ -366,24 +380,28 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
                   </span>
                 </div>
 
-                <div className="mt-5 flex min-h-[260px] items-center justify-center rounded-[26px] border border-white/10 bg-white p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:min-h-[300px] sm:p-8">
-                  <img
-                    src="/brands/mavi-reklam.png"
-                    alt="Mavi Reklam"
-                    loading="lazy"
-                    decoding="async"
-                    className="h-auto max-h-[210px] w-auto max-w-full object-contain sm:max-h-[240px]"
-                  />
-                </div>
+                {BRAND_PARTNERS.slice(0, 1).map((brand) => (
+                  <div key={brand.name}>
+                    <div className="mt-5 flex min-h-[260px] items-center justify-center rounded-[26px] border border-white/10 bg-white p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:min-h-[300px] sm:p-8">
+                      <img
+                        src={brand.logo}
+                        alt={brand.name}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-auto max-h-[210px] w-auto max-w-full object-contain sm:max-h-[240px]"
+                      />
+                    </div>
 
-                <div className="mt-5 flex items-end justify-between gap-5">
-                  <div>
-                    <h3 className="text-lg font-black text-white">Güçlü markalar, daha güçlü teslimatlar.</h3>
-                    <p className="mt-2 max-w-md text-xs leading-5 text-slate-400">
-                      İş ortaklarımızla kurduğumuz güçlü operasyon ağı, teslimat süreçlerimizin daha düzenli ilerlemesine katkı sağlar.
-                    </p>
+                    <div className="mt-5 flex items-end justify-between gap-5">
+                      <div>
+                        <h3 className="text-lg font-black text-white">{brand.description}</h3>
+                        <p className="mt-2 max-w-md text-xs leading-5 text-slate-400">
+                          İş ortaklarımızla kurduğumuz güçlü operasyon ağı, teslimat süreçlerimizin daha düzenli ilerlemesine katkı sağlar.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
             </article>
           </div>
