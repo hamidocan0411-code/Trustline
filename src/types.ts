@@ -39,6 +39,7 @@ export interface CourierLocation {
   longitude: number;
   updatedAt: string;
   isSharing: boolean;
+  visibleToCustomerIds?: string[];
 }
 
 export interface UserProfile {
