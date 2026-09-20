@@ -40,6 +40,35 @@ service cloud.firestore {
         ).data.courierId == request.auth.uid;
     }
 
+    function expectedOrderPrice() {
+      let pricing = get(
+        /databases/$(database)/documents/pricing/default
+      ).data;
+
+      let basePrice =
+        request.resource.data.distanceKm * pricing.perKmPrice < pricing.minPrice
+          ? pricing.minPrice
+          : request.resource.data.distanceKm * pricing.perKmPrice;
+
+      let multiplier =
+        request.resource.data.courierType == 'Acil Kurye'
+          ? pricing.urgentMultiplier
+          : request.resource.data.courierType == 'VIP Kurye'
+            ? pricing.vipMultiplier
+            : 1.0;
+
+      let packageFee =
+        request.resource.data.packageSize == 'Orta'
+          ? 50
+          : request.resource.data.packageSize == 'Büyük'
+            ? 100
+            : request.resource.data.packageSize == 'Çok Büyük'
+              ? 200
+              : 0;
+
+      return basePrice * multiplier + packageFee;
+    }
+
     match /users/{userId} {
       allow read: if isAdmin()
         || (signedIn() && request.auth.uid == userId);
@@ -93,9 +122,12 @@ service cloud.firestore {
         && request.resource.data.packageCount is int
         && request.resource.data.packageCount >= 1
         && request.resource.data.packageCount <= 1000
+        && request.resource.data.packageSize in ['Küçük', 'Orta', 'Büyük', 'Çok Büyük']
         && request.resource.data.price is number
         && request.resource.data.price > 0
         && request.resource.data.price <= 1000000
+        && request.resource.data.price >= expectedOrderPrice() - 0.5
+        && request.resource.data.price < expectedOrderPrice() + 0.5
         && request.resource.data.customerName is string
         && request.resource.data.customerPhone is string
         && request.resource.data.pickupAddress is string
