@@ -26,6 +26,7 @@ service cloud.firestore {
 
     function isOrderCustomer(orderId) {
       return signedIn()
+        && exists(/databases/$(database)/documents/orders/$(orderId))
         && get(
           /databases/$(database)/documents/orders/$(orderId)
         ).data.customerId == request.auth.uid;
@@ -33,30 +34,37 @@ service cloud.firestore {
 
     function isOrderCourier(orderId) {
       return signedIn()
+        && exists(/databases/$(database)/documents/orders/$(orderId))
         && get(
           /databases/$(database)/documents/orders/$(orderId)
         ).data.courierId == request.auth.uid;
     }
 
     match /users/{userId} {
-
       allow read: if isAdmin()
-        || (
+        || (signedIn() && request.auth.uid == userId);
+
+      // Public registration can only create a customer profile for the
+      // currently authenticated Firebase user. Admins can create couriers.
+      allow create: if (
           signedIn()
           && request.auth.uid == userId
+          && request.resource.data.role == 'customer'
+          && request.resource.data.email == request.auth.token.email
+        )
+        || (
+          isAdmin()
+          && request.resource.data.role == 'courier'
         );
-
-      allow create: if signedIn()
-        && request.auth.uid == userId;
 
       allow update: if isAdmin()
         || (
           signedIn()
           && request.auth.uid == userId
           && request.resource.data.role == resource.data.role
+          && request.resource.data.email == resource.data.email
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'name',
-            'email',
             'phone',
             'avatar',
             'vehicle',
@@ -70,24 +78,31 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-
       allow read: if isAdmin()
-        || (
-          signedIn()
-          && resource.data.customerId == request.auth.uid
-        )
-        || (
-          signedIn()
-          && resource.data.courierId == request.auth.uid
-        );
+        || (signedIn() && resource.data.customerId == request.auth.uid)
+        || (signedIn() && resource.data.courierId == request.auth.uid);
 
       allow create: if signedIn()
         && request.resource.data.customerId == request.auth.uid
         && request.resource.data.status == 'Kurye Bekleniyor'
-        && request.resource.data.courierId == null;
+        && request.resource.data.courierId == null
+        && request.resource.data.orderType in ['standard', 'pharmacy']
+        && request.resource.data.distanceKm is number
+        && request.resource.data.distanceKm > 0
+        && request.resource.data.distanceKm <= 1000
+        && request.resource.data.packageCount is int
+        && request.resource.data.packageCount >= 1
+        && request.resource.data.packageCount <= 1000
+        && request.resource.data.price is number
+        && request.resource.data.price > 0
+        && request.resource.data.price <= 1000000
+        && request.resource.data.customerName is string
+        && request.resource.data.customerPhone is string
+        && request.resource.data.pickupAddress is string
+        && request.resource.data.deliveryAddress is string
+        && request.resource.data.note is string;
 
       allow update: if isAdmin()
-
         || (
           signedIn()
           && resource.data.customerId == request.auth.uid
@@ -99,7 +114,6 @@ service cloud.firestore {
           ])
           && request.resource.data.status == 'İptal Edildi'
         )
-
         || (
           signedIn()
           && resource.data.courierId == request.auth.uid
@@ -123,7 +137,6 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /deliveryProofs/{proofId} {
-
         allow read: if isAdmin()
           || isOrderCustomer(orderId)
           || isOrderCourier(orderId);
@@ -138,6 +151,7 @@ service cloud.firestore {
           || (
             isOrderCourier(orderId)
             && resource.data.courierId == request.auth.uid
+            && request.resource.data.courierId == resource.data.courierId
           );
 
         allow delete: if isAdmin()
@@ -150,24 +164,25 @@ service cloud.firestore {
 
     match /users/{userId}/notifications/{notificationId} {
       allow read: if isAdmin()
-        || (
-          signedIn()
-          && userId == request.auth.uid
-        );
+        || (signedIn() && userId == request.auth.uid);
 
       allow create: if signedIn()
+        && userId == request.auth.uid
         && request.resource.data.userId == request.auth.uid;
 
-      allow update, delete: if signedIn()
-        && userId == request.auth.uid;
+      allow update: if signedIn()
+        && userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'read'
+        ]);
+
+      allow delete: if signedIn() && userId == request.auth.uid;
     }
 
     match /notifications/{notificationId} {
       allow read: if isAdmin()
-        || (
-          signedIn()
-          && resource.data.userId == request.auth.uid
-        );
+        || (signedIn() && resource.data.userId == request.auth.uid);
 
       allow create: if isAdmin()
         || (
@@ -179,29 +194,54 @@ service cloud.firestore {
         || (
           signedIn()
           && resource.data.userId == request.auth.uid
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'read'
+          ])
         );
 
       allow delete: if isAdmin()
-        || (
-          signedIn()
-          && resource.data.userId == request.auth.uid
-        );
+        || (signedIn() && resource.data.userId == request.auth.uid);
     }
 
     match /courierLocations/{courierId} {
-      allow read: if signedIn();
+      allow get: if isAdmin()
+        || (signedIn() && request.auth.uid == courierId)
+        || (
+          signedIn()
+          && resource.data.visibleToCustomerIds is list
+          && request.auth.uid in resource.data.visibleToCustomerIds
+        );
 
-      allow create: if signedIn()
-        && request.auth.uid == courierId;
+      allow list: if isAdmin()
+        || (
+          signedIn()
+          && request.query.whereField('visibleToCustomerIds', 'array-contains', request.auth.uid)
+        );
 
-      allow update: if signedIn()
-        && request.auth.uid == courierId;
-
-      allow delete: if isAdmin()
+      allow create: if isAdmin()
         || (
           signedIn()
           && request.auth.uid == courierId
+          && request.resource.data.courierId == request.auth.uid
+          && request.resource.data.latitude is number
+          && request.resource.data.longitude is number
+          && request.resource.data.visibleToCustomerIds is list
         );
+
+      allow update: if isAdmin()
+        || (
+          signedIn()
+          && request.auth.uid == courierId
+          && resource.data.courierId == request.auth.uid
+          && request.resource.data.courierId == resource.data.courierId
+          && request.resource.data.latitude is number
+          && request.resource.data.longitude is number
+          && request.resource.data.visibleToCustomerIds is list
+        );
+
+      allow delete: if isAdmin()
+        || (signedIn() && request.auth.uid == courierId);
     }
 
     match /pricing/{pricingId} {
@@ -222,7 +262,17 @@ service cloud.firestore {
         );
 
       allow create: if signedIn()
-        && request.resource.data.customerId == request.auth.uid;
+        && isOrderCustomer(ratingId)
+        && request.resource.data.orderId == ratingId
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.courierId ==
+          get(/databases/$(database)/documents/orders/$(ratingId)).data.courierId
+        && get(/databases/$(database)/documents/orders/$(ratingId)).data.status == 'Teslim Edildi'
+        && request.resource.data.score is int
+        && request.resource.data.score >= 1
+        && request.resource.data.score <= 5
+        && request.resource.data.comment is string
+        && request.resource.data.comment.size() <= 2000;
 
       allow update, delete: if isAdmin();
     }
@@ -235,12 +285,20 @@ service cloud.firestore {
         );
 
       allow create: if signedIn()
-        && request.resource.data.customerId == request.auth.uid;
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.status == 'bekliyor'
+        && request.resource.data.customerEmail == request.auth.token.email;
 
       allow update: if isAdmin()
         || (
           signedIn()
           && resource.data.customerId == request.auth.uid
+          && request.resource.data.customerId == resource.data.customerId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'lastMessage',
+            'lastMessageAt',
+            'updatedAt'
+          ])
         );
 
       allow delete: if isAdmin();
@@ -257,7 +315,23 @@ service cloud.firestore {
         allow create: if isAdmin()
           || (
             signedIn()
+            && get(
+              /databases/$(database)/documents/supportTickets/$(ticketId)
+            ).data.customerId == request.auth.uid
             && request.resource.data.senderId == request.auth.uid
+            && request.resource.data.senderRole == 'customer'
+            && request.resource.data.text is string
+            && request.resource.data.text.size() <= 2000
+          )
+          || (
+            signedIn()
+            && get(
+              /databases/$(database)/documents/supportTickets/$(ticketId)
+            ).data.assignedAdminId == request.auth.uid
+            && request.resource.data.senderId == request.auth.uid
+            && request.resource.data.senderRole == 'admin'
+            && request.resource.data.text is string
+            && request.resource.data.text.size() <= 2000
           );
 
         allow update, delete: if isAdmin();
