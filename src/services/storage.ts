@@ -722,7 +722,8 @@ class StorageService {
     uid: string,
     role: string
   ): void {
-    if (role === "admin" || role === "customer") {const unsubscribe =
+    if (role === "admin") {
+      const unsubscribe =
         onSnapshot(
           collection(
             db,
@@ -756,6 +757,60 @@ class StorageService {
           (error) => {
             console.error(
               "❌ Courier locations listener hatası:",
+              error
+            );
+          }
+        );
+
+      this.firestoreUnsubscribers.push(
+        unsubscribe
+      );
+
+      return;
+    }
+
+    if (role === "customer") {
+      const unsubscribe =
+        onSnapshot(
+          query(
+            collection(
+              db,
+              "courierLocations"
+            ),
+            where(
+              "visibleToCustomerIds",
+              "array-contains",
+              uid
+            )
+          ),
+          (snapshot) => {
+            try {
+              this.courierLocations =
+                snapshot.docs.map(
+                  (item) => {
+                    const data =
+                      item.data() as CourierLocation;
+
+                    return {
+                      ...data,
+                      courierId:
+                        data.courierId ||
+                        item.id,
+                    };
+                  }
+                );
+
+              this.emit();
+            } catch (error) {
+              console.error(
+                "❌ Müşteri courier location snapshot işleme hatası:",
+                error
+              );
+            }
+          },
+          (error) => {
+            console.error(
+              "❌ Müşteri courier location listener hatası:",
               error
             );
           }
@@ -905,6 +960,8 @@ class StorageService {
               existingLocation.longitude,
             updatedAt: now,
             isSharing: false,
+            visibleToCustomerIds:
+              existingLocation.visibleToCustomerIds || [],
           },
           {
             merge: true,
@@ -2271,9 +2328,30 @@ class StorageService {
       );
     }
 
+    const visibleToCustomerIds =
+      Array.from(
+        new Set(
+          this.orders
+            .filter(
+              (order) =>
+                order.courierId ===
+                location.courierId &&
+                order.status !== "İptal Edildi" &&
+                typeof order.customerId === "string" &&
+                order.customerId.length > 0
+            )
+            .map(
+              (order) =>
+                order.customerId
+            )
+        )
+      );
+
     const finalLocation:
       CourierLocation = {
       ...location,
+
+      visibleToCustomerIds,
 
       updatedAt:
         new Date().toISOString(),
