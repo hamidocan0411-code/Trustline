@@ -332,6 +332,63 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
 
         <section id="services" className="scroll-mt-20 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><div><p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Hizmetlerimiz</p><h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">İhtiyacınıza uygun teslimat çözümü</h2></div><p className="max-w-xl text-sm leading-6 text-slate-400">Standart gönderiden eczane teslimatına kadar farklı teslimat ihtiyaçlarını aynı deneyimde buluşturuyoruz.</p></div><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{SERVICE_DETAILS.map((service) => <article key={service.id} className="group rounded-3xl border border-white/10 bg-white/[0.035] p-5 transition duration-300 hover:-translate-y-1 hover:border-orange-400/30 hover:bg-orange-400/[0.04]"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500/10 text-xl">{service.icon}</div><h3 className="mt-5 text-lg font-black text-white">{service.title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{service.description}</p><button type="button" onClick={() => setSelectedServiceId(service.id)} className="mt-5 inline-flex min-h-9 items-center text-xs font-black text-orange-300 transition group-hover:translate-x-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]">Detaylar →</button></article>)}</div></section>
 
+        <section id="brands" className="scroll-mt-20 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+          <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Güvenilir iş birlikleri</p>
+              <h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">
+                Çalıştığımız
+                <span className="block text-orange-300">Markalar</span>
+              </h2>
+              <p className="mt-5 max-w-xl text-sm leading-7 text-slate-400">
+                Güvenilir iş ortaklarımızla, daha hızlı ve daha güçlü bir teslimat deneyimi sunuyoruz.
+              </p>
+              <div className="mt-8 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                {[
+                  ["🤝", "Güvenilir İş Ortakları"],
+                  ["🛡️", "Sürekli Destek"],
+                  ["📈", "Daha Güçlü Teslimat Ağı"],
+                ].map(([icon, label]) => (
+                  <div key={label} className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3">
+                    <span aria-hidden="true" className="text-base">{icon}</span>
+                    <span className="text-xs font-black leading-5 text-slate-300">{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <article className="relative overflow-hidden rounded-[32px] border border-orange-300/20 bg-gradient-to-br from-white/[0.055] via-white/[0.025] to-orange-500/[0.07] p-5 shadow-[0_30px_90px_rgba(0,0,0,0.38)] sm:p-7">
+              <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-orange-400/10 blur-3xl" />
+              <div className="relative">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="inline-flex items-center rounded-full border border-orange-300/20 bg-orange-400/[0.07] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-orange-200">
+                    ★ İş Ortağımız
+                  </span>
+                </div>
+
+                <div className="mt-5 flex min-h-[260px] items-center justify-center rounded-[26px] border border-white/10 bg-white p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:min-h-[300px] sm:p-8">
+                  <img
+                    src="/brands/mavi-reklam.png"
+                    alt="Mavi Reklam"
+                    loading="lazy"
+                    decoding="async"
+                    className="h-auto max-h-[210px] w-auto max-w-full object-contain sm:max-h-[240px]"
+                  />
+                </div>
+
+                <div className="mt-5 flex items-end justify-between gap-5">
+                  <div>
+                    <h3 className="text-lg font-black text-white">Güçlü markalar, daha güçlü teslimatlar.</h3>
+                    <p className="mt-2 max-w-md text-xs leading-5 text-slate-400">
+                      İş ortaklarımızla kurduğumuz güçlü operasyon ağı, teslimat süreçlerimizin daha düzenli ilerlemesine katkı sağlar.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
         <section id="how-it-works" className="scroll-mt-20 border-y border-white/[0.06] bg-[#080808]"><div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="max-w-2xl"><p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Nasıl çalışır?</p><h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">Sadece birkaç adımda gönderiniz yola çıksın.</h2></div><div className="relative mt-14"><div className="absolute left-[8%] right-[8%] top-7 hidden h-px bg-gradient-to-r from-orange-500/10 via-orange-500 to-orange-500/10 lg:block"/><div className="grid gap-8 lg:grid-cols-5">{[["01", "Siparişini oluştur"], ["02", "Kurye atanır"], ["03", "Gönderin teslim alınır"], ["04", "Canlı takip"], ["05", "Güvenli teslimat"]].map(([num, label], index) => <div key={num} className="relative text-center lg:text-left"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-orange-400/40 bg-[#080808] text-sm font-black text-orange-300 shadow-[0_0_30px_rgba(249,115,22,0.12)] lg:mx-0">{index === 0 ? "✦" : num}</div><p className="mt-4 text-sm font-black text-white">{label}</p><p className="mt-2 text-xs leading-5 text-slate-500">Teslimat adımının sıradaki aşaması.</p></div>)}</div></div></div></section>
 
         <section id="corporate" className="scroll-mt-20 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="rounded-[34px] border border-white/10 bg-gradient-to-br from-white/[0.045] via-white/[0.02] to-orange-500/[0.06] p-6 sm:p-8 lg:p-10"><div className="grid gap-10 lg:grid-cols-[1fr_1.2fr] lg:items-center"><div><p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Kurumsal avantajlar</p><h2 className="mt-4 text-4xl font-black tracking-tight text-white">Güven, teslimatla büyür.</h2><p className="mt-4 max-w-xl text-sm leading-6 text-slate-400">İşletmelerin düzenli teslimat ihtiyaçlarını daha kontrollü ve izlenebilir bir operasyon deneyimiyle yönetmesine yardımcı olan bir yapı.</p></div><div className="grid gap-3 sm:grid-cols-2">{[["01", "Operasyon odaklı", "Teslimat akışını tek noktadan yönetmeye yardımcı olur."], ["02", "Takip edilebilir", "Süreç boyunca gönderi durumunun izlenmesini destekler."], ["03", "Eczane 7/24", "Eczane ürünleri için günün her saatinde teslimat hizmeti."], ["04", "Mobil uyumlu", "Farklı ekranlarda erişilebilir ve sade kullanım."]].map(([num, title, body]) => <div key={num} className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-[10px] font-black tracking-[0.2em] text-orange-300">{num}</p><p className="mt-2 text-sm font-black text-white">{title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{body}</p></div>)}</div></div></div></section>
