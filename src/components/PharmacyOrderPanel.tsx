@@ -343,6 +343,7 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
         pickupAddress: pharmacyAddress.trim(),
         deliveryAddress: deliveryAddress.trim(),
         packageType: "Diğer",
+        packageSize: "Küçük",
         packageCount: quantity,
         courierType,
         urgency,
