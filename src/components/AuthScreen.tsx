@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { loginWithGoogle } from "../services/auth";
 
@@ -58,10 +58,82 @@ function getDetailedFirebaseError(error: unknown): string {
   return details.join("\n");
 }
 
+const LOGIN_MUSIC_STORAGE_KEY = "trustline_music_enabled";
+const LOGIN_MUSIC_SRC = "/audio/trustline-login.mp3";
+
 export function AuthScreen({ onLogin }: AuthScreenProps) {
   const [loading, setLoading] = useState(false);
+  const [musicEnabled, setMusicEnabled] = useState(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fadeTimerRef = useRef<number | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(LOGIN_MUSIC_STORAGE_KEY);
+    if (stored === "false") setMusicEnabled(false);
+
+    const audio = new Audio(LOGIN_MUSIC_SRC);
+    audio.loop = true;
+    audio.preload = "none";
+    audio.volume = 0;
+    audioRef.current = audio;
+
+    const startMusic = () => {
+      if (!audioRef.current || !musicEnabled || window.localStorage.getItem(LOGIN_MUSIC_STORAGE_KEY) === "false") return;
+      const player = audioRef.current;
+      if (!player.paused) return;
+
+      player.volume = 0;
+      void player.play().then(() => {
+        if (fadeTimerRef.current !== null) window.clearInterval(fadeTimerRef.current);
+        const target = 0.1;
+        const step = target / 8;
+        let volume = 0;
+        fadeTimerRef.current = window.setInterval(() => {
+          volume = Math.min(target, volume + step);
+          player.volume = volume;
+          if (volume >= target && fadeTimerRef.current !== null) {
+            window.clearInterval(fadeTimerRef.current);
+            fadeTimerRef.current = null;
+          }
+        }, 75);
+      }).catch(() => {
+        // Browser autoplay policy may reject playback; retry on the next user interaction.
+      });
+    };
+
+    const handleFirstInteraction = () => startMusic();
+    window.addEventListener("pointerdown", handleFirstInteraction, { passive: true });
+    window.addEventListener("keydown", handleFirstInteraction);
+    window.addEventListener("focusin", handleFirstInteraction);
+
+    return () => {
+      window.removeEventListener("pointerdown", handleFirstInteraction);
+      window.removeEventListener("keydown", handleFirstInteraction);
+      window.removeEventListener("focusin", handleFirstInteraction);
+      if (fadeTimerRef.current !== null) window.clearInterval(fadeTimerRef.current);
+      audio.pause();
+      audio.currentTime = 0;
+      audioRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!musicEnabled) {
+      if (fadeTimerRef.current !== null) window.clearInterval(fadeTimerRef.current);
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = 0;
+      window.localStorage.setItem(LOGIN_MUSIC_STORAGE_KEY, "false");
+    } else {
+      window.localStorage.setItem(LOGIN_MUSIC_STORAGE_KEY, "true");
+    }
+  }, [musicEnabled]);
+
+  const toggleMusic = () => setMusicEnabled((enabled) => !enabled);
 
   const clearMessages = () => {
     setError("");
@@ -103,6 +175,16 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
         <div className="absolute bottom-[-12rem] left-[28%] h-[34rem] w-[34rem] rounded-full bg-orange-600/[0.08] blur-[150px]" />
         <div className="absolute inset-0 opacity-[0.055]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.20) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.20) 1px, transparent 1px)", backgroundSize: "72px 72px" }} />
       </div>
+
+      <button
+        type="button"
+        onClick={toggleMusic}
+        aria-label={musicEnabled ? "Login müziğini kapat" : "Login müziğini aç"}
+        aria-pressed={musicEnabled}
+        className="fixed bottom-4 right-4 z-[60] flex h-9 w-9 items-center justify-center rounded-full border border-orange-300/20 bg-[#0b0b0b]/90 text-orange-200/80 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl transition hover:border-orange-300/40 hover:bg-orange-400/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300/50"
+      >
+        <span aria-hidden="true" className="text-sm">{musicEnabled ? "♪" : "×"}</span>
+      </button>
 
       <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#050505]/85 backdrop-blur-2xl">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
