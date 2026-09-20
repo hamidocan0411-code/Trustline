@@ -340,7 +340,7 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
 
       {selectedService && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px] motion-safe:animate-[fadeIn_0.2s_ease-out_both]"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px] motion-safe:animate-[trustlineModalFadeIn_0.2s_ease-out_both]"
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setSelectedServiceId(null);
@@ -350,7 +350,7 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="service-detail-title"
-            className="w-full max-w-md overflow-hidden rounded-[28px] border border-orange-300/20 bg-[#0D0D0F] shadow-[0_30px_100px_rgba(0,0,0,0.55)] motion-safe:animate-[scaleIn_0.2s_ease-out_both]"
+            className="w-full max-w-md overflow-hidden rounded-[28px] border border-orange-300/20 bg-[#0D0D0F] shadow-[0_30px_100px_rgba(0,0,0,0.55)] motion-safe:animate-[trustlineModalScaleIn_0.2s_ease-out_both]"
           >
             <div className="p-5 sm:p-6">
               <div className="flex items-start justify-between gap-4">
