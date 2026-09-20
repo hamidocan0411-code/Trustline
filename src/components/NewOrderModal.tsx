@@ -495,6 +495,8 @@ export const NewOrderModal: React.FC<Props> = ({
 
           packageType,
 
+          packageSize,
+
           packageCount,
 
           courierType,
