@@ -138,6 +138,7 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState<ServiceDetail["id"] | null>(null);
+  const [selectedBrandIndex, setSelectedBrandIndex] = useState(0);
   const selectedService = selectedServiceId ? SERVICE_DETAILS.find((service) => service.id === selectedServiceId) ?? null : null;
 
 
@@ -380,7 +381,7 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
                   </span>
                 </div>
 
-                {BRAND_PARTNERS.slice(0, 1).map((brand) => (
+                {BRAND_PARTNERS.slice(selectedBrandIndex, selectedBrandIndex + 1).map((brand) => (
                   <div key={brand.name}>
                     <div className="mt-5 flex min-h-[260px] items-center justify-center rounded-[26px] border border-white/10 bg-white p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:min-h-[300px] sm:p-8">
                       <img
@@ -400,6 +401,40 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
                         </p>
                       </div>
                     </div>
+                    {BRAND_PARTNERS.length > 1 && (
+                      <div className="mt-5 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-1.5" aria-label="Marka seçimi">
+                          {BRAND_PARTNERS.map((brand, index) => (
+                            <button
+                              key={brand.name}
+                              type="button"
+                              onClick={() => setSelectedBrandIndex(index)}
+                              aria-label={brand.name}
+                              aria-pressed={selectedBrandIndex === index}
+                              className={`h-1.5 rounded-full transition-all ${selectedBrandIndex === index ? "w-6 bg-orange-300" : "w-1.5 bg-white/20 hover:bg-white/40"}`}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBrandIndex((selectedBrandIndex - 1 + BRAND_PARTNERS.length) % BRAND_PARTNERS.length)}
+                            aria-label="Önceki marka"
+                            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-slate-300 transition hover:border-orange-300/30 hover:text-white"
+                          >
+                            ←
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBrandIndex((selectedBrandIndex + 1) % BRAND_PARTNERS.length)}
+                            aria-label="Sonraki marka"
+                            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-slate-300 transition hover:border-orange-300/30 hover:text-white"
+                          >
+                            →
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
