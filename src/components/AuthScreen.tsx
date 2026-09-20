@@ -61,6 +61,61 @@ function getDetailedFirebaseError(error: unknown): string {
 const LOGIN_MUSIC_STORAGE_KEY = "trustline_music_enabled";
 const LOGIN_MUSIC_SRC = "/audio/trustline-login.mp3";
 
+
+type ServiceDetail = {
+  id: "standard" | "urgent" | "pharmacy" | "corporate";
+  icon: string;
+  title: string;
+  description: string;
+  body: string;
+  details: string[];
+  cta: string;
+  ctaHref: string;
+};
+
+const SERVICE_DETAILS: ServiceDetail[] = [
+  {
+    id: "standard",
+    icon: "📦",
+    title: "Standart Gönderi",
+    description: "Günlük gönderileriniz için güvenilir teslimat çözümü.",
+    body: "Belge, küçük paket, evrak ve günlük gönderilerinizi güvenli ve planlı şekilde teslim ediyoruz.",
+    details: ["Belge ve paket gönderileri", "Günlük bireysel gönderiler", "Adresten teslim alma", "Belirtilen adrese teslimat", "Gönderi takip imkanı", "Güvenli teslimat süreci"],
+    cta: "Sipariş Oluştur →",
+    ctaHref: "#login",
+  },
+  {
+    id: "urgent",
+    icon: "⚡",
+    title: "Acil Teslimat",
+    description: "Zaman kritik gönderileriniz için hızlı teslimat çözümü.",
+    body: "Acil ulaştırılması gereken belge ve paketler için öncelikli teslimat hizmeti sunuyoruz.",
+    details: ["Zaman kritik gönderiler", "Öncelikli teslimat", "Hızlı kurye yönlendirmesi", "Belge ve paket gönderileri", "Teslimat süreci takibi", "Hızlı iletişim ve destek"],
+    cta: "Acil Teslimat Talebi →",
+    ctaHref: "#login",
+  },
+  {
+    id: "pharmacy",
+    icon: "💊",
+    title: "Eczane Teslimatı",
+    description: "Eczane ürünleri için hızlı ve güvenilir teslimat desteği.",
+    body: "Eczanelerin müşterilerine ulaştırması gereken uygun gönderiler için hızlı teslimat operasyonu sunuyoruz.",
+    details: ["Eczane kaynaklı gönderiler", "Hızlı teslimat", "7/24 operasyon desteği", "Adresten teslim alma", "Belirtilen adrese teslimat", "Teslimat süreci takibi"],
+    cta: "Eczane Teslimatı Talebi →",
+    ctaHref: "#login",
+  },
+  {
+    id: "corporate",
+    icon: "🏢",
+    title: "Kurumsal Çözümler",
+    description: "İşletmelerin düzenli kurye ihtiyaçları için operasyonel teslimat çözümleri.",
+    body: "Düzenli gönderim yapan işletmeler için planlı, takip edilebilir ve işletme ihtiyaçlarına göre şekillendirilebilen kurye hizmetleri sunuyoruz.",
+    details: ["Düzenli işletme gönderileri", "Kurumsal kurye desteği", "Planlı teslimatlar", "Çoklu gönderi operasyonları", "Gönderi takibi", "İşletmeye özel operasyon yaklaşımı"],
+    cta: "Kurumsal İletişim →",
+    ctaHref: "#contact",
+  },
+];
+
 export function AuthScreen({ onLogin }: AuthScreenProps) {
   const [loading, setLoading] = useState(false);
   const [musicEnabled, setMusicEnabled] = useState(true);
@@ -68,6 +123,18 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
   const fadeTimerRef = useRef<number | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [selectedServiceId, setSelectedServiceId] = useState<ServiceDetail["id"] | null>(null);
+  const selectedService = selectedServiceId ? SERVICE_DETAILS.find((service) => service.id === selectedServiceId) ?? null : null;
+
+
+  useEffect(() => {
+    if (!selectedServiceId) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedServiceId(null);
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [selectedServiceId]);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(LOGIN_MUSIC_STORAGE_KEY);
@@ -263,13 +330,62 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
           </div>
         </section>
 
-        <section id="services" className="scroll-mt-20 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><div><p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Hizmetlerimiz</p><h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">İhtiyacınıza uygun teslimat çözümü</h2></div><p className="max-w-xl text-sm leading-6 text-slate-400">Standart gönderiden eczane teslimatına kadar farklı teslimat ihtiyaçlarını aynı deneyimde buluşturuyoruz.</p></div><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[["📦", "Standart Gönderi", "Belge, paket ve günlük gönderiler için teslimat akışı."], ["⚡", "Acil Teslimat", "Zaman kritik gönderiler için hızlı teslimat seçeneği."], ["💊", "Eczane Teslimatı", "Eczane ürünleri için 7/24 teslimat hizmeti."], ["🏢", "Kurumsal Çözümler", "İşletmelerin düzenli kurye ihtiyaçları için operasyon odaklı yapı."]].map(([icon, title, body]) => <article key={title} className="group rounded-3xl border border-white/10 bg-white/[0.035] p-5 transition duration-300 hover:-translate-y-1 hover:border-orange-400/30 hover:bg-orange-400/[0.04]"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500/10 text-xl">{icon}</div><h3 className="mt-5 text-lg font-black text-white">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{body}</p><span className="mt-5 inline-flex items-center text-xs font-black text-orange-300 transition group-hover:translate-x-1">Detaylar →</span></article>)}</div></section>
+        <section id="services" className="scroll-mt-20 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><div><p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Hizmetlerimiz</p><h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">İhtiyacınıza uygun teslimat çözümü</h2></div><p className="max-w-xl text-sm leading-6 text-slate-400">Standart gönderiden eczane teslimatına kadar farklı teslimat ihtiyaçlarını aynı deneyimde buluşturuyoruz.</p></div><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{SERVICE_DETAILS.map((service) => <article key={service.id} className="group rounded-3xl border border-white/10 bg-white/[0.035] p-5 transition duration-300 hover:-translate-y-1 hover:border-orange-400/30 hover:bg-orange-400/[0.04]"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500/10 text-xl">{service.icon}</div><h3 className="mt-5 text-lg font-black text-white">{service.title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{service.description}</p><button type="button" onClick={() => setSelectedServiceId(service.id)} className="mt-5 inline-flex min-h-9 items-center text-xs font-black text-orange-300 transition group-hover:translate-x-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]">Detaylar →</button></article>)}</div></section>
 
         <section id="how-it-works" className="scroll-mt-20 border-y border-white/[0.06] bg-[#080808]"><div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="max-w-2xl"><p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Nasıl çalışır?</p><h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">Sadece birkaç adımda gönderiniz yola çıksın.</h2></div><div className="relative mt-14"><div className="absolute left-[8%] right-[8%] top-7 hidden h-px bg-gradient-to-r from-orange-500/10 via-orange-500 to-orange-500/10 lg:block"/><div className="grid gap-8 lg:grid-cols-5">{[["01", "Siparişini oluştur"], ["02", "Kurye atanır"], ["03", "Gönderin teslim alınır"], ["04", "Canlı takip"], ["05", "Güvenli teslimat"]].map(([num, label], index) => <div key={num} className="relative text-center lg:text-left"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-orange-400/40 bg-[#080808] text-sm font-black text-orange-300 shadow-[0_0_30px_rgba(249,115,22,0.12)] lg:mx-0">{index === 0 ? "✦" : num}</div><p className="mt-4 text-sm font-black text-white">{label}</p><p className="mt-2 text-xs leading-5 text-slate-500">Teslimat adımının sıradaki aşaması.</p></div>)}</div></div></div></section>
 
         <section id="corporate" className="scroll-mt-20 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="rounded-[34px] border border-white/10 bg-gradient-to-br from-white/[0.045] via-white/[0.02] to-orange-500/[0.06] p-6 sm:p-8 lg:p-10"><div className="grid gap-10 lg:grid-cols-[1fr_1.2fr] lg:items-center"><div><p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Kurumsal avantajlar</p><h2 className="mt-4 text-4xl font-black tracking-tight text-white">Güven, teslimatla büyür.</h2><p className="mt-4 max-w-xl text-sm leading-6 text-slate-400">İşletmelerin düzenli teslimat ihtiyaçlarını daha kontrollü ve izlenebilir bir operasyon deneyimiyle yönetmesine yardımcı olan bir yapı.</p></div><div className="grid gap-3 sm:grid-cols-2">{[["01", "Operasyon odaklı", "Teslimat akışını tek noktadan yönetmeye yardımcı olur."], ["02", "Takip edilebilir", "Süreç boyunca gönderi durumunun izlenmesini destekler."], ["03", "Eczane 7/24", "Eczane ürünleri için günün her saatinde teslimat hizmeti."], ["04", "Mobil uyumlu", "Farklı ekranlarda erişilebilir ve sade kullanım."]].map(([num, title, body]) => <div key={num} className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-[10px] font-black tracking-[0.2em] text-orange-300">{num}</p><p className="mt-2 text-sm font-black text-white">{title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{body}</p></div>)}</div></div></div></section>
 
         <section id="contact" className="scroll-mt-20 border-t border-white/[0.06] bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.14),transparent_48%)]"><div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 py-20 text-center sm:px-6 lg:px-8 lg:py-28"><p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">TrustLine Express</p><h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-6xl">Gönderiniz hazır mı?</h2><p className="mt-5 max-w-2xl text-base leading-7 text-slate-400">TrustLine Express ile güvenli ve hızlı teslimat deneyimine devam edin.</p><div className="mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row"><a href="#login" className="inline-flex items-center justify-center rounded-full bg-orange-500 px-7 py-3.5 text-sm font-black text-white shadow-[0_18px_45px_rgba(249,115,22,0.28)] transition hover:-translate-y-0.5 hover:bg-orange-400">Google ile Giriş Yap →</a><a href="#services" className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/[0.03] px-7 py-3.5 text-sm font-black text-white transition hover:border-orange-300/40 hover:bg-orange-400/10">Hizmetlerimizi Keşfet</a></div></div></section>
+
+      {selectedService && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px] motion-safe:animate-[fadeIn_0.2s_ease-out_both]"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSelectedServiceId(null);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="service-detail-title"
+            className="w-full max-w-md overflow-hidden rounded-[28px] border border-orange-300/20 bg-[#0D0D0F] shadow-[0_30px_100px_rgba(0,0,0,0.55)] motion-safe:animate-[scaleIn_0.2s_ease-out_both]"
+          >
+            <div className="p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-300/15 bg-orange-400/10 text-xl">
+                    {selectedService.icon}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-300">Hizmet detayı</p>
+                    <h3 id="service-detail-title" className="mt-1 text-xl font-black text-white">{selectedService.title}</h3>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setSelectedServiceId(null)} aria-label="Hizmet detayını kapat" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-lg text-slate-400 transition hover:border-orange-300/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300/60">×</button>
+              </div>
+
+              <p className="mt-5 text-sm font-semibold leading-6 text-slate-200">{selectedService.description}</p>
+              <p className="mt-3 text-xs leading-6 text-slate-400">{selectedService.body}</p>
+
+              <div className="mt-5 space-y-2.5">
+                {selectedService.details.map((detail) => (
+                  <div key={detail} className="flex items-start gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2.5">
+                    <span className="mt-0.5 text-xs font-black text-orange-300">✓</span>
+                    <span className="text-xs font-semibold leading-5 text-slate-300">{detail}</span>
+                  </div>
+                ))}
+              </div>
+
+              <a href={selectedService.ctaHref} onClick={() => setSelectedServiceId(null)} className="mt-6 flex min-h-11 items-center justify-center rounded-xl bg-orange-500 px-4 py-3 text-xs font-black text-white shadow-[0_12px_30px_rgba(249,115,22,0.2)] transition hover:bg-orange-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300/70">
+                {selectedService.cta}
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
       </main>
 
       <footer className="border-t border-white/[0.06] bg-black/40"><div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8"><div><img src="https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png" alt="TrustLine Express" className="h-10 w-auto object-contain" loading="lazy"/><p className="mt-3 text-xs leading-5 text-slate-500">Profesyonel kurye ve teslimat hizmeti.</p></div><div className="flex flex-wrap gap-4 text-xs font-bold text-slate-500"><a href="#services" className="transition hover:text-orange-300">Hizmetler</a><a href="#how-it-works" className="transition hover:text-orange-300">Nasıl Çalışır?</a><a href="#corporate" className="transition hover:text-orange-300">Kurumsal</a><a href="#contact" className="transition hover:text-orange-300">İletişim</a></div></div></footer>
