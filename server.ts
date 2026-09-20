@@ -7,6 +7,7 @@ import express, {
 import session from "express-session";
 import path from "path";
 import https from "https";
+import { randomBytes } from "crypto";
 import { fileURLToPath } from "url";
 
 const __filename =
@@ -18,6 +19,25 @@ const __dirname =
 const app = express();
 
 app.set("trust proxy", 1);
+
+// Baseline security headers without adding a runtime dependency.
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader(
+    "Permissions-Policy",
+    "camera=(self), microphone=(self), geolocation=(self), payment=()"
+  );
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains"
+    );
+  }
+  next();
+});
 
 /**
  * ============================================================
@@ -63,16 +83,7 @@ app.use(
     const targetPath =
       `/__/auth${req.url}`;
 
-    console.log(
-      "🔥 FIREBASE AUTH PROXY REQUEST:",
-      {
-        method: req.method,
-        incomingHost:
-          req.headers.host,
-        targetHost,
-        targetPath,
-      }
-    );
+    // Do not log auth query strings, cookies, or redirect state.
 
     const headers: Record<
       string,
@@ -135,18 +146,8 @@ app.use(
           proxyResponse
         ) => {
           console.log(
-            "🔥 FIREBASE AUTH PROXY RESPONSE:",
-            {
-              statusCode:
-                proxyResponse.statusCode,
-
-              path:
-                targetPath,
-
-              location:
-                proxyResponse
-                  .headers.location,
-            }
+            "Firebase Auth proxy response:",
+            proxyResponse.statusCode
           );
 
           /**
@@ -212,12 +213,7 @@ app.use(
                 );
 
                 console.log(
-                  "🔁 FIREBASE LOCATION REWRITTEN:",
-                  {
-                    original:
-                      locations,
-                    rewritten,
-                  }
+                  "Firebase Auth proxy location rewritten."
                 );
 
                 return;
@@ -266,7 +262,7 @@ app.use(
                 );
 
                 console.log(
-                  "🍪 FIREBASE COOKIE REWRITTEN"
+                  "Firebase Auth proxy cookie rewritten."
                 );
 
                 return;
@@ -309,9 +305,6 @@ app.use(
             .json({
               error:
                 "Firebase Auth proxy error",
-
-              message:
-                error.message,
             });
         } else {
           res.end();
@@ -347,11 +340,13 @@ app.use(
  * ============================================================
  */
 
+const sessionSecret =
+  process.env.SESSION_SECRET ||
+  randomBytes(32).toString("hex");
+
 app.use(
   session({
-    secret:
-      process.env.SESSION_SECRET ||
-      "trustline-secret-key",
+    secret: sessionSecret,
 
     resave: false,
 
