@@ -6,6 +6,7 @@ on:
     paths:
       - 'firestore.rules'
       - '.github/workflows/firestore-rules-check.yml'
+      - 'firebase.json'
 
 permissions:
   contents: read
