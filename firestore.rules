@@ -216,7 +216,8 @@ service cloud.firestore {
       allow list: if isAdmin()
         || (
           signedIn()
-          && request.query.whereField('visibleToCustomerIds', 'array-contains', request.auth.uid)
+          && resource.data.visibleToCustomerIds is list
+          && request.auth.uid in resource.data.visibleToCustomerIds
         );
 
       allow create: if isAdmin()
