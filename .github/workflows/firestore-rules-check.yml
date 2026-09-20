@@ -19,5 +19,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Validate Firestore rules
         run: npx --yes firebase-tools emulators:exec --only firestore --project demo-trustline "node -e \"console.log('Firestore rules loaded')\""
