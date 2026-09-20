@@ -98,6 +98,7 @@ export interface Order {
   deliveryAddress: string;
 
   packageType: PackageType;
+  packageSize?: 'Küçük' | 'Orta' | 'Büyük' | 'Çok Büyük';
   courierType: CourierType;
   urgency: UrgencyLevel;
 
