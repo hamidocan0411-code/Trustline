@@ -164,6 +164,12 @@ service cloud.firestore {
             'courierName',
             'courierPhone'
           ])
+          && request.resource.data.status in [
+            'Kurye Atandı',
+            'Paket Alındı',
+            'Teslimatta',
+            'Teslim Edildi'
+          ]
         );
 
       allow delete: if isAdmin();
@@ -334,7 +340,11 @@ service cloud.firestore {
           ])
         );
 
-      allow delete: if isAdmin();
+      allow delete: if isAdmin()
+        || (
+          signedIn()
+          && resource.data.customerId == request.auth.uid
+        );
 
       match /messages/{messageId} {
         allow read: if isAdmin()
@@ -367,7 +377,15 @@ service cloud.firestore {
             && request.resource.data.text.size() <= 2000
           );
 
-        allow update, delete: if isAdmin();
+        allow update: if isAdmin();
+
+        allow delete: if isAdmin()
+          || (
+            signedIn()
+            && get(
+              /databases/$(database)/documents/supportTickets/$(ticketId)
+            ).data.customerId == request.auth.uid
+          );
       }
     }
   }
