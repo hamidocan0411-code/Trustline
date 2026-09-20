@@ -1,4 +1,4 @@
-﻿rules_version = '2';
+rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
@@ -24,19 +24,60 @@ service firebase.storage {
         );
     }
 
-    match /delivery-proofs/{orderId}/{fileName} {
-      allow read: if signedIn();
-
-      allow create, update:
-        if signedIn()
-        && request.resource.size <= 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
-
-      allow delete: if isAdmin();
+    function isOrderCustomer(orderId) {
+      return signedIn()
+        && firestore.exists(
+          /databases/(default)/documents/orders/$(orderId)
+        )
+        && firestore.get(
+          /databases/(default)/documents/orders/$(orderId)
+        ).data.customerId == request.auth.uid;
     }
+
+    function isOrderCourier(orderId) {
+      return signedIn()
+        && firestore.exists(
+          /databases/(default)/documents/orders/$(orderId)
+        )
+        && firestore.get(
+          /databases/(default)/documents/orders/$(orderId)
+        ).data.courierId == request.auth.uid;
+    }
+
+    match /delivery-proofs/{orderId}/{fileName} {
+      allow read: if isAdmin()
+        || isOrderCustomer(orderId)
+        || isOrderCourier(orderId);
+
+      allow create, update: if isAdmin()
+        || (
+          isOrderCourier(orderId)
+          && request.resource.size <= 10 * 1024 * 1024
+          && request.resource.contentType.matches('image/.*')
+        );
+
+      allow delete: if isAdmin()
+        || isOrderCourier(orderId);
+    }
+
+    match /pharmacy-prescriptions/{orderId}/{fileName} {
+      allow read: if isAdmin()
+        || isOrderCustomer(orderId)
+        || isOrderCourier(orderId);
+
+      allow create, update: if isOrderCustomer(orderId)
+        && request.resource.size <= 10 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/pdf'
+        );
+
+      allow delete: if isAdmin()
+        || isOrderCustomer(orderId);
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }
   }
 }
-
