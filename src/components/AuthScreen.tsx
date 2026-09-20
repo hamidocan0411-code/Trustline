@@ -342,7 +342,7 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px] motion-safe:animate-[trustlineModalFadeIn_0.2s_ease-out_both]"
           role="presentation"
-          onMouseDown={(event) => {
+          onPointerDown={(event) => {
             if (event.target === event.currentTarget) setSelectedServiceId(null);
           }}
         >
