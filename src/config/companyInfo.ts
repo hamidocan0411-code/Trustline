@@ -3,13 +3,8 @@ export const COMPANY_INFO = {
   brand: "TrustLine Express",
   phone: "+90 551 493 11 84",
   phoneHref: "tel:+905514931184",
-  email: "",
-  address: "",
-  workingHours: "",
+  email: "trustlineexpress0@gmail.com",
+  emailHref: "mailto:trustlineexpress0@gmail.com",
+  address: "İstanbul, Avcılar, Cihangir Mahallesi, Cenk Sokak No: 16, Daire: 9",
   website: "https://trustlineexpress.com.tr",
 } as const;
-
-export const COMPANY_PLACEHOLDER = "[ŞİRKET BİLGİSİ EKLENECEK]";
-export const EMAIL_PLACEHOLDER = "[GERÇEK ŞİRKET E-POSTASI]";
-export const ADDRESS_PLACEHOLDER = "[GERÇEK ŞİRKET ADRESİ]";
-export const HOURS_PLACEHOLDER = "[GERÇEK ÇALIŞMA SAATLERİ]";
