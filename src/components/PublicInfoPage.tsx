@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { COMPANY_INFO, ADDRESS_PLACEHOLDER, EMAIL_PLACEHOLDER, COMPANY_PLACEHOLDER } from "../config/companyInfo";
 import { Footer } from "./Footer";
 
-type PageKey = "about" | "company" | "kvkk" | "privacy" | "terms" | "cookies";
+export type PageKey = "about" | "company" | "kvkk" | "privacy" | "terms" | "cookies";
 
 const PAGE_CONFIG: Record<PageKey, { title: string; description: string; path: string }> = {
   about: { title: "Biz Kimiz?", description: "TrustLine Express hakkında, çalışma yaklaşımımız ve hizmet anlayışımız.", path: "/biz-kimiz" },
