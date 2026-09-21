@@ -1,4 +1,4 @@
-TRUSTLINE EXPRESS
+Trustline Express
 
 Proje Durumu, Mevcut Özellikler ve Geliştirme Yol Haritası
 

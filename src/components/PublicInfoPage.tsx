@@ -5,12 +5,12 @@ import { Footer } from "./Footer";
 export type PageKey = "about" | "company" | "kvkk" | "privacy" | "terms" | "cookies";
 
 const PAGE_CONFIG: Record<PageKey, { title: string; description: string; path: string }> = {
-  about: { title: "Biz Kimiz?", description: "TrustLine Express hakkında, çalışma yaklaşımımız ve hizmet anlayışımız.", path: "/biz-kimiz" },
-  company: { title: "Şirket Bilgileri", description: "TrustLine Express şirket ve iletişim bilgileri.", path: "/sirket-bilgileri" },
-  kvkk: { title: "KVKK Aydınlatma Metni", description: "TrustLine Express kişisel verilerin işlenmesine ilişkin genel bilgilendirme.", path: "/kvkk" },
-  privacy: { title: "Gizlilik Politikası", description: "TrustLine Express gizlilik ve veri güvenliği hakkında genel bilgilendirme.", path: "/gizlilik" },
-  terms: { title: "Kullanım Koşulları", description: "TrustLine Express web sitesi ve hizmet kullanım koşulları hakkında genel bilgilendirme.", path: "/kullanim-kosullari" },
-  cookies: { title: "Çerez Politikası", description: "TrustLine Express çerez ve tarayıcı depolama teknolojileri hakkında bilgilendirme.", path: "/cerez-politikasi" },
+  about: { title: "Biz Kimiz?", description: "Trustline Express hakkında, çalışma yaklaşımımız ve hizmet anlayışımız.", path: "/biz-kimiz" },
+  company: { title: "Şirket Bilgileri", description: "Trustline Express şirket ve iletişim bilgileri.", path: "/sirket-bilgileri" },
+  kvkk: { title: "KVKK Aydınlatma Metni", description: "Trustline Express kişisel verilerin işlenmesine ilişkin genel bilgilendirme.", path: "/kvkk" },
+  privacy: { title: "Gizlilik Politikası", description: "Trustline Express gizlilik ve veri güvenliği hakkında genel bilgilendirme.", path: "/gizlilik" },
+  terms: { title: "Kullanım Koşulları", description: "Trustline Express web sitesi ve hizmet kullanım koşulları hakkında genel bilgilendirme.", path: "/kullanim-kosullari" },
+  cookies: { title: "Çerez Politikası", description: "Trustline Express çerez ve tarayıcı depolama teknolojileri hakkında bilgilendirme.", path: "/cerez-politikasi" },
 };
 
 const LEGAL_NOTE = "Bu metin genel bilgilendirme amacıyla hazırlanmıştır. Şirketin gerçek veri işleme süreçlerine ve hukuki yapısına göre yetkili hukuk danışmanı tarafından kontrol edilmelidir.";
@@ -23,7 +23,7 @@ function AboutPage() {
   const values = [["Güven","Sürecin mümkün olduğunca şeffaf ilerlemesi."],["Şeffaflık","Kullanıcının gönderisinin hangi aşamada olduğunu anlayabilmesi."],["Hız","Teslimat süreçlerini mümkün olduğunca verimli yürütmek."],["Müşteri Odaklılık","Kullanıcıların ihtiyaçlarını merkeze alan bir hizmet deneyimi."]];
   const steps = [["01","Gönderini Oluştur","Gönderi bilgilerini gir ve teslimat detaylarını oluştur."],["02","Kurye Süreci","Gönderin uygun teslimat sürecine alınır."],["03","Gönderini Takip Et","Mevcut takip sistemi üzerinden gönderinin durumunu takip et."],["04","Teslimat","Gönderi teslimat sürecinin tamamlanmasıyla sonuçlandırılır."]];
   return <div className="grid gap-5">
-    <Section title="TrustLine Express"><p>TrustLine Express; belgeler, paketler ve işletmelerin günlük teslimat ihtiyaçları için kurye ve teslimat çözümleri sunmayı hedefleyen bir markadır.</p><p className="mt-3">Amacımız, gönderi oluşturma sürecinden teslimata kadar kullanıcıya mümkün olduğunca açık ve anlaşılır bir deneyim sunmaktır.</p></Section>
+    <Section title="Trustline Express"><p>Trustline Express; belgeler, paketler ve işletmelerin günlük teslimat ihtiyaçları için kurye ve teslimat çözümleri sunmayı hedefleyen bir markadır.</p><p className="mt-3">Amacımız, gönderi oluşturma sürecinden teslimata kadar kullanıcıya mümkün olduğunca açık ve anlaşılır bir deneyim sunmaktır.</p></Section>
     <div className="grid gap-5 md:grid-cols-2"><Section title="Vizyonumuz">Teslimat süreçlerinde güven, hız ve şeffaflığı bir araya getiren modern bir hizmet deneyimi oluşturmak.</Section><Section title="Misyonumuz">Gönderilerin doğru şekilde oluşturulmasını, takip edilebilmesini ve teslimat sürecinin mümkün olduğunca anlaşılır olmasını sağlayan kullanıcı odaklı bir teslimat deneyimi sunmak.</Section></div>
     <Section title="Değerlerimiz"><div className="grid gap-3 sm:grid-cols-2">{values.map(([title,text])=><div key={title} className="rounded-2xl border border-white/[0.06] bg-black/20 p-4"><h3 className="font-black text-orange-200">{title}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{text}</p></div>)}</div></Section>
     <Section title="Nasıl Çalışır?"><div className="grid gap-3 sm:grid-cols-2">{steps.map(([num,title,text])=><div key={num} className="rounded-2xl border border-white/[0.06] bg-black/20 p-4"><span className="text-[10px] font-black tracking-[0.2em] text-orange-300">{num}</span><h3 className="mt-2 font-black text-white">{title}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{text}</p></div>)}</div></Section>
@@ -37,7 +37,7 @@ function CompanyPage() {
 
 function KvkkPage() {
   return <div className="grid gap-5">
-    <Section title="1. Veri Sorumlusu">Marka: TrustLine Express. Resmi veri sorumlusu bilgileri, şirketin hukuki yapısına göre ayrıca doğrulanmalıdır.</Section>
+    <Section title="1. Veri Sorumlusu">Marka: Trustline Express. Resmi veri sorumlusu bilgileri, şirketin hukuki yapısına göre ayrıca doğrulanmalıdır.</Section>
     <Section title="2. İşlenen Kişisel Veriler">Mevcut uygulama akışlarında kullanıcı hesabı ve sipariş süreçlerinde kullanılan bilgiler kapsamında ad soyad, telefon, e-posta, teslimat adresleri, gönderici/alıcı bilgileri, sipariş bilgileri ve kullanıcı hesabı bilgileri işlenebilir. Teknik/log verileri gerçek altyapı ve kayıt mekanizmaları doğrulanarak kesinleştirilmelidir.</Section>
     <Section title="3. Kişisel Verilerin İşlenme Amaçları">Hesap oluşturma ve doğrulama, sipariş oluşturma ve teslimat sürecinin yürütülmesi, gönderi takibi, kullanıcı desteği, güvenlik ve hizmetin teknik olarak işletilmesi.</Section>
     <Section title="4. Kişisel Verilerin Aktarılması">Aktarım kapsamı, gerçek operasyon ve hizmet sağlayıcı ilişkileri doğrulanarak belirlenmelidir. Firebase altyapısına ilişkin veri işleme ve aktarım ayrıntıları üretim yapılandırması üzerinden ayrıca doğrulanmalıdır.</Section>
@@ -51,7 +51,7 @@ function KvkkPage() {
 
 function PrivacyPage() {
   return <div className="grid gap-5">
-    <Section title="Genel Bilgilendirme">TrustLine Express, kullanıcı hesabı, sipariş ve teslimat süreçlerinin yürütülmesi için gerekli bilgileri hizmet amaçları doğrultusunda kullanmayı hedefler.</Section>
+    <Section title="Genel Bilgilendirme">Trustline Express, kullanıcı hesabı, sipariş ve teslimat süreçlerinin yürütülmesi için gerekli bilgileri hizmet amaçları doğrultusunda kullanmayı hedefler.</Section>
     <Section title="Hangi Bilgileri Topluyoruz?">Mevcut uygulama akışlarında kullanıcı profili ve sipariş işlemleri için kullanılan ad soyad, telefon, e-posta, teslimat/gönderi bilgileri ve sipariş verileri gibi alanlar bulunabilir. Kapsam gerçek veri akışları doğrulanarak kesinleştirilmelidir.</Section>
     <Section title="Bilgileri Neden Kullanıyoruz?">Hesap yönetimi, sipariş oluşturma, teslimat operasyonu, gönderi takibi, destek, güvenlik ve hizmetin teknik olarak çalıştırılması.</Section>
     <Section title="Hesap ve Sipariş Bilgileri">Hesap ve sipariş bilgileri ilgili hizmetlerin sunulabilmesi için Firebase tabanlı veri altyapısında işlenebilir.</Section>
@@ -67,11 +67,11 @@ function PrivacyPage() {
 
 function TermsPage() {
   const sections = [
-    ["1. Genel Hükümler","TrustLine Express web sitesini ve hizmetlerini kullanırken yürürlükteki mevzuata ve hizmet kullanım kurallarına uygun davranılması beklenir."],
+    ["1. Genel Hükümler","Trustline Express web sitesini ve hizmetlerini kullanırken yürürlükteki mevzuata ve hizmet kullanım kurallarına uygun davranılması beklenir."],
     ["2. Hizmetin Kullanımı","Kullanıcılar gönderi oluşturma ve takip özelliklerini doğru bilgiler sağlayarak kullanmalıdır."],
     ["3. Kullanıcı Sorumlulukları","Hesap bilgilerinin doğruluğu, iletişim bilgilerinin güncel tutulması ve gönderi bilgilerinin eksiksiz girilmesi kullanıcı sorumluluğundadır."],
     ["4. Gönderi Bilgilerinin Doğruluğu","Gönderici/alıcı bilgileri ve paket detayları mümkün olduğunca doğru girilmelidir. Yanlış veya eksik bilgi teslimat sürecini etkileyebilir."],
-    ["5. Yasaklı / Kabul Edilmeyen Gönderiler","Kabul edilmeyen gönderiler ilgili mevzuat ve TrustLine Express operasyonel kuralları doğrultusunda belirlenmelidir."],
+    ["5. Yasaklı / Kabul Edilmeyen Gönderiler","Kabul edilmeyen gönderiler ilgili mevzuat ve Trustline Express operasyonel kuralları doğrultusunda belirlenmelidir."],
     ["6. Teslimat Süreci","Gönderi oluşturma, kurye atama, teslim alma, takip ve teslimat adımları mevcut uygulamadaki süreç üzerinden yürütülür."],
     ["7. Ücretlendirme ve Ödeme","Mevcut sürümde sunulan ödeme seçeneği sipariş oluşturma sırasında gösterilir. Güncel uygulama akışında nakit ödeme kullanılmaktadır."],
     ["8. İptal / Değişiklik","İptal ve değişiklik imkanları mevcut sipariş akışında sunulan seçeneklere ve operasyonel duruma göre uygulanır."],
@@ -99,7 +99,7 @@ export function PublicInfoPage({ page }: { page: PageKey }) {
   const config = PAGE_CONFIG[page];
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = "TrustLine Express | " + config.title;
+    document.title = "Trustline Express | " + config.title;
     let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
     const created = !canonical;
     if (!canonical) { canonical = document.createElement("link"); canonical.rel = "canonical"; document.head.appendChild(canonical); }
@@ -115,15 +115,15 @@ export function PublicInfoPage({ page }: { page: PageKey }) {
   return <div className="min-h-screen overflow-x-hidden bg-[#050505] text-white">
     <header className="border-b border-white/[0.06] bg-[#050505]/95">
       <div className="mx-auto flex min-h-16 w-full max-w-5xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <a href="/#top" className="flex items-center gap-3" aria-label="TrustLine Express ana sayfa">
+        <a href="/#top" className="flex items-center gap-3" aria-label="Trustline Express ana sayfa">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-orange-300/20 bg-orange-400/10 text-sm font-black text-orange-200">T</span>
-          <span className="text-sm font-black tracking-[0.12em] text-white">TRUSTLINE <span className="text-orange-300">EXPRESS</span></span>
+          <span className="text-sm font-black tracking-[0.12em] text-white">Trustline <span className="text-orange-300">Express</span></span>
         </a>
         <a href="/#top" className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-black text-slate-300 transition hover:border-orange-300/30 hover:text-white">← Geri</a>
       </div>
     </header>
     <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
-      <div className="mb-8"><span className="inline-flex h-1 w-12 rounded-full bg-orange-300" /><p className="mt-5 text-xs font-black uppercase tracking-[0.28em] text-orange-300">TrustLine Express</p><h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-5xl">{config.title}</h1><p className="mt-4 max-w-3xl text-sm leading-7 text-slate-400">{config.description}</p></div>
+      <div className="mb-8"><span className="inline-flex h-1 w-12 rounded-full bg-orange-300" /><p className="mt-5 text-xs font-black uppercase tracking-[0.28em] text-orange-300">Trustline Express</p><h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-5xl">{config.title}</h1><p className="mt-4 max-w-3xl text-sm leading-7 text-slate-400">{config.description}</p></div>
       {content}
     </main>
     <Footer />

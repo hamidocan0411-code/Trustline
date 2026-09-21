@@ -71,8 +71,8 @@ export function Navbar({
             />
           </div>
           <div className="min-w-0">
-            <div className="text-white font-black tracking-tight text-sm sm:text-base truncate">TRUSTLINE</div>
-            <div className="text-[#D6A84F] text-[9px] sm:text-[10px] font-bold tracking-[0.18em]">EXPRESS</div>
+            <div className="text-white font-black tracking-tight text-sm sm:text-base truncate">Trustline</div>
+            <div className="text-[#D6A84F] text-[9px] sm:text-[10px] font-bold tracking-[0.18em]">Express</div>
           </div>
         </div>
 

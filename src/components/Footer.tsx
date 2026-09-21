@@ -12,11 +12,11 @@ export function Footer({ compact = false }: FooterProps) {
       <div className={`mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 ${compact ? "py-8" : "py-10 lg:py-12"}`}>
         <div className="grid gap-8 lg:grid-cols-[1.35fr_1fr_1fr_1.15fr]">
           <div>
-            <a href="/#top" aria-label="TrustLine Express ana sayfa" className="inline-flex">
-              <img src={TRUSTLINE_LOGO} alt="TrustLine Express" className="h-10 w-auto object-contain" loading="lazy" decoding="async" />
+            <a href="/#top" aria-label="Trustline Express ana sayfa" className="inline-flex">
+              <img src={TRUSTLINE_LOGO} alt="Trustline Express" className="h-10 w-auto object-contain" loading="lazy" decoding="async" />
             </a>
             <p className="mt-4 max-w-sm text-xs leading-6 text-slate-500">Belgeleriniz ve gönderileriniz için hızlı, güvenilir ve şeffaf teslimat çözümleri.</p>
-            <p className="mt-4 text-[11px] text-slate-600">© {year} TrustLine Express. Tüm hakları saklıdır.</p>
+            <p className="mt-4 text-[11px] text-slate-600">© {year} Trustline Express. Tüm hakları saklıdır.</p>
           </div>
           <div>
             <h3 className="text-xs font-black uppercase tracking-[0.2em] text-orange-300">Hızlı Menü</h3>
@@ -51,7 +51,7 @@ export function Footer({ compact = false }: FooterProps) {
           </div>
         </div>
         <div className="mt-8 flex flex-col gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[11px] text-slate-600">Bu web sitesi TrustLine Express tarafından işletilmektedir.</p>
+          <p className="text-[11px] text-slate-600">Bu web sitesi Trustline Express tarafından işletilmektedir.</p>
           <nav className="flex flex-wrap gap-x-4 gap-y-2 text-[11px] font-semibold text-slate-500" aria-label="Yasal bağlantılar">
             <a href="/kvkk" className="transition hover:text-orange-200">KVKK</a>
             <a href="/gizlilik" className="transition hover:text-orange-200">Gizlilik Politikası</a>

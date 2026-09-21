@@ -24,10 +24,10 @@ const BootScreen = () => (
         <span className="text-3xl font-black text-[#050505]">T</span>
       </div>
       <div className="text-sm font-black tracking-[0.2em] text-[#D6A84F]">
-        TRUSTLINE
+        Trustline
       </div>
       <div className="mt-1 text-[10px] tracking-[0.3em] text-white/45">
-        EXPRESS
+        Express
       </div>
     </div>
   </div>

@@ -1402,7 +1402,7 @@ const [courierStatus, setCourierStatus] =
 
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[#77777F]">TrustLine Express</span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[#77777F]">Trustline Express</span>
                   {isSharingLocation && (
                     <span className="flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[8px] font-black text-emerald-400">
                       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> CANLI

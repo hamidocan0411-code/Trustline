@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -466,7 +466,7 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
                   Eczane siparişiniz başarıyla oluşturuldu.
                 </h2>
                 <p className="mt-1 text-sm text-[#8F8F99]">
-                  Siparişiniz mevcut TrustLine Express operasyon akışına aktarıldı.
+                  Siparişiniz mevcut Trustline Express operasyon akışına aktarıldı.
                 </p>
               </div>
               <button
@@ -863,7 +863,7 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
                 }).format(price)}
               </div>
               <div className="mt-1 text-[11px] text-[#777780]">
-                Mevcut TrustLine Express fiyatlandırması kullanılır.
+                Mevcut Trustline Express fiyatlandırması kullanılır.
               </div>
             </div>
           </div>
