@@ -1,5 +1,5 @@
 import React from "react";
-import { COMPANY_INFO, ADDRESS_PLACEHOLDER, EMAIL_PLACEHOLDER, HOURS_PLACEHOLDER } from "../config/companyInfo";
+import { COMPANY_INFO } from "../config/companyInfo";
 
 const TRUSTLINE_LOGO = "https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png";
 
@@ -44,9 +44,9 @@ export function Footer({ compact = false }: FooterProps) {
               <a href="/biz-kimiz" className="transition hover:text-orange-200">Biz Kimiz?</a>
               <a href="/sirket-bilgileri" className="transition hover:text-orange-200">Şirket Bilgileri</a>
               <a href={COMPANY_INFO.phoneHref} className="transition hover:text-orange-200">{COMPANY_INFO.phone}</a>
-              <a href={COMPANY_INFO.email ? `mailto:${COMPANY_INFO.email}` : "/sirket-bilgileri"} className="break-words transition hover:text-orange-200">{COMPANY_INFO.email || EMAIL_PLACEHOLDER}</a>
-              <span>{COMPANY_INFO.address || ADDRESS_PLACEHOLDER}</span>
-              <span>{COMPANY_INFO.workingHours || HOURS_PLACEHOLDER}</span>
+              <a href={COMPANY_INFO.emailHref} className="break-words transition hover:text-orange-200">{COMPANY_INFO.email}</a>
+              <span>{COMPANY_INFO.address}</span>
+              
             </nav>
           </div>
         </div>
