@@ -119,7 +119,7 @@ export function App() {
   const handleOpenNewOrder = (prefill?: Partial<Order>) => { setNewOrderPrefill(prefill); setIsNewOrderOpen(true); };
   const handleOpenPharmacyOrder = () => { if (currentUser?.role !== "customer") return; setIsPharmacyOrderOpen(true); };
   const handleTransferFromAI = (draft: Partial<Order>) => { handleOpenNewOrder(draft); setActiveTab("home"); };
-  const publicInfoPage = PUBLIC_INFO_PAGES[window.location.pathname.replace(/\\/+$/, "") as keyof typeof PUBLIC_INFO_PAGES] as PublicInfoPageKey | undefined;
+  const publicInfoPage = PUBLIC_INFO_PAGES[window.location.pathname.replace(/\/+$/, "") as keyof typeof PUBLIC_INFO_PAGES] as PublicInfoPageKey | undefined;
 
   if (publicInfoPage) return <Suspense fallback={<div className="min-h-screen bg-[#050505]" />}><PublicInfoPage page={publicInfoPage} /></Suspense>;
   if (authLoading && !inactiveAccount) return <div className="flex min-h-screen items-center justify-center bg-[#0B0B0D] text-white"><div className="text-center"><div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#D6A84F]"><span className="text-3xl font-black text-[#0B0B0D]">T</span></div><div className="text-sm font-black tracking-[0.2em] text-[#D6A84F]">TRUSTLINE</div><div className="mt-1 text-[10px] tracking-[0.3em] text-[#888888]">EXPRESS</div><p className="mt-4 text-xs text-[#666666]">Güvenli bağlantı kuruluyor...</p></div></div>;
