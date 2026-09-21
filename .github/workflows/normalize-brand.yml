@@ -1,0 +1,71 @@
+name: Normalize Trustline brand spelling
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Normalize visible brand spelling
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          roots = [Path("src"), Path("index.html"), Path("metadata.json"), Path("PROJECT_STATUS.md"), Path("server.ts"), Path(".env.example")]
+          files = []
+          for root in roots:
+              if root.is_file():
+                  files.append(root)
+              elif root.is_dir():
+                  files.extend(p for p in root.rglob("*") if p.is_file())
+
+          changed = []
+          for path in files:
+              if path.suffix.lower() not in {".ts", ".tsx", ".css", ".html", ".json", ".md", ".example"}:
+                  continue
+              try:
+                  text = path.read_text(encoding="utf-8-sig")
+              except UnicodeDecodeError:
+                  continue
+
+              original = text
+              text = text.replace("TrustLine Express", "Trustline Express")
+              text = text.replace("Trustline Express", "Trustline Express")
+              text = text.replace("TRUSTLINE EXPRESS", "Trustline Express")
+              text = re.sub(r'(>\s*)TRUSTLINE(\s*<)', r'\1Trustline\2', text)
+              text = re.sub(r'(>\s*)EXPRESS(\s*<)', r'\1Express\2', text)
+              text = re.sub(r'(["\'])Trustline Express(["\'])', r'\1Trustline Express\2', text)
+
+              if text != original:
+                  path.write_text(text, encoding="utf-8", newline="")
+                  changed.append(str(path))
+
+          print("Changed files:")
+          for item in changed:
+              print(item)
+          if not changed:
+              print("No brand spelling changes required.")
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src index.html metadata.json PROJECT_STATUS.md server.ts .env.example
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "fix: normalize Trustline Express brand spelling"
+          git push
