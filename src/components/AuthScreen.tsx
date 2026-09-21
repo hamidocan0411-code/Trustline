@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import { loginWithGoogle } from "../services/auth";
+import { Footer } from "./Footer";
 
 import type { UserProfile } from "../types";
 
@@ -276,6 +277,7 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
           <nav className="hidden items-center gap-6 md:flex" aria-label="Ana navigasyon">
             <a href="#services" className="text-sm font-semibold text-slate-300 transition hover:text-orange-300">Hizmetlerimiz</a>
             <a href="#how-it-works" className="text-sm font-semibold text-slate-300 transition hover:text-orange-300">Nasıl Çalışır?</a>
+            <a href="/biz-kimiz" className="text-sm font-semibold text-slate-300 transition hover:text-orange-300">Biz Kimiz?</a>
             <a href="#corporate" className="text-sm font-semibold text-slate-300 transition hover:text-orange-300">Kurumsal</a>
             <a href="#contact" className="text-sm font-semibold text-slate-300 transition hover:text-orange-300">İletişim</a>
           </nav>
@@ -498,7 +500,7 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
 
       </main>
 
-      <footer className="border-t border-white/[0.06] bg-black/40"><div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8"><div><img src="https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png" alt="TrustLine Express" className="h-10 w-auto object-contain" loading="lazy"/><p className="mt-3 text-xs leading-5 text-slate-500">Profesyonel kurye ve teslimat hizmeti.</p></div><div className="flex flex-wrap gap-4 text-xs font-bold text-slate-500"><a href="#services" className="transition hover:text-orange-300">Hizmetler</a><a href="#how-it-works" className="transition hover:text-orange-300">Nasıl Çalışır?</a><a href="#corporate" className="transition hover:text-orange-300">Kurumsal</a><a href="#contact" className="transition hover:text-orange-300">İletişim</a></div></div></footer>
+      <Footer />
     </div>
   );
 }
