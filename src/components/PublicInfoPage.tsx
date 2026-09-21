@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { COMPANY_INFO, ADDRESS_PLACEHOLDER, EMAIL_PLACEHOLDER, COMPANY_PLACEHOLDER } from "../config/companyInfo";
+import { COMPANY_INFO } from "../config/companyInfo";
 import { Footer } from "./Footer";
 
 export type PageKey = "about" | "company" | "kvkk" | "privacy" | "terms" | "cookies";
@@ -31,20 +31,20 @@ function AboutPage() {
 }
 
 function CompanyPage() {
-  const fields = [["Ticari Unvan",COMPANY_PLACEHOLDER],["Marka",COMPANY_INFO.brand],["Vergi Dairesi",COMPANY_PLACEHOLDER],["Vergi Numarası",COMPANY_PLACEHOLDER],["MERSİS No",COMPANY_PLACEHOLDER],["Adres",COMPANY_INFO.address||ADDRESS_PLACEHOLDER],["Telefon",COMPANY_INFO.phone],["E-posta",COMPANY_INFO.email||EMAIL_PLACEHOLDER],["Web","trustlineexpress.com.tr"]];
+  const fields = [["Marka",COMPANY_INFO.brand],["Adres",COMPANY_INFO.address],["Telefon",COMPANY_INFO.phone],["E-posta",COMPANY_INFO.email],["Web","trustlineexpress.com.tr"]];
   return <Section title="Şirket Bilgileri"><div className="grid gap-3 sm:grid-cols-2">{fields.map(([label,value])=><div key={label} className="rounded-2xl border border-white/[0.06] bg-black/20 p-4"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-bold text-slate-200">{value}</p></div>)}</div></Section>;
 }
 
 function KvkkPage() {
   return <div className="grid gap-5">
-    <Section title="1. Veri Sorumlusu">Resmi veri sorumlusu ve ticari unvan bilgileri şirketin gerçek tüzel kişilik bilgileri doğrulandıktan sonra tamamlanmalıdır. Marka adı: TrustLine Express.</Section>
+    <Section title="1. Veri Sorumlusu">Marka: TrustLine Express. Resmi veri sorumlusu bilgileri, şirketin hukuki yapısına göre ayrıca doğrulanmalıdır.</Section>
     <Section title="2. İşlenen Kişisel Veriler">Mevcut uygulama akışlarında kullanıcı hesabı ve sipariş süreçlerinde kullanılan bilgiler kapsamında ad soyad, telefon, e-posta, teslimat adresleri, gönderici/alıcı bilgileri, sipariş bilgileri ve kullanıcı hesabı bilgileri işlenebilir. Teknik/log verileri gerçek altyapı ve kayıt mekanizmaları doğrulanarak kesinleştirilmelidir.</Section>
     <Section title="3. Kişisel Verilerin İşlenme Amaçları">Hesap oluşturma ve doğrulama, sipariş oluşturma ve teslimat sürecinin yürütülmesi, gönderi takibi, kullanıcı desteği, güvenlik ve hizmetin teknik olarak işletilmesi.</Section>
     <Section title="4. Kişisel Verilerin Aktarılması">Aktarım kapsamı, gerçek operasyon ve hizmet sağlayıcı ilişkileri doğrulanarak belirlenmelidir. Firebase altyapısına ilişkin veri işleme ve aktarım ayrıntıları üretim yapılandırması üzerinden ayrıca doğrulanmalıdır.</Section>
     <Section title="5. Veri Toplama Yöntemi ve Hukuki Sebebi">Veriler; kullanıcı hesabı, sipariş formları, destek iletişimi ve hizmetin teknik işleyişi sırasında elektronik ortamda alınabilir. Hukuki sebep ve saklama süreleri gerçek süreçlere göre netleştirilmelidir.</Section>
     <Section title="6. Kişisel Veri Sahibinin Hakları">İlgili kişinin KVKK kapsamındaki hakları ve başvuru usulleri, şirketin gerçek veri sorumlusu bilgileri ve başvuru kanalları doğrulandıktan sonra nihai metinde açıkça belirtilmelidir.</Section>
-    <Section title="7. Başvuru Yöntemi">Resmi başvuru e-postası henüz doğrulanmadığı için uydurma iletişim bilgisi kullanılmamıştır: {EMAIL_PLACEHOLDER}</Section>
-    <Section title="8. İletişim"><a href={COMPANY_INFO.phoneHref} className="text-orange-200 hover:text-orange-100">{COMPANY_INFO.phone}</a><br />{COMPANY_INFO.email||EMAIL_PLACEHOLDER}<br />{COMPANY_INFO.address||ADDRESS_PLACEHOLDER}</Section>
+    <Section title="7. Başvuru Yöntemi">Başvuru ve iletişim kanalı: {COMPANY_INFO.email}.</Section>
+    <Section title="8. İletişim"><a href={COMPANY_INFO.phoneHref} className="text-orange-200 hover:text-orange-100">{COMPANY_INFO.phone}</a><br />{COMPANY_INFO.email}<br />{COMPANY_INFO.address}</Section>
     <p className="rounded-2xl border border-orange-300/15 bg-orange-400/[0.05] p-4 text-xs leading-6 text-orange-100/80">{LEGAL_NOTE}</p>
   </div>;
 }
