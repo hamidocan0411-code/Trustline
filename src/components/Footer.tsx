@@ -24,7 +24,7 @@ export function Footer({ compact = false }: FooterProps) {
               <a href="/#top" className="transition hover:text-orange-200">Ana Sayfa</a>
               <a href="/#services" className="transition hover:text-orange-200">Hizmetlerimiz</a>
               <a href="/#how-it-works" className="transition hover:text-orange-200">Nasıl Çalışır?</a>
-              <a href="/#track" className="transition hover:text-orange-200">Gönderi Takibi</a>
+              <a href="/#login" className="transition hover:text-orange-200">Gönderi Takibi</a>
               <a href="/biz-kimiz" className="transition hover:text-orange-200">Biz Kimiz?</a>
               <a href="/#contact" className="transition hover:text-orange-200">İletişim</a>
             </nav>
