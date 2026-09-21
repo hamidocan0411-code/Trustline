@@ -3,6 +3,19 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 
 const App = lazy(() => import('./App.tsx'));
+const PublicInfoPage = lazy(() => import('./components/PublicInfoPage.tsx'));
+
+const PUBLIC_INFO_PAGES = {
+  "/biz-kimiz": "about",
+  "/sirket-bilgileri": "company",
+  "/kvkk": "kvkk",
+  "/gizlilik": "privacy",
+  "/kullanim-kosullari": "terms",
+  "/cerez-politikasi": "cookies",
+} as const;
+
+const normalizedPath = window.location.pathname.replace(/\/+$/, "") || "/";
+const publicInfoPage = PUBLIC_INFO_PAGES[normalizedPath as keyof typeof PUBLIC_INFO_PAGES];
 
 const BootScreen = () => (
   <div className="flex min-h-screen items-center justify-center bg-[#050505] text-white">
@@ -23,7 +36,7 @@ const BootScreen = () => (
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Suspense fallback={<BootScreen />}>
-      <App />
+      {publicInfoPage ? <PublicInfoPage page={publicInfoPage} /> : <App />}
     </Suspense>
   </StrictMode>,
 );
