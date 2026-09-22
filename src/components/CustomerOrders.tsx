@@ -386,7 +386,10 @@ export const CustomerOrders: React.FC<Props> = ({
   orders,
   onOpenNewOrder,
   selectedOrderId,
+  variant = "customer",
+  initialFilter = "all",
 }) => {
+  const isCorporate = variant === "corporate";
   const [searchTerm, setSearchTerm] =
     useState("");
 
