@@ -43,17 +43,91 @@ export function ProfileView({
     useState('');
 
   const [name, setName] = useState(currentUser.name || '');
-
   const [phone, setPhone] = useState(currentUser.phone || '');
+  const [companyName, setCompanyName] = useState(currentUser.companyName || '');
+  const [companyContactName, setCompanyContactName] = useState(currentUser.companyContactName || currentUser.name || '');
+  const [companyPhone, setCompanyPhone] = useState(currentUser.companyPhone || currentUser.phone || '');
+  const [companyEmail, setCompanyEmail] = useState(currentUser.companyEmail || currentUser.email || '');
+  const [companyAddress, setCompanyAddress] = useState(currentUser.companyAddress || '');
+  const [taxNumber, setTaxNumber] = useState(currentUser.taxNumber || '');
+  const [taxOffice, setTaxOffice] = useState(currentUser.taxOffice || '');
 
   useEffect(() => {
     setName(currentUser.name || '');
     setPhone(currentUser.phone || '');
-  }, [currentUser.id, currentUser.name, currentUser.phone]);
+    setCompanyName(currentUser.companyName || '');
+    setCompanyContactName(currentUser.companyContactName || currentUser.name || '');
+    setCompanyPhone(currentUser.companyPhone || currentUser.phone || '');
+    setCompanyEmail(currentUser.companyEmail || currentUser.email || '');
+    setCompanyAddress(currentUser.companyAddress || '');
+    setTaxNumber(currentUser.taxNumber || '');
+    setTaxOffice(currentUser.taxOffice || '');
+  }, [
+    currentUser.id,
+    currentUser.name,
+    currentUser.phone,
+    currentUser.companyName,
+    currentUser.companyContactName,
+    currentUser.companyPhone,
+    currentUser.companyEmail,
+    currentUser.companyAddress,
+    currentUser.taxNumber,
+    currentUser.taxOffice,
+  ]);
 
   const saveProfile = async () => {
     const cleanName = name.trim();
     const cleanPhone = phone.trim();
+
+    if (currentUser.role === 'corporate') {
+      const cleanCompanyName = companyName.trim();
+      const cleanContactName = companyContactName.trim();
+      const cleanCompanyPhone = companyPhone.trim();
+      const cleanCompanyEmail = companyEmail.trim();
+      const cleanCompanyAddress = companyAddress.trim();
+      const cleanTaxNumber = taxNumber.trim();
+      const cleanTaxOffice = taxOffice.trim();
+
+      if (!cleanCompanyName || !cleanContactName || !cleanCompanyPhone || !cleanCompanyEmail || !cleanCompanyAddress) {
+        setProfileMessage('Lütfen zorunlu firma bilgilerini eksiksiz doldurun.');
+        return;
+      }
+
+      try {
+        setSavingProfile(true);
+        setProfileMessage('');
+
+        await storage.updateUser(currentUser.id, {
+          companyName: cleanCompanyName,
+          companyContactName: cleanContactName,
+          companyPhone: cleanCompanyPhone,
+          companyEmail: cleanCompanyEmail,
+          companyAddress: cleanCompanyAddress,
+          taxNumber: cleanTaxNumber,
+          taxOffice: cleanTaxOffice,
+        });
+
+        onProfileUpdated?.({
+          ...currentUser,
+          companyName: cleanCompanyName,
+          companyContactName: cleanContactName,
+          companyPhone: cleanCompanyPhone,
+          companyEmail: cleanCompanyEmail,
+          companyAddress: cleanCompanyAddress,
+          taxNumber: cleanTaxNumber,
+          taxOffice: cleanTaxOffice,
+        });
+
+        setEditing(false);
+        setProfileMessage('Firma bilgileriniz başarıyla güncellendi.');
+      } catch (saveError) {
+        console.error('Kurumsal profil güncellenemedi:', saveError);
+        setProfileMessage('Bilgileriniz güncellenirken bir sorun oluştu. Lütfen tekrar deneyin.');
+      } finally {
+        setSavingProfile(false);
+      }
+      return;
+    }
 
     if (!cleanName) {
       setProfileMessage('Lütfen ad soyad bilgisini girin.');
@@ -275,6 +349,56 @@ export function ProfileView({
           </div>
 
         </div>
+
+        {currentUser.role === 'corporate' && (
+          <div className="mt-5 rounded-2xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-black text-white">Firma bilgilerinizi yönetin</p>
+                <p className="mt-1 text-xs leading-5 text-[#999999]">Firma adı, yetkili, iletişim, adres ve vergi bilgilerinizi güncelleyebilirsiniz.</p>
+              </div>
+              <button type="button" onClick={() => { setProfileMessage(''); setEditing((value) => !value); }} className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D6A84F]/30 bg-[#19191E] px-4 py-2.5 text-xs font-black text-[#D6A84F]">
+                {editing ? <X size={15} /> : <Edit3 size={15} />}
+                {editing ? 'Vazgeç' : 'Düzenle'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {editing && currentUser.role === 'corporate' && (
+          <div className="mt-4 space-y-4 rounded-2xl border border-[#303036] bg-[#111116] p-4 sm:p-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[
+                ['Firma Adı', companyName, setCompanyName],
+                ['Yetkili Ad Soyad', companyContactName, setCompanyContactName],
+                ['Telefon', companyPhone, setCompanyPhone],
+                ['E-posta', companyEmail, setCompanyEmail],
+                ['Adres', companyAddress, setCompanyAddress],
+                ['Vergi Numarası', taxNumber, setTaxNumber],
+                ['Vergi Dairesi', taxOffice, setTaxOffice],
+              ].map(([label, value, setter]) => (
+                <div key={String(label)} className={label === 'Adres' ? 'sm:col-span-2' : ''}>
+                  <label className="mb-2 block text-xs font-semibold text-[#999999]">{label}</label>
+                  <input
+                    value={String(value)}
+                    onChange={(event) => (setter as React.Dispatch<React.SetStateAction<string>>)(event.target.value)}
+                    type={label === 'E-posta' ? 'email' : 'text'}
+                    inputMode={label === 'Telefon' || label === 'Vergi Numarası' ? 'tel' : undefined}
+                    autoComplete={label === 'E-posta' ? 'email' : 'off'}
+                    className="w-full rounded-xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 text-sm text-white outline-none transition focus:border-[#D6A84F] focus:ring-2 focus:ring-[#D6A84F]/10"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl border border-[#303036] bg-[#19191E] px-3 py-2.5 text-[10px] leading-5 text-[#66666F]">
+              Kullanıcı ID, rol ve companyId güvenlik nedeniyle bu formdan değiştirilemez.
+            </div>
+            <button type="button" disabled={savingProfile} onClick={saveProfile} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#D6A84F] py-3.5 text-sm font-black text-[#0B0B0D] disabled:cursor-not-allowed disabled:opacity-50">
+              {savingProfile ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
+              {savingProfile ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}
+            </button>
+          </div>
+        )}
 
         {/* CORPORATE COMPANY INFORMATION */}
         {currentUser.role === 'corporate' && (
