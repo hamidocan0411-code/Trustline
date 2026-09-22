@@ -485,6 +485,17 @@ export const NewOrderModal: React.FC<Props> = ({
           customerPhone:
             customerPhone,
 
+          ...(currentUser.role === "corporate" && currentUser.companyId
+            ? {
+                customerType: "corporate" as const,
+                companyId: currentUser.companyId,
+                companyName: currentUser.companyName || "",
+                companyContactName: currentUser.companyContactName || currentUser.name || "",
+              }
+            : {
+                customerType: "individual" as const,
+              }),
+
           courierId: null,
 
           pickupAddress:
@@ -600,13 +611,20 @@ export const NewOrderModal: React.FC<Props> = ({
     }
 
     if (
-      currentUser.role !==
-      "customer"
+      currentUser.role !== "customer" &&
+      currentUser.role !== "corporate"
     ) {
       setErrorMsg(
-        "Bu işlem yalnızca müşteri hesabıyla yapılabilir."
+        "Bu işlem yalnızca müşteri veya kurumsal firma hesabıyla yapılabilir."
       );
 
+      return;
+    }
+
+    if (currentUser.role === "corporate" && !currentUser.companyId) {
+      setErrorMsg(
+        "Kurumsal hesabınız bir firmaya bağlı değil. Lütfen yönetici ile iletişime geçin."
+      );
       return;
     }
 
