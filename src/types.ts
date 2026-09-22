@@ -1,4 +1,4 @@
-﻿export type UserRole = 'customer' | 'courier' | 'admin';
+﻿export type UserRole = 'customer' | 'corporate' | 'courier' | 'admin';
 
 export type OrderType = 'standard' | 'pharmacy';
 
@@ -48,6 +48,14 @@ export interface UserProfile {
   email: string;
   phone: string;
   role: UserRole;
+  companyId?: string;
+  companyName?: string;
+  companyContactName?: string;
+  companyPhone?: string;
+  companyEmail?: string;
+  companyAddress?: string;
+  taxNumber?: string;
+  taxOffice?: string;
   avatar?: string;
 
   // Kurye araç bilgileri
@@ -88,6 +96,10 @@ export interface Order {
   customerId: string;
   customerName: string;
   customerPhone: string;
+  customerType?: 'individual' | 'corporate';
+  companyId?: string;
+  companyName?: string;
+  companyContactName?: string;
 
   courierId: string | null;
   courierName?: string;
