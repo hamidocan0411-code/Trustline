@@ -1310,6 +1310,51 @@ class StorageService {
     this.emit();
   }
 
+  async convertCustomerToCorporate(
+    userId: string,
+    companyName: string
+  ): Promise<UserProfile> {
+    if (!userId || !companyName.trim()) {
+      throw new Error("Kullanıcı ve firma adı gerekli.");
+    }
+
+    const existing = this.getUserById(userId);
+    if (!existing) throw new Error("Kullanıcı bulunamadı.");
+
+    if (existing.role !== "customer" && existing.role !== "corporate") {
+      throw new Error("Sadece müşteri hesabı kurumsal firmaya dönüştürülebilir.");
+    }
+
+    const now = new Date().toISOString();
+    const companyId = existing.companyId || `company_${userId}`;
+
+    await updateDoc(doc(db, "users", userId), {
+      role: "corporate",
+      companyId,
+      companyName: companyName.trim(),
+      companyContactName: existing.companyContactName || existing.name || "",
+      companyPhone: existing.companyPhone || existing.phone || "",
+      companyEmail: existing.companyEmail || existing.email || "",
+      updatedAt: now,
+    });
+
+    const updatedUser: UserProfile = {
+      ...existing,
+      role: "corporate",
+      companyId,
+      companyName: companyName.trim(),
+      companyContactName: existing.companyContactName || existing.name || "",
+      companyPhone: existing.companyPhone || existing.phone || "",
+      companyEmail: existing.companyEmail || existing.email || "",
+      updatedAt: now,
+    };
+
+    this.updateUserLocal(updatedUser);
+    if (this.currentUser?.id === userId) this.currentUser = updatedUser;
+    this.emit();
+    return updatedUser;
+  }
+
   /* ==========================================================
      COURIER EMPLOYMENT STATUS
   ========================================================== */
