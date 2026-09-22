@@ -92,9 +92,17 @@ service cloud.firestore {
           && request.auth.uid == userId
           && request.resource.data.role == resource.data.role
           && request.resource.data.email == resource.data.email
+          && request.resource.data.companyId == resource.data.companyId
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'name',
             'phone',
+            'companyName',
+            'companyContactName',
+            'companyPhone',
+            'companyEmail',
+            'companyAddress',
+            'taxNumber',
+            'taxOffice',
             'avatar',
             'vehicle',
             'plate',
@@ -157,7 +165,6 @@ service cloud.firestore {
         || (
           signedIn()
           && resource.data.customerId == request.auth.uid
-          && request.resource.data.customerId == resource.data.customerId
           && request.resource.data.courierId == resource.data.courierId
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status',
