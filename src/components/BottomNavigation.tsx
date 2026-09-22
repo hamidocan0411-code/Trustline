@@ -1,6 +1,9 @@
 import React from 'react';
 import {
   Bot,
+  Building2,
+  CheckCircle2,
+  Headphones,
   Home,
   Layers,
   Package,
@@ -100,6 +103,55 @@ export const BottomNavigation: React.FC<Props> = ({
           <User className="w-5 h-5" />
           <span className={`text-[9px] font-bold uppercase tracking-wider ${desktopLabel}`}>Profil</span>
         </button>
+
+        {role === 'corporate' && (
+          <div className="mt-2 hidden w-full flex-col gap-1 border-t border-[#303036] pt-2 lg:flex">
+            <p className="px-3 pb-1 text-[9px] font-black uppercase tracking-[0.16em] text-[#55555D]">
+              Operasyon
+            </p>
+            <button
+              type="button"
+              onClick={() => onTabChange('corporate_active')}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition ${
+                activeTab === 'corporate_active' ? 'bg-[#D6A84F]/10 text-[#D6A84F]' : 'text-[#999999] hover:bg-white/[0.03] hover:text-white'
+              }`}
+            >
+              <Truck size={16} />
+              Aktif Siparişler
+              {activeOrdersCount > 0 && <span className="ml-auto min-w-5 rounded-full bg-[#D6A84F]/15 px-1.5 py-0.5 text-center text-[9px] text-[#D6A84F]">{activeOrdersCount}</span>}
+            </button>
+            <button
+              type="button"
+              onClick={() => onTabChange('corporate_completed')}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition ${
+                activeTab === 'corporate_completed' ? 'bg-emerald-500/10 text-emerald-300' : 'text-[#999999] hover:bg-white/[0.03] hover:text-white'
+              }`}
+            >
+              <CheckCircle2 size={16} />
+              Tamamlananlar
+            </button>
+            <button
+              type="button"
+              onClick={() => onTabChange('corporate_company')}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition ${
+                activeTab === 'corporate_company' ? 'bg-[#D6A84F]/10 text-[#D6A84F]' : 'text-[#999999] hover:bg-white/[0.03] hover:text-white'
+              }`}
+            >
+              <Building2 size={16} />
+              Firma Bilgileri
+            </button>
+            <button
+              type="button"
+              onClick={() => onTabChange('corporate_support')}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition ${
+                activeTab === 'corporate_support' ? 'bg-[#D6A84F]/10 text-[#D6A84F]' : 'text-[#999999] hover:bg-white/[0.03] hover:text-white'
+              }`}
+            >
+              <Headphones size={16} />
+              Destek
+            </button>
+          </div>
+        )}
       </nav>
     );
   }
