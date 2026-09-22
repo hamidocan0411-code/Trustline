@@ -47,7 +47,7 @@ export const BottomNavigation: React.FC<Props> = ({
         <button
           onClick={() => onTabChange(role === 'corporate' ? 'corporate_panel' : 'home')}
           className={`flex flex-col items-center gap-1 rounded-xl px-3 py-1 transition-all cursor-pointer ${desktopItem} ${
-            activeTab === 'home' ? 'text-[#D6A84F]' : 'text-[#999999] hover:text-white'
+            (activeTab === 'home' || activeTab === 'corporate_panel') ? 'text-[#D6A84F]' : 'text-[#999999] hover:text-white'
           }`}
         >
           <Home className="w-5 h-5" />
@@ -69,7 +69,7 @@ export const BottomNavigation: React.FC<Props> = ({
         <button
           onClick={() => onTabChange(role === 'corporate' ? 'corporate_orders' : 'orders')}
           className={`relative flex flex-col items-center gap-1 rounded-xl px-3 py-1 transition-all cursor-pointer ${desktopItem} ${
-            activeTab === 'orders' ? 'text-[#D6A84F]' : 'text-[#999999] hover:text-white'
+            (activeTab === 'orders' || activeTab === 'corporate_orders') ? 'text-[#D6A84F]' : 'text-[#999999] hover:text-white'
           }`}
         >
           <Package className="w-5 h-5" />
