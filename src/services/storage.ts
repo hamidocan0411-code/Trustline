@@ -1,6 +1,7 @@
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   onSnapshot,
@@ -1309,6 +1310,54 @@ class StorageService {
     }
 
     this.emit();
+  }
+
+  async removeCorporateRole(userId: string): Promise<UserProfile> {
+    if (!userId) throw new Error("Kullanıcı ID gerekli.");
+
+    const adminUser = auth.currentUser;
+    if (!adminUser) throw new Error("Admin oturumu bulunamadı.");
+    if (adminUser.email?.trim().toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      throw new Error("Bu işlemi sadece yetkili admin yapabilir.");
+    }
+
+    const userRef = doc(db, "users", userId);
+    const snapshot = await getDoc(userRef);
+    if (!snapshot.exists()) throw new Error("Kullanıcı bulunamadı.");
+
+    const existing = snapshot.data() as UserProfile;
+    if (existing.role !== "corporate") {
+      throw new Error("Bu kullanıcı aktif bir kurumsal kullanıcı değil.");
+    }
+
+    const updatedAt = new Date().toISOString();
+    await updateDoc(userRef, {
+      role: "customer",
+      companyId: deleteField(),
+      companyName: deleteField(),
+      companyContactName: deleteField(),
+      companyPhone: deleteField(),
+      companyEmail: deleteField(),
+      companyAddress: deleteField(),
+      taxNumber: deleteField(),
+      taxOffice: deleteField(),
+      updatedAt,
+    });
+
+    const updatedUser: UserProfile = { ...existing, role: "customer", updatedAt };
+    delete updatedUser.companyId;
+    delete updatedUser.companyName;
+    delete updatedUser.companyContactName;
+    delete updatedUser.companyPhone;
+    delete updatedUser.companyEmail;
+    delete updatedUser.companyAddress;
+    delete updatedUser.taxNumber;
+    delete updatedUser.taxOffice;
+
+    this.updateUserLocal(updatedUser);
+    if (this.currentUser?.id === userId) this.currentUser = updatedUser;
+    this.emit();
+    return updatedUser;
   }
 
   async convertCustomerToCorporate(
