@@ -550,6 +550,21 @@ class StorageService {
       console.log(
         "🏁š´ KURYE siparişleri dinliyor."
       );
+    } else if (role === "corporate") {
+      const companyId = this.currentUser?.companyId;
+      if (!companyId) {
+        this.orders = [];
+        this.emit();
+        console.warn("⚠️ Kurumsal kullanıcıda companyId bulunamadı.");
+        return;
+      }
+
+      ordersQuery = query(
+        collection(db, "orders"),
+        where("companyId", "==", companyId)
+      );
+
+      console.log("🏢 KURUMSAL firma siparişleri dinleniyor:", companyId);
     } else {
       ordersQuery =
         query(
@@ -1238,12 +1253,12 @@ class StorageService {
     );
   }
 
-  getCustomers():
-    UserProfile[] {
-    return this.users.filter(
-      (user) =>
-        user.role === "customer"
-    );
+  getCustomers(): UserProfile[] {
+    return this.users.filter((user) => user.role === "customer");
+  }
+
+  getCorporateUsers(): UserProfile[] {
+    return this.users.filter((user) => user.role === "corporate");
   }
 
   async updateUser(
