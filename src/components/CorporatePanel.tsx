@@ -148,6 +148,36 @@ export const CorporatePanel: React.FC<Props> = ({
         ))}
       </section>
 
+      <section className="rounded-2xl border border-[#303036] bg-[#19191E] p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#D6A84F]">Operasyon özeti</p>
+            <h2 className="mt-1 text-sm font-black text-white">Kurumsal gönderi durumunuz</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:min-w-[300px]">
+            <div className="rounded-xl border border-[#303036] bg-[#111116] px-3 py-2.5">
+              <p className="text-[9px] uppercase tracking-wider text-[#66666F]">Aktif</p>
+              <p className="mt-1 text-lg font-black text-[#D6A84F]">{active.length}</p>
+            </div>
+            <div className="rounded-xl border border-[#303036] bg-[#111116] px-3 py-2.5">
+              <p className="text-[9px] uppercase tracking-wider text-[#66666F]">Teslimat oranı</p>
+              <p className="mt-1 text-lg font-black text-emerald-300">
+                {safeOrders.length ? Math.round((completed.length / safeOrders.length) * 100) : 0}%
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#2A2A31]" aria-label="Teslimat oranı">
+          <div
+            className="h-full rounded-full bg-[#D6A84F] transition-all duration-500"
+            style={{ width: safeOrders.length ? Math.min(100, (completed.length / safeOrders.length) * 100) + "%" : "0%" }}
+          />
+        </div>
+        <p className="mt-2 text-[10px] text-[#66666F]">
+          Oran, bu panelde görünen toplam siparişler içindeki teslim edilmiş gönderileri ifade eder.
+        </p>
+      </section>
+
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {quickActions.map(({ label, description, icon: Icon, onClick, primary }) => (
           <button
