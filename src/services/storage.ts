@@ -561,7 +561,8 @@ class StorageService {
 
       ordersQuery = query(
         collection(db, "orders"),
-        where("companyId", "==", companyId)
+        where("companyId", "==", companyId),
+        where("customerType", "==", "corporate")
       );
 
       console.log("🏢 KURUMSAL firma siparişleri dinleniyor:", companyId);
