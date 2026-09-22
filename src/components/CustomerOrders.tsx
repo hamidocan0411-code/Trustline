@@ -392,8 +392,14 @@ export const CustomerOrders: React.FC<Props> = ({
 
   const [filter, setFilter] =
     useState<
-      "all" | "active" | "completed"
-    >("all");
+      "all" | "active" | "completed" | "cancelled"
+    >(initialFilter);
+
+  const [sortOrder, setSortOrder] =
+    useState<"newest" | "oldest">("newest");
+
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   const [expandedOrderId, setExpandedOrderId] =
     useState<string | null>(
@@ -402,11 +408,13 @@ export const CustomerOrders: React.FC<Props> = ({
 
   useEffect(() => {
     if (selectedOrderId) {
-      setExpandedOrderId(
-        selectedOrderId
-      );
+      setExpandedOrderId(selectedOrderId);
     }
   }, [selectedOrderId]);
+
+  useEffect(() => {
+    setFilter(initialFilter);
+  }, [initialFilter]);
 
   const safeOrders = Array.isArray(
     orders
