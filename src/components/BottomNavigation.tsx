@@ -10,9 +10,9 @@ import {
   PlusCircle,
   Truck,
   User,
-  Zap,
+  XCircle,
 } from 'lucide-react';
-import { UserProfile, UserRole } from '../types';
+import { UserRole } from '../types';
 
 interface Props {
   role: UserRole;
@@ -45,7 +45,7 @@ export const BottomNavigation: React.FC<Props> = ({
       : 'lg:text-xs lg:normal-case lg:tracking-normal';
 
     return (
-      <nav className={`fixed bottom-0 left-0 right-0 z-40 mx-auto flex h-16 max-w-7xl items-center justify-around border-t border-[#303036] bg-[#19191E] px-2 shadow-2xl ${desktopNavigation}`}>
+      <nav aria-label={role === 'corporate' ? 'Kurumsal panel navigasyonu' : 'Müşteri navigasyonu'} className={`fixed bottom-0 left-0 right-0 z-40 mx-auto flex h-16 max-w-7xl items-center justify-around border-t border-[#303036] bg-[#19191E]/95 px-2 shadow-2xl backdrop-blur-xl ${desktopNavigation}`}>
         {/* 1. Ana Sayfa */}
         <button
           onClick={() => onTabChange(role === 'corporate' ? 'corporate_panel' : 'home')}
@@ -65,7 +65,7 @@ export const BottomNavigation: React.FC<Props> = ({
           <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-[#D6A84F] text-[#0B0B0D] shadow-lg shadow-[#D6A84F]/30 transition-transform group-hover:scale-105 active:scale-95 ${isIPhoneMode ? '' : 'lg:h-9 lg:w-9 lg:rounded-xl'}`}>
             <PlusCircle className="w-6 h-6" />
           </div>
-          <span className={`text-[9px] font-black uppercase tracking-wider text-[#D6A84F] ${desktopLabel} ${isIPhoneMode ? '' : 'lg:text-[#0B0B0D]'}`}>Kurye Çağır</span>
+          <span className={`text-[9px] font-black uppercase tracking-wider text-[#D6A84F] ${desktopLabel} ${isIPhoneMode ? '' : 'lg:text-[#0B0B0D]'}`}>Yeni Sipariş</span>
         </button>
 
         {/* 3. Siparişlerim */}
@@ -132,7 +132,15 @@ export const BottomNavigation: React.FC<Props> = ({
             </button>
             <button
               type="button"
-              onClick={() => onTabChange('corporate_company')}
+              onClick={() => onTabChange('corporate_cancelled')}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition ${activeTab === 'corporate_cancelled' ? 'bg-red-500/10 text-red-300' : 'text-[#999999] hover:bg-white/[0.03] hover:text-white'}`}
+            >
+              <XCircle size={16} />
+              İptal Edilenler
+            </button>
+            <button
+              type="button"
+              onClick={() => onTabChange('corporate_company')
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition ${
                 activeTab === 'corporate_company' ? 'bg-[#D6A84F]/10 text-[#D6A84F]' : 'text-[#999999] hover:bg-white/[0.03] hover:text-white'
               }`}
