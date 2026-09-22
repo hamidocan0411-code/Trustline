@@ -4,6 +4,7 @@ import {
   deleteField,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
   setDoc,
@@ -1261,6 +1262,51 @@ class StorageService {
 
   getCorporateUsers(): UserProfile[] {
     return this.users.filter((user) => user.role === "corporate");
+  }
+
+  /**
+   * Admin muhasebe ekranı için yalnızca seçilen şirketin gerçek
+   * kurumsal siparişlerini getirir. Tüm orders koleksiyonunu tekrar
+   * indirmez; sorgu doğrudan companyId + customerType ile sınırlandırılır.
+   */
+  async getCorporateOrders(companyId: string): Promise<Order[]> {
+    if (!companyId) {
+      throw new Error("Firma Company ID gerekli.");
+    }
+
+    const adminUser = auth.currentUser;
+    if (!adminUser) {
+      throw new Error("Admin oturumu bulunamadı.");
+    }
+
+    if (
+      adminUser.email?.trim().toLowerCase() !==
+      ADMIN_EMAIL.toLowerCase()
+    ) {
+      throw new Error("Bu işlemi sadece yetkili admin yapabilir.");
+    }
+
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("companyId", "==", companyId),
+      where("customerType", "==", "corporate")
+    );
+
+    const snapshot = await getDocs(ordersQuery);
+
+    return snapshot.docs
+      .map(
+        (item) =>
+          ({
+            ...(item.data() as Order),
+            id: item.id,
+          }) as Order
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() -
+          new Date(a.createdAt).getTime()
+      );
   }
 
   async updateUser(
