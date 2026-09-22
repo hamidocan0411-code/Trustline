@@ -80,6 +80,74 @@ type CourierWithEmployment = UserProfile & {
   employmentStatus?: "active" | "inactive";
 };
 
+type CorporateReportPeriod =
+  | "today"
+  | "yesterday"
+  | "week"
+  | "month"
+  | "lastMonth"
+  | "year"
+  | "custom";
+
+const ISTANBUL_TIME_ZONE = "Europe/Istanbul";
+
+const getIstanbulDateKey = (value: string | Date): string | null => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: ISTANBUL_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const map = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  if (!map.year || !map.month || !map.day) return null;
+  return `${map.year}-${map.month}-${map.day}`;
+};
+
+const shiftDateKey = (dateKey: string, days: number): string => {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+
+const getWeekdayIndex = (dateKey: string): number => {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+};
+
+const formatDateKey = (dateKey: string): string => {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Intl.DateTimeFormat("tr-TR", {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+};
+
+const formatMonthKey = (monthKey: string): string => {
+  const [year, month] = monthKey.split("-").map(Number);
+  return new Intl.DateTimeFormat("tr-TR", {
+    timeZone: "UTC",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+};
+
+const getValidOrderPrice = (order: Order): number | null => {
+  const price = Number(order.price);
+  return Number.isFinite(price) && price >= 0 ? price : null;
+};
+
 const isInactiveCourier = (courier: UserProfile) =>
   (courier as CourierWithEmployment).employmentStatus ===
   "inactive";
@@ -122,6 +190,18 @@ export const AdminPanel: React.FC<Props> = ({
     useState<UserProfile | null>(null);
   const [removingCorporateRoleId, setRemovingCorporateRoleId] =
     useState<string | null>(null);
+
+  const [selectedCorporateCompany, setSelectedCorporateCompany] =
+    useState<UserProfile | null>(null);
+
+  const [corporateOrders, setCorporateOrders] = useState<Order[]>([]);
+  const [corporateOrdersLoading, setCorporateOrdersLoading] = useState(false);
+  const [corporateOrdersError, setCorporateOrdersError] = useState(false);
+
+  const [corporateReportPeriod, setCorporateReportPeriod] =
+    useState<CorporateReportPeriod>("month");
+  const [corporateCustomStart, setCorporateCustomStart] = useState("");
+  const [corporateCustomEnd, setCorporateCustomEnd] = useState("");
 
   const [courierVehicle, setCourierVehicle] =
     useState("");
@@ -615,6 +695,83 @@ export const AdminPanel: React.FC<Props> = ({
     loadUsers();
     loadCourierLocations();
     onRefreshData?.();
+  };
+
+  const openCorporateCompany = async (company: UserProfile) => {
+    if (!company.companyId) {
+      alert("Bu firmada Company ID bulunmuyor.");
+      return;
+    }
+
+    setSelectedCorporateCompany(company);
+    setCorporateOrders([]);
+    setCorporateOrdersError(false);
+    setCorporateOrdersLoading(true);
+
+    try {
+      const orders = await storage.getCorporateOrders(company.companyId);
+      setCorporateOrders(orders);
+    } catch (error) {
+      console.error("Kurumsal firma finansal verileri alınamadı:", error);
+      setCorporateOrdersError(true);
+    } finally {
+      setCorporateOrdersLoading(false);
+    }
+  };
+
+  const closeCorporateCompany = () => {
+    if (corporateOrdersLoading) return;
+    setSelectedCorporateCompany(null);
+    setCorporateOrders([]);
+    setCorporateOrdersError(false);
+    setCorporateReportPeriod("month");
+    setCorporateCustomStart("");
+    setCorporateCustomEnd("");
+  };
+
+  const getCorporateReportRange = (): {
+    start: string;
+    end: string;
+  } | null => {
+    const today = getIstanbulDateKey(new Date());
+    if (!today) return null;
+
+    switch (corporateReportPeriod) {
+      case "today":
+        return { start: today, end: today };
+      case "yesterday": {
+        const yesterday = shiftDateKey(today, -1);
+        return { start: yesterday, end: yesterday };
+      }
+      case "week": {
+        const weekday = getWeekdayIndex(today);
+        const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+        return {
+          start: shiftDateKey(today, mondayOffset),
+          end: today,
+        };
+      }
+      case "month":
+        return { start: `${today.slice(0, 7)}-01`, end: today };
+      case "lastMonth": {
+        const firstOfThisMonth = `${today.slice(0, 7)}-01`;
+        const lastMonthEnd = shiftDateKey(firstOfThisMonth, -1);
+        return {
+          start: `${lastMonthEnd.slice(0, 7)}-01`,
+          end: lastMonthEnd,
+        };
+      }
+      case "year":
+        return { start: `${today.slice(0, 4)}-01-01`, end: today };
+      case "custom":
+        if (!corporateCustomStart || !corporateCustomEnd) return null;
+        return {
+          start: corporateCustomStart,
+          end: corporateCustomEnd,
+        };
+      default:
+        return { start: today, end: today };
+    }
   };
 
   const openOrder = (
@@ -2124,43 +2281,463 @@ export const AdminPanel: React.FC<Props> = ({
         {activeTab ===
           "corporate" && (
           <div className="space-y-5">
-            <div>
-              <h2 className="text-xl font-bold">Kurumsal Firmalar</h2>
-              <p className="text-sm text-[#999999]">Firma, yetkili ve sipariş özeti</p>
-            </div>
-            {corporateUsers.length === 0 ? (
-              <div className="rounded-2xl border border-[#303036] bg-[#19191E] p-8 text-center text-sm text-[#77777F]">
-                Henüz kurumsal firma tanımlanmamış.
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {corporateUsers.map((company) => {
-                  const companyOrders = safeOrders.filter((order) => order.companyId === company.companyId);
-                  const activeCount = companyOrders.filter((order) => order.status !== "Teslim Edildi" && order.status !== "İptal Edildi").length;
-                  return (
-                    <div key={company.id} className="rounded-2xl border border-[#303036] bg-[#19191E] p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-[#D6A84F]">KURUMSAL</p>
-                          <h3 className="mt-1 truncate font-bold text-white">{company.companyName || company.name}</h3>
-                          <p className="mt-1 truncate text-xs text-[#888891]">{company.companyContactName || company.name}</p>
-                        </div>
-                        <Building2 size={20} className="shrink-0 text-[#D6A84F]" />
-                      </div>
-                      <div className="mt-4 grid grid-cols-2 gap-2">
-                        <div className="rounded-xl bg-[#0B0B0D] p-3"><p className="text-[10px] text-[#77777F]">Toplam Sipariş</p><p className="mt-1 font-black">{companyOrders.length}</p></div>
-                        <div className="rounded-xl bg-[#0B0B0D] p-3"><p className="text-[10px] text-[#77777F]">Aktif Sipariş</p><p className="mt-1 font-black text-[#D6A84F]">{activeCount}</p></div>
-                      </div>
-                      <div className="mt-4 space-y-1 text-xs text-[#888891]">
-                        <p>{company.companyPhone || company.phone || "Telefon yok"}</p>
-                        <p className="truncate">{company.companyEmail || company.email}</p>
-                        <p className="break-all font-mono text-[10px] text-[#D6A84F]">{company.companyId}</p>
-                      </div>
-                      <button type="button" onClick={() => setCorporateRemovalTarget(company)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/5 py-2.5 text-xs font-black text-red-300 transition hover:bg-red-500/10">KURUMSALDAN ÇIKAR</button>
-                    </div>
+            {selectedCorporateCompany ? (
+              (() => {
+                const company = selectedCorporateCompany;
+                const reportRange = getCorporateReportRange();
+                const orders = [...corporateOrders].sort(
+                  (a, b) =>
+                    new Date(b.createdAt).getTime() -
+                    new Date(a.createdAt).getTime()
+                );
+
+                const totalCount = orders.length;
+                const completed = orders.filter(
+                  (order) => order.status === "Teslim Edildi"
+                );
+                const cancelled = orders.filter(
+                  (order) => order.status === "İptal Edildi"
+                );
+                const active = orders.filter(
+                  (order) =>
+                    order.status !== "Teslim Edildi" &&
+                    order.status !== "İptal Edildi"
+                );
+
+                const totalRevenue = completed.reduce((sum, order) => {
+                  const price = getValidOrderPrice(order);
+                  return price === null ? sum : sum + price;
+                }, 0);
+
+                const todayKey = getIstanbulDateKey(new Date());
+                const currentMonthKey = todayKey?.slice(0, 7) || "";
+                const todayCompleted = orders.filter(
+                  (order) =>
+                    order.status === "Teslim Edildi" &&
+                    getIstanbulDateKey(order.createdAt) === todayKey
+                );
+                const monthCompleted = orders.filter(
+                  (order) =>
+                    order.status === "Teslim Edildi" &&
+                    getIstanbulDateKey(order.createdAt)?.slice(0, 7) === currentMonthKey
+                );
+
+                const filteredOrders = reportRange
+                  ? orders.filter((order) => {
+                      const key = getIstanbulDateKey(order.createdAt);
+                      return !!key && key >= reportRange.start && key <= reportRange.end;
+                    })
+                  : [];
+
+                const filteredCompleted = filteredOrders.filter(
+                  (order) => order.status === "Teslim Edildi"
+                );
+                const filteredCancelled = filteredOrders.filter(
+                  (order) => order.status === "İptal Edildi"
+                );
+                const filteredRevenue = filteredCompleted.reduce((sum, order) => {
+                  const price = getValidOrderPrice(order);
+                  return price === null ? sum : sum + price;
+                }, 0);
+
+                const invalidCompletedPriceCount = completed.filter(
+                  (order) => getValidOrderPrice(order) === null
+                ).length;
+
+                const dailyRows = Array.from({ length: 30 }, (_, index) => {
+                  const endKey = todayKey || "";
+                  const dateKey = shiftDateKey(endKey, -(29 - index));
+                  const dayOrders = orders.filter(
+                    (order) => getIstanbulDateKey(order.createdAt) === dateKey
                   );
-                })}
-              </div>
+                  const dayCompleted = dayOrders.filter(
+                    (order) => order.status === "Teslim Edildi"
+                  );
+                  const dayRevenue = dayCompleted.reduce((sum, order) => {
+                    const price = getValidOrderPrice(order);
+                    return price === null ? sum : sum + price;
+                  }, 0);
+
+                  return {
+                    dateKey,
+                    orders: dayOrders.length,
+                    completed: dayCompleted.length,
+                    revenue: dayRevenue,
+                  };
+                }).reverse();
+
+                const yearKey = todayKey?.slice(0, 4) || "";
+                const monthlyRows = Array.from({ length: 12 }, (_, index) => {
+                  const monthKey = `${yearKey}-${String(index + 1).padStart(2, "0")}`;
+                  const monthOrders = orders.filter(
+                    (order) => getIstanbulDateKey(order.createdAt)?.slice(0, 7) === monthKey
+                  );
+                  const monthCompleted = monthOrders.filter(
+                    (order) => order.status === "Teslim Edildi"
+                  );
+                  const monthRevenue = monthCompleted.reduce((sum, order) => {
+                    const price = getValidOrderPrice(order);
+                    return price === null ? sum : sum + price;
+                  }, 0);
+
+                  return {
+                    monthKey,
+                    orders: monthOrders.length,
+                    completed: monthCompleted.length,
+                    revenue: monthRevenue,
+                  };
+                }).reverse();
+
+                return (
+                  <div className="space-y-6">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <button
+                          type="button"
+                          onClick={closeCorporateCompany}
+                          className="mb-3 flex items-center gap-2 text-xs font-bold text-[#D6A84F] transition hover:text-white"
+                        >
+                          ← Kurumsal Firmalara Dön
+                        </button>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#D6A84F]">
+                          KURUMSAL FİRMA
+                        </p>
+                        <h2 className="mt-1 text-2xl font-black text-white">
+                          {company.companyName || company.name}
+                        </h2>
+                        <p className="mt-1 text-sm text-[#888891]">
+                          {company.companyContactName || company.name}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-emerald-300">
+                          Hesap Durumu
+                        </p>
+                        <p className="mt-1 text-sm font-black text-white">
+                          {company.role === "corporate" ? "AKTİF KURUMSAL" : "NORMAL MÜŞTERİ"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {corporateOrdersLoading ? (
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {[1, 2, 3, 4, 5, 6].map((item) => (
+                          <div key={item} className="h-28 animate-pulse rounded-2xl border border-[#303036] bg-[#19191E]" />
+                        ))}
+                      </div>
+                    ) : corporateOrdersError ? (
+                      <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-6">
+                        <p className="font-bold text-red-200">Finansal veriler alınamadı.</p>
+                        <button
+                          type="button"
+                          onClick={() => void openCorporateCompany(company)}
+                          className="mt-3 rounded-xl bg-[#D6A84F] px-4 py-2 text-xs font-black text-[#0B0B0D]"
+                        >
+                          Tekrar Dene
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          <FinanceCard title="Toplam Ciro" value={formatMoney(totalRevenue)} detail={`${completed.length} tamamlanan sipariş`} accent />
+                          <FinanceCard
+                            title="Bu Ay"
+                            value={formatMoney(
+                              monthCompleted.reduce((sum, order) => {
+                                const price = getValidOrderPrice(order);
+                                return price === null ? sum : sum + price;
+                              }, 0)
+                            )}
+                            detail={`${monthCompleted.length} tamamlanan sipariş`}
+                          />
+                          <FinanceCard
+                            title="Bugün"
+                            value={formatMoney(
+                              todayCompleted.reduce((sum, order) => {
+                                const price = getValidOrderPrice(order);
+                                return price === null ? sum : sum + price;
+                              }, 0)
+                            )}
+                            detail={`${todayCompleted.length} tamamlanan sipariş`}
+                          />
+                          <FinanceCard title="Toplam Sipariş" value={totalCount} detail="Tüm durumlar" />
+                          <FinanceCard title="Tamamlanan" value={completed.length} detail="Ciroya dahil" />
+                          <FinanceCard title="Aktif" value={active.length} detail="Ciroya dahil değil" />
+                          <FinanceCard title="İptal" value={cancelled.length} detail="Ciroya dahil değil" />
+                        </section>
+
+                        {invalidCompletedPriceCount > 0 && (
+                          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-100">
+                            {invalidCompletedPriceCount} tamamlanmış siparişin fiyatı geçersiz olduğu için ciroya dahil edilmedi.
+                          </div>
+                        )}
+
+                        <section className="rounded-2xl border border-[#303036] bg-[#19191E] p-5">
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D6A84F]">Firma Bilgileri</p>
+                              <h3 className="mt-1 text-lg font-black text-white">Profil Detayları</h3>
+                            </div>
+                            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 text-[10px] font-black uppercase text-emerald-300">
+                              {company.role === "corporate" ? "Aktif Kurumsal" : "Normal Müşteri"}
+                            </span>
+                          </div>
+
+                          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {[
+                              ["Firma Adı", company.companyName || company.name],
+                              ["Yetkili Ad Soyad", company.companyContactName || company.name],
+                              ["Telefon", company.companyPhone || company.phone],
+                              ["E-posta", company.companyEmail || company.email],
+                              ["Adres", company.companyAddress],
+                              ["Vergi Numarası", company.taxNumber],
+                              ["Vergi Dairesi", company.taxOffice],
+                              ["Company ID", company.companyId],
+                              ["Kullanıcı ID", company.id],
+                              ["Hesap Rolü", company.role],
+                              ["Hesap Oluşturulma", company.createdAt ? new Date(company.createdAt).toLocaleString("tr-TR") : undefined],
+                            ].map(([label, value]) => (
+                              <div key={label} className="rounded-xl border border-[#303036] bg-[#0B0B0D] p-3">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-[#77777F]">{label}</p>
+                                <p className="mt-1 break-words text-sm font-semibold text-white">{value || "Bilgi bulunmuyor"}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+
+                        <section className="rounded-2xl border border-[#303036] bg-[#19191E] p-5">
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D6A84F]">Ciro Raporu</p>
+                              <h3 className="mt-1 text-lg font-black text-white">Tarih Aralığı Analizi</h3>
+                            </div>
+
+                            <select
+                              value={corporateReportPeriod}
+                              onChange={(event) => setCorporateReportPeriod(event.target.value as CorporateReportPeriod)}
+                              className="rounded-xl border border-[#303036] bg-[#0B0B0D] px-3 py-2 text-sm text-white outline-none focus:border-[#D6A84F]"
+                            >
+                              <option value="today">Bugün</option>
+                              <option value="yesterday">Dün</option>
+                              <option value="week">Bu Hafta</option>
+                              <option value="month">Bu Ay</option>
+                              <option value="lastMonth">Geçen Ay</option>
+                              <option value="year">Bu Yıl</option>
+                              <option value="custom">Özel Tarih</option>
+                            </select>
+                          </div>
+
+                          {corporateReportPeriod === "custom" && (
+                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                              <label className="text-xs text-[#77777F]">
+                                Başlangıç
+                                <input type="date" value={corporateCustomStart} onChange={(event) => setCorporateCustomStart(event.target.value)} className="mt-1 w-full rounded-xl border border-[#303036] bg-[#0B0B0D] px-3 py-2 text-sm text-white" />
+                              </label>
+                              <label className="text-xs text-[#77777F]">
+                                Bitiş
+                                <input type="date" value={corporateCustomEnd} onChange={(event) => setCorporateCustomEnd(event.target.value)} className="mt-1 w-full rounded-xl border border-[#303036] bg-[#0B0B0D] px-3 py-2 text-sm text-white" />
+                              </label>
+                            </div>
+                          )}
+
+                          {!reportRange && (
+                            <p className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-100">
+                              Özel tarih raporu için başlangıç ve bitiş tarihlerini seçin.
+                            </p>
+                          )}
+
+                          {reportRange && (
+                            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                              <FinanceCard title="Toplam Sipariş" value={filteredOrders.length} detail={`${formatDateKey(reportRange.start)} - ${formatDateKey(reportRange.end)}`} />
+                              <FinanceCard title="Tamamlanan" value={filteredCompleted.length} detail="Ciroya dahil" />
+                              <FinanceCard title="İptal" value={filteredCancelled.length} detail="Ciroya dahil değil" />
+                              <FinanceCard title="Ciro" value={formatMoney(filteredRevenue)} detail="Tamamlanan siparişler" accent />
+                            </div>
+                          )}
+                        </section>
+
+                        <section className="rounded-2xl border border-[#303036] bg-[#19191E] p-5">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D6A84F]">Günlük Ciro</p>
+                            <h3 className="mt-1 text-lg font-black text-white">Son 30 Gün</h3>
+                          </div>
+                          <div className="mt-4 overflow-x-auto">
+                            <table className="w-full min-w-[620px] text-left text-xs">
+                              <thead className="text-[#77777F]">
+                                <tr className="border-b border-[#303036]">
+                                  <th className="px-3 py-3 font-semibold">Tarih</th>
+                                  <th className="px-3 py-3 font-semibold">Sipariş</th>
+                                  <th className="px-3 py-3 font-semibold">Tamamlanan</th>
+                                  <th className="px-3 py-3 text-right font-semibold">Ciro</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[#303036]">
+                                {dailyRows.map((row) => (
+                                  <tr key={row.dateKey}>
+                                    <td className="px-3 py-3 text-white">{formatDateKey(row.dateKey)}</td>
+                                    <td className="px-3 py-3 text-[#BDBDC5]">{row.orders}</td>
+                                    <td className="px-3 py-3 text-[#BDBDC5]">{row.completed}</td>
+                                    <td className="px-3 py-3 text-right font-bold text-[#D6A84F]">{formatMoney(row.revenue)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </section>
+
+                        <section className="rounded-2xl border border-[#303036] bg-[#19191E] p-5">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D6A84F]">Aylık Ciro</p>
+                            <h3 className="mt-1 text-lg font-black text-white">{yearKey} Raporu</h3>
+                          </div>
+                          <div className="mt-4 overflow-x-auto">
+                            <table className="w-full min-w-[620px] text-left text-xs">
+                              <thead className="text-[#77777F]">
+                                <tr className="border-b border-[#303036]">
+                                  <th className="px-3 py-3 font-semibold">Ay</th>
+                                  <th className="px-3 py-3 font-semibold">Sipariş</th>
+                                  <th className="px-3 py-3 font-semibold">Tamamlanan</th>
+                                  <th className="px-3 py-3 text-right font-semibold">Ciro</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[#303036]">
+                                {monthlyRows.map((row) => (
+                                  <tr key={row.monthKey}>
+                                    <td className="px-3 py-3 capitalize text-white">{formatMonthKey(row.monthKey)}</td>
+                                    <td className="px-3 py-3 text-[#BDBDC5]">{row.orders}</td>
+                                    <td className="px-3 py-3 text-[#BDBDC5]">{row.completed}</td>
+                                    <td className="px-3 py-3 text-right font-bold text-[#D6A84F]">{formatMoney(row.revenue)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </section>
+
+                        <section className="rounded-2xl border border-[#303036] bg-[#19191E] p-5">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#D6A84F]">Siparişler</p>
+                              <h3 className="mt-1 text-lg font-black text-white">Firma Siparişleri</h3>
+                            </div>
+                            <span className="text-xs text-[#77777F]">{orders.length} kayıt</span>
+                          </div>
+
+                          {orders.length === 0 ? (
+                            <div className="mt-4 rounded-xl border border-dashed border-[#303036] bg-[#0B0B0D] p-6 text-center">
+                              <p className="font-semibold text-white">Henüz tamamlanmış sipariş bulunmuyor.</p>
+                              <p className="mt-1 text-xs text-[#77777F]">
+                                Finansal rapor oluşturmak için tamamlanmış sipariş bulunması gerekiyor.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="mt-4 space-y-2">
+                              {orders.map((order) => (
+                                <button key={order.id} type="button" onClick={() => openOrder(order)} className="w-full rounded-xl border border-[#303036] bg-[#0B0B0D] p-3 text-left transition hover:border-[#D6A84F]/40">
+                                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-mono text-xs font-bold text-white">#{order.id}</span>
+                                        <StatusBadge status={order.status} />
+                                        <span className="text-[10px] text-[#77777F]">
+                                          {getIstanbulDateKey(order.createdAt) ? formatDateKey(getIstanbulDateKey(order.createdAt) as string) : "Tarih yok"}
+                                        </span>
+                                      </div>
+                                      <p className="mt-1 truncate text-xs text-[#8F8F99]">{order.deliveryAddress || "Teslimat adresi bulunmuyor"}</p>
+                                    </div>
+                                    <span className="shrink-0 text-sm font-black text-[#D6A84F]">
+                                      {(() => {
+                                        const price = getValidOrderPrice(order);
+                                        return price === null ? "Geçersiz tutar" : formatMoney(price);
+                                      })()}
+                                    </span>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </section>
+                      </>
+                    )}
+                  </div>
+                );
+              })()
+            ) : (
+              <>
+                <div>
+                  <h2 className="text-xl font-bold">Kurumsal Firmalar</h2>
+                  <p className="text-sm text-[#999999]">Firma, yetkili ve sipariş özeti</p>
+                </div>
+
+                {corporateUsers.length === 0 ? (
+                  <div className="rounded-2xl border border-[#303036] bg-[#19191E] p-8 text-center text-sm text-[#77777F]">
+                    Henüz aktif kurumsal firma tanımlanmamış.
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {corporateUsers.map((company) => {
+                      const companyOrders = safeOrders.filter((order) => order.companyId === company.companyId);
+                      const activeCount = companyOrders.filter((order) => order.status !== "Teslim Edildi" && order.status !== "İptal Edildi").length;
+                      const completedCount = companyOrders.filter((order) => order.status === "Teslim Edildi").length;
+                      const companyRevenue = companyOrders
+                        .filter((order) => order.status === "Teslim Edildi")
+                        .reduce((sum, order) => {
+                          const price = getValidOrderPrice(order);
+                          return price === null ? sum : sum + price;
+                        }, 0);
+
+                      return (
+                        <button key={company.id} type="button" onClick={() => void openCorporateCompany(company)} className="rounded-2xl border border-[#303036] bg-[#19191E] p-5 text-left transition hover:-translate-y-0.5 hover:border-[#D6A84F]/40">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-black uppercase tracking-wider text-[#D6A84F]">KURUMSAL</p>
+                              <h3 className="mt-1 truncate font-bold text-white">{company.companyName || company.name}</h3>
+                              <p className="mt-1 truncate text-xs text-[#888891]">{company.companyContactName || company.name}</p>
+                            </div>
+                            <Building2 size={20} className="shrink-0 text-[#D6A84F]" />
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            <div className="rounded-xl bg-[#0B0B0D] p-3"><p className="text-[10px] text-[#77777F]">Toplam Sipariş</p><p className="mt-1 font-black">{companyOrders.length}</p></div>
+                            <div className="rounded-xl bg-[#0B0B0D] p-3"><p className="text-[10px] text-[#77777F]">Aktif Sipariş</p><p className="mt-1 font-black text-[#D6A84F]">{activeCount}</p></div>
+                            <div className="rounded-xl bg-[#0B0B0D] p-3"><p className="text-[10px] text-[#77777F]">Tamamlanan</p><p className="mt-1 font-black text-emerald-300">{completedCount}</p></div>
+                            <div className="rounded-xl bg-[#0B0B0D] p-3"><p className="text-[10px] text-[#77777F]">Toplam Ciro</p><p className="mt-1 font-black text-[#D6A84F]">{formatMoney(companyRevenue)}</p></div>
+                          </div>
+
+                          <div className="mt-4 space-y-1 text-xs text-[#888891]">
+                            <p>{company.companyPhone || company.phone || "Telefon yok"}</p>
+                            <p className="truncate">{company.companyEmail || company.email}</p>
+                            <p className="break-all font-mono text-[10px] text-[#D6A84F]">{company.companyId || "Company ID yok"}</p>
+                          </div>
+
+                          <div className="mt-4 flex gap-2">
+                            <span className="flex-1 rounded-xl border border-[#D6A84F]/25 bg-[#D6A84F]/5 py-2.5 text-center text-xs font-black text-[#D6A84F]">Firma Detayını Aç</span>
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setCorporateRemovalTarget(company);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setCorporateRemovalTarget(company);
+                                }
+                              }}
+                              className="rounded-xl border border-red-500/25 bg-red-500/5 px-3 py-2.5 text-[10px] font-black text-red-300"
+                            >
+                              ÇIKAR
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -3306,6 +3883,25 @@ const LiveCourierLocationCard: React.FC<{
     </div>
   );
 };
+
+const FinanceCard: React.FC<{
+  title: string;
+  value: React.ReactNode;
+  detail: string;
+  accent?: boolean;
+}> = ({ title, value, detail, accent = false }) => (
+  <div
+    className={
+      accent
+        ? "rounded-2xl border border-[#D6A84F]/30 bg-[#D6A84F]/5 p-4"
+        : "rounded-2xl border border-[#303036] bg-[#19191E] p-4"
+    }
+  >
+    <p className="text-[10px] font-black uppercase tracking-wider text-[#77777F]">{title}</p>
+    <p className={accent ? "mt-2 text-xl font-black text-[#D6A84F]" : "mt-2 text-xl font-black text-white"}>{value}</p>
+    <p className="mt-1 text-[11px] text-[#77777F]">{detail}</p>
+  </div>
+);
 
 const StatCard: React.FC<{
   title: string;
