@@ -4,6 +4,7 @@ import {
   Activity,
   AlertCircle,
   BarChart3,
+  Building2,
   CheckCircle2,
   Car,
   ChevronRight,
@@ -54,6 +55,7 @@ type AdminTab =
   | "orders"
   | "couriers"
   | "customers"
+  | "corporate"
   | "pricing"
   | "support"
   | "settings";
@@ -94,6 +96,9 @@ export const AdminPanel: React.FC<Props> = ({
 
   const [statusFilter, setStatusFilter] =
     useState<"Tümü" | OrderStatus>("Tümü");
+
+  const [customerTypeFilter, setCustomerTypeFilter] =
+    useState<"Tümü" | "Bireysel" | "Kurumsal">("Tümü");
 
   const [selectedOrder, setSelectedOrder] =
     useState<Order | null>(null);
@@ -138,6 +143,9 @@ export const AdminPanel: React.FC<Props> = ({
     useState<UserProfile[]>([]);
 
   const [customers, setCustomers] =
+    useState<UserProfile[]>([]);
+
+  const [corporateUsers, setCorporateUsers] =
     useState<UserProfile[]>([]);
 
   const [perKmPrice, setPerKmPrice] =
@@ -239,6 +247,9 @@ export const AdminPanel: React.FC<Props> = ({
 
       setCustomers(
         storage.getCustomers()
+      );
+      setCorporateUsers(
+        storage.getCorporateUsers()
       );
     } catch (error) {
       console.error(
@@ -556,15 +567,16 @@ export const AdminPanel: React.FC<Props> = ({
               .includes(term);
 
           const matchesStatus =
-            statusFilter ===
-              "Tümü" ||
-            order.status ===
-              statusFilter;
+            statusFilter === "Tümü" ||
+            order.status === statusFilter;
 
-          return (
-            matchesSearch &&
-            matchesStatus
-          );
+          const matchesCustomerType =
+            customerTypeFilter === "Tümü" ||
+            (customerTypeFilter === "Kurumsal"
+              ? order.customerType === "corporate"
+              : order.customerType !== "corporate");
+
+          return matchesSearch && matchesStatus && matchesCustomerType;
         })
         .sort(
           (a, b) =>
@@ -579,6 +591,7 @@ export const AdminPanel: React.FC<Props> = ({
       safeOrders,
       searchTerm,
       statusFilter,
+      customerTypeFilter,
     ]);
 
   const formatMoney = (
@@ -1054,6 +1067,11 @@ export const AdminPanel: React.FC<Props> = ({
       icon: Users,
     },
     {
+      id: "corporate",
+      label: "Kurumsal Firmalar",
+      icon: Building2,
+    },
+    {
       id: "pricing",
       label: "Fiyatlandırma",
       icon: DollarSign,
@@ -1473,6 +1491,20 @@ export const AdminPanel: React.FC<Props> = ({
               </div>
 
               <select
+                value={customerTypeFilter}
+                onChange={(event) =>
+                  setCustomerTypeFilter(
+                    event.target.value as "Tümü" | "Bireysel" | "Kurumsal"
+                  )
+                }
+                className="rounded-xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm outline-none"
+              >
+                <option>Tümü</option>
+                <option>Bireysel</option>
+                <option>Kurumsal</option>
+              </select>
+
+              <select
                 value={
                   statusFilter
                 }
@@ -1533,6 +1565,9 @@ export const AdminPanel: React.FC<Props> = ({
                             {
                               order.id
                             }
+                          </span>
+                          <span className={`rounded-full px-2 py-1 text-[9px] font-black ${order.customerType === "corporate" ? "bg-[#D6A84F]/15 text-[#D6A84F]" : "bg-white/[0.04] text-[#77777F]"}`}>
+                            {order.customerType === "corporate" ? "KURUMSAL" : "BİREYSEL"}
                           </span>
 
                           <StatusBadge
@@ -2082,6 +2117,49 @@ export const AdminPanel: React.FC<Props> = ({
         )}
 
         {activeTab ===
+          "corporate" && (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-xl font-bold">Kurumsal Firmalar</h2>
+              <p className="text-sm text-[#999999]">Firma, yetkili ve sipariş özeti</p>
+            </div>
+            {corporateUsers.length === 0 ? (
+              <div className="rounded-2xl border border-[#303036] bg-[#19191E] p-8 text-center text-sm text-[#77777F]">
+                Henüz kurumsal firma tanımlanmamış.
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {corporateUsers.map((company) => {
+                  const companyOrders = safeOrders.filter((order) => order.companyId === company.companyId);
+                  const activeCount = companyOrders.filter((order) => order.status !== "Teslim Edildi" && order.status !== "İptal Edildi").length;
+                  return (
+                    <div key={company.id} className="rounded-2xl border border-[#303036] bg-[#19191E] p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-[#D6A84F]">KURUMSAL</p>
+                          <h3 className="mt-1 truncate font-bold text-white">{company.companyName || company.name}</h3>
+                          <p className="mt-1 truncate text-xs text-[#888891]">{company.companyContactName || company.name}</p>
+                        </div>
+                        <Building2 size={20} className="shrink-0 text-[#D6A84F]" />
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="rounded-xl bg-[#0B0B0D] p-3"><p className="text-[10px] text-[#77777F]">Toplam Sipariş</p><p className="mt-1 font-black">{companyOrders.length}</p></div>
+                        <div className="rounded-xl bg-[#0B0B0D] p-3"><p className="text-[10px] text-[#77777F]">Aktif Sipariş</p><p className="mt-1 font-black text-[#D6A84F]">{activeCount}</p></div>
+                      </div>
+                      <div className="mt-4 space-y-1 text-xs text-[#888891]">
+                        <p>{company.companyPhone || company.phone || "Telefon yok"}</p>
+                        <p className="truncate">{company.companyEmail || company.email}</p>
+                        <p className="break-all font-mono text-[10px] text-[#D6A84F]">{company.companyId}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab ===
           "customers" && (
           <div className="space-y-5">
             <div>
@@ -2173,6 +2251,23 @@ export const AdminPanel: React.FC<Props> = ({
                               customer.phone
                             }
                           </p>
+                          <button
+                            type="button"
+                            onClick={async (event) => {
+                              event.stopPropagation();
+                              const companyName = window.prompt("Firma adını girin:", customer.name);
+                              if (!companyName?.trim()) return;
+                              try {
+                                await storage.convertCustomerToCorporate(customer.id, companyName);
+                              } catch (error) {
+                                console.error("Kurumsal dönüşüm hatası:", error);
+                                alert(error instanceof Error ? error.message : "Kurumsal dönüşüm yapılamadı.");
+                              }
+                            }}
+                            className="mt-3 rounded-lg border border-[#D6A84F]/30 px-3 py-2 text-[10px] font-black text-[#D6A84F]"
+                          >
+                            KURUMSAL FİRMA OLARAK ATA
+                          </button>
                         </div>
                       </div>
 
