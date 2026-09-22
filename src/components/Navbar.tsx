@@ -31,6 +31,8 @@ export function Navbar({
       ? 'Yönetici'
       : currentUser.role === 'courier'
       ? 'Kurye'
+      : currentUser.role === 'corporate'
+      ? 'Kurumsal Firma'
       : 'Müşteri';
 
   const handleLogout = async () => {
