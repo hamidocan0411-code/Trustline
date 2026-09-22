@@ -83,7 +83,7 @@ service cloud.firestore {
         )
         || (
           isAdmin()
-          && request.resource.data.role == 'courier'
+          && request.resource.data.role in ['courier', 'corporate']
         );
 
       allow update: if isAdmin()
@@ -109,10 +109,29 @@ service cloud.firestore {
     match /orders/{orderId} {
       allow read: if isAdmin()
         || (signedIn() && resource.data.customerId == request.auth.uid)
-        || (signedIn() && resource.data.courierId == request.auth.uid);
+        || (signedIn() && resource.data.courierId == request.auth.uid)
+        || (
+          signedIn()
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'corporate'
+          && resource.data.customerType == 'corporate'
+          && resource.data.companyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId
+        );
 
       allow create: if signedIn()
         && request.resource.data.customerId == request.auth.uid
+        && (
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'corporate'
+            && request.resource.data.customerType == 'corporate'
+            && request.resource.data.companyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId
+            && request.resource.data.companyName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyName
+          )
+          ||
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'customer'
+            && request.resource.data.customerType == 'individual'
+          )
+        )
         && request.resource.data.status == 'Kurye Bekleniyor'
         && request.resource.data.courierId == null
         && request.resource.data.orderType in ['standard', 'pharmacy']
