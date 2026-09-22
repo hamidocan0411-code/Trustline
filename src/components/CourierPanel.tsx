@@ -295,6 +295,9 @@ const [courierStatus, setCourierStatus] =
   const [isRequestingGeo, setIsRequestingGeo] =
     useState(false);
 
+  const [updatingCourierStatus, setUpdatingCourierStatus] =
+    useState(false);
+
   const [updatingOrderId, setUpdatingOrderId] =
     useState<string | null>(null);
 
@@ -1002,81 +1005,42 @@ const [courierStatus, setCourierStatus] =
   const handleCourierStatus = async (
     status: CourierAvailability
   ) => {
-    if (
-      status === "Çevrimdışı"
-    ) {
-      try {
-        await storage.setCourierOffline(
-          currentCourier.id
-        );
-
-        setCourierStatus(
-          "Çevrimdışı"
-        );
-
-        if (
-          watchIdRef.current !== null &&
-          "geolocation" in navigator
-        ) {
-          navigator.geolocation.clearWatch(
-            watchIdRef.current
-          );
-
-          watchIdRef.current = null;
-        }
-
-        setIsSharingLocation(
-          false
-        );
-
-        setCourierLoc(
-          (previous) =>
-            previous
-              ? {
-                  ...previous,
-                  isSharing:
-                    false,
-                  updatedAt:
-                    new Date().toISOString(),
-                }
-              : previous
-        );
-
-        setGeoError(null);
-      } catch (error) {
-        console.error(
-          "Kurye çevrimdışı yapılamadı:",
-          error
-        );
-
-        setGeoError(
-          "Çevrimdışı duruma geçilemedi."
-        );
-      }
-
+    if (updatingCourierStatus || status === courierStatus) {
       return;
     }
 
+    setUpdatingCourierStatus(true);
+    setGeoError(null);
+
     try {
-      await storage.updateCourierStatus(
-        currentCourier.id,
-        status
-      );
+      if (status === "Çevrimdışı") {
+        await storage.setCourierOffline(currentCourier.id);
 
-      setCourierStatus(status);
+        if (watchIdRef.current !== null && "geolocation" in navigator) {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+        }
 
-      setTimeout(() => {
-        void startLiveLocation();
-      }, 100);
+        setIsSharingLocation(false);
+        setCourierLoc((previous) =>
+          previous
+            ? {
+                ...previous,
+                isSharing: false,
+                updatedAt: new Date().toISOString(),
+              }
+            : previous
+        );
+      } else {
+        await storage.updateCourierStatus(currentCourier.id, status);
+        setCourierStatus(status);
+        // GPS başlangıcını mevcut courierStatus effect'i tek kez yönetir.
+      }
     } catch (error) {
-      console.error(
-        "Kurye durumu değiştirilemedi:",
-        error
-      );
-
-      setGeoError(
-        "Kurye durumu değiştirilemedi."
-      );
+      console.error("Kurye durumu değiştirilemedi:", error);
+      setGeoError("Durumunuz güncellenemedi. Lütfen tekrar deneyin.");
+    } finally {
+      setUpdatingCourierStatus(false);
     }
   };
 
@@ -1481,6 +1445,8 @@ const [courierStatus, setCourierStatus] =
                     key={status}
                     type="button"
                     onClick={() => void handleCourierStatus(status as CourierAvailability)}
+                    disabled={updatingCourierStatus}
+                    aria-busy={updatingCourierStatus}
                     className={`rounded-xl px-2 py-3 text-[10px] font-black transition active:scale-[0.98] ${
                       selected
                         ? status === "Müsait"
@@ -1491,7 +1457,7 @@ const [courierStatus, setCourierStatus] =
                         : "text-[#74747D] hover:bg-white/[0.04]"
                     }`}
                   >
-                    {status}
+                    {updatingCourierStatus && selected ? (status === "Müsait" ? "Müsait yapılıyor..." : status === "Meşgul" ? "Meşgul yapılıyor..." : "Çevrimdışı yapılıyor...") : status}
                   </button>
                 );
               })}
@@ -2096,8 +2062,8 @@ const [courierStatus, setCourierStatus] =
                 {(["Müsait", "Meşgul", "Çevrimdışı"] as (CourierAvailability | "Çevrimdışı")[]).map((status) => {
                   const selected = courierStatus === status;
                   return (
-                    <button key={status} type="button" onClick={() => void handleCourierStatus(status as CourierAvailability)} className={`rounded-xl px-2 py-2.5 text-[9px] font-black transition active:scale-95 ${selected ? status === "Müsait" ? "bg-emerald-500 text-white" : status === "Meşgul" ? "bg-amber-500 text-[#0B0B0D]" : "bg-red-500 text-white" : "bg-white/[0.04] text-[#77777F]"}`}>
-                      {status}
+                    <button key={status} type="button" onClick={() => void handleCourierStatus(status as CourierAvailability)} disabled={updatingCourierStatus} aria-busy={updatingCourierStatus} className={`rounded-xl px-2 py-2.5 text-[9px] font-black transition active:scale-95 ${selected ? status === "Müsait" ? "bg-emerald-500 text-white" : status === "Meşgul" ? "bg-amber-500 text-[#0B0B0D]" : "bg-red-500 text-white" : "bg-white/[0.04] text-[#77777F]"}`}>
+                      {updatingCourierStatus && selected ? (status === "Müsait" ? "Müsait yapılıyor..." : status === "Meşgul" ? "Meşgul yapılıyor..." : "Çevrimdışı yapılıyor...") : status}
                     </button>
                   );
                 })}
