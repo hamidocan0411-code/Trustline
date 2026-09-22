@@ -1,0 +1,22 @@
+name: Temporary Corporate Rules Validation
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save firebase-tools@latest @firebase/rules-unit-testing@latest firebase@latest
+      - run: node scripts/corporate-rules-test.mjs
