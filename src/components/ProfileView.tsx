@@ -276,6 +276,59 @@ export function ProfileView({
 
         </div>
 
+        {/* CORPORATE COMPANY INFORMATION */}
+        {currentUser.role === 'corporate' && (
+          <div className="mt-5 overflow-hidden rounded-2xl border border-[#D6A84F]/20 bg-gradient-to-br from-[#222229] to-[#19191E]">
+            <div className="border-b border-[#303036] bg-[#111116] p-4 sm:p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#D6A84F]/10 text-[#D6A84F]">
+                  <Building2 size={19} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#D6A84F]">Kurumsal Profil</p>
+                  <h3 className="mt-1 text-sm font-black text-white">Firma Bilgileri</h3>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5">
+              <div className="rounded-2xl border border-[#303036] bg-[#111116] p-4">
+                <div className="flex items-center gap-2 text-[#66666F]"><Building2 size={14} /><span className="text-[10px] uppercase tracking-wider">Firma Adı</span></div>
+                <p className="mt-2 text-sm font-semibold text-white">{currentUser.companyName || 'Bilgi eklenmemiş'}</p>
+              </div>
+
+              <div className="rounded-2xl border border-[#303036] bg-[#111116] p-4">
+                <div className="flex items-center gap-2 text-[#66666F]"><UserRound size={14} /><span className="text-[10px] uppercase tracking-wider">Yetkili</span></div>
+                <p className="mt-2 text-sm font-semibold text-white">{currentUser.companyContactName || 'Bilgi eklenmemiş'}</p>
+              </div>
+
+              <div className="rounded-2xl border border-[#303036] bg-[#111116] p-4">
+                <div className="flex items-center gap-2 text-[#66666F]"><FileText size={14} /><span className="text-[10px] uppercase tracking-wider">Firma Telefonu</span></div>
+                <p className="mt-2 break-words text-sm font-semibold text-white">{currentUser.companyPhone || currentUser.phone || 'Bilgi eklenmemiş'}</p>
+              </div>
+
+              <div className="rounded-2xl border border-[#303036] bg-[#111116] p-4">
+                <div className="flex items-center gap-2 text-[#66666F]"><Mail size={14} /><span className="text-[10px] uppercase tracking-wider">Firma E-postası</span></div>
+                <p className="mt-2 break-words text-sm font-semibold text-white">{currentUser.companyEmail || currentUser.email || 'Bilgi eklenmemiş'}</p>
+              </div>
+
+              <div className="rounded-2xl border border-[#303036] bg-[#111116] p-4">
+                <div className="flex items-center gap-2 text-[#66666F]"><MapPin size={14} /><span className="text-[10px] uppercase tracking-wider">Firma Adresi</span></div>
+                <p className="mt-2 break-words text-sm font-semibold text-white">{currentUser.companyAddress || 'Bilgi eklenmemiş'}</p>
+              </div>
+
+              <div className="rounded-2xl border border-[#303036] bg-[#111116] p-4">
+                <div className="flex items-center gap-2 text-[#66666F]"><FileText size={14} /><span className="text-[10px] uppercase tracking-wider">Vergi Bilgisi</span></div>
+                <p className="mt-2 break-words text-sm font-semibold text-white">
+                  {currentUser.taxNumber
+                    ? currentUser.taxNumber + (currentUser.taxOffice ? ' • ' + currentUser.taxOffice : '')
+                    : 'Bilgi eklenmemiş'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* COURIER INFORMATION */}
         {currentUser.role === 'courier' && (
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
