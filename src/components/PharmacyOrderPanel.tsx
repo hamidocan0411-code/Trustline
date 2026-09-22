@@ -12,8 +12,6 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { getStorage, ref, uploadBytes } from "firebase/storage";
-
 import type {
   CourierType,
   Order,
@@ -24,7 +22,6 @@ import type {
 import { calculateOrderPrice, type PackageSize } from "../utils/pricing";
 import { storage } from "../services/storage";
 import { mapService } from "../services/mapService";
-import { app } from "../services/firebase";
 import {
   pharmacyService,
   type NearbyPharmacy,
@@ -39,14 +36,6 @@ interface Props {
 }
 
 type DeliveryType = "Standart Teslimat" | "Acil Teslimat";
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_FILE_TYPES = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-];
 
 export const PharmacyOrderPanel: React.FC<Props> = ({
   isOpen,
@@ -70,7 +59,6 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
   const [receiverPhone, setReceiverPhone] = useState("");
   const [deliveryNote, setDeliveryNote] = useState("");
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("Standart Teslimat");
-  const [prescriptionFile, setPrescriptionFile] = useState<File | null>(null);
   const [distanceKm, setDistanceKm] = useState(10);
   const [distanceError, setDistanceError] = useState("");
   const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
@@ -78,7 +66,6 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
   const [errorMsg, setErrorMsg] = useState("");
   const [paymentAccepted, setPaymentAccepted] = useState(false);
   const [successOrder, setSuccessOrder] = useState<Order | null>(null);
-  const [uploadWarning, setUploadWarning] = useState("");
   const calculationRef = useRef(0);
 
   const courierType: CourierType =
@@ -165,7 +152,6 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
       setSuccessOrder(null);
       setErrorMsg("");
       setPaymentAccepted(false);
-      setUploadWarning("");
       return;
     }
 
@@ -230,39 +216,11 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
     return () => window.clearTimeout(timer);
   }, [pharmacyAddress, deliveryAddress]);
 
-  const handleFileChange = (file: File | null) => {
-    setErrorMsg("");
-
-    if (!file) {
-      setPrescriptionFile(null);
-      return;
-    }
-
-    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-      setErrorMsg(
-        "Reçete veya belge yalnızca PDF, JPG, PNG ya da WEBP olabilir."
-      );
-      setPrescriptionFile(null);
-      return;
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      setErrorMsg(
-        "Reçete veya belge boyutu en fazla 10 MB olabilir."
-      );
-      setPrescriptionFile(null);
-      return;
-    }
-
-    setPrescriptionFile(file);
-  };
-
   const createOrder = async () => {
     if (isSubmitting) return;
 
     setIsSubmitting(true);
     setErrorMsg("");
-    setUploadWarning("");
 
     try {
       if (currentUser.role !== "customer" || !currentUser.id) {
@@ -319,17 +277,6 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
         .filter(Boolean)
         .join(" | ");
 
-      const safeFileName = prescriptionFile
-        ? prescriptionFile.name.replace(
-            /[^a-zA-Z0-9._-]/g,
-            "_"
-          )
-        : "";
-
-      const prescriptionPath = prescriptionFile
-        ? `pharmacy-prescriptions/${orderId}/${safeFileName}`
-        : "";
-
       const newOrder: Order = {
         id: orderId,
         orderType: "pharmacy",
@@ -377,37 +324,11 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
         pharmacyRecipientPhone: safeReceiverPhone,
         pharmacyDeliveryType: deliveryType,
         pharmacyPaymentMethod: "Nakit",
-        ...(prescriptionFile
-          ? {
-              pharmacyPrescriptionPath: prescriptionPath,
-              pharmacyPrescriptionFileName: safeFileName,
-            }
-          : {}),
         createdAt: now,
         updatedAt: now,
       };
 
       const createdOrder = await storage.createOrder(newOrder);
-
-      if (prescriptionFile) {
-        try {
-          const firebaseStorage = getStorage(app);
-          const fileRef = ref(firebaseStorage, prescriptionPath);
-
-          await uploadBytes(fileRef, prescriptionFile, {
-            contentType: prescriptionFile.type,
-          });
-        } catch (uploadError) {
-          console.error(
-            "Eczane reçete/belge yükleme hatası:",
-            uploadError
-          );
-
-          setUploadWarning(
-            "Siparişiniz oluşturuldu ancak reçete/belge yüklenemedi."
-          );
-        }
-      }
 
       setSuccessOrder(createdOrder);
       onOrderCreated(createdOrder);
@@ -494,12 +415,6 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
             <div className="rounded-2xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-4 text-sm text-[#D0D0D5]">
               Ödeme yöntemi: <span className="font-black text-[#D6A84F]">Nakit</span>
             </div>
-
-            {uploadWarning && (
-              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs leading-5 text-amber-200">
-                {uploadWarning}
-              </div>
-            )}
 
             <button
               type="button"
@@ -886,7 +801,8 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
               <FileText size={16} className="text-[#D6A84F]" /> Reçete / gerekli belge
             </div>
             <p className="mt-2 text-xs leading-5 text-[#777780]">
-              Reçete veya belge yükleme özelliği yakında eklenecek.
+              Bu sürümde dosya/reçete yükleme kullanılmıyor. Gerekli belge veya
+              özel açıklamayı sipariş notu alanına ekleyebilirsiniz.
             </p>
           </div>
 
