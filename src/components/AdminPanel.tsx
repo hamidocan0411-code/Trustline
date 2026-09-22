@@ -118,6 +118,11 @@ export const AdminPanel: React.FC<Props> = ({
   const [selectedCustomerProfile, setSelectedCustomerProfile] =
     useState<UserProfile | null>(null);
 
+  const [corporateRemovalTarget, setCorporateRemovalTarget] =
+    useState<UserProfile | null>(null);
+  const [removingCorporateRoleId, setRemovingCorporateRoleId] =
+    useState<string | null>(null);
+
   const [courierVehicle, setCourierVehicle] =
     useState("");
 
@@ -2151,6 +2156,7 @@ export const AdminPanel: React.FC<Props> = ({
                         <p className="truncate">{company.companyEmail || company.email}</p>
                         <p className="break-all font-mono text-[10px] text-[#D6A84F]">{company.companyId}</p>
                       </div>
+                      <button type="button" onClick={() => setCorporateRemovalTarget(company)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/5 py-2.5 text-xs font-black text-red-300 transition hover:bg-red-500/10">KURUMSALDAN ÇIKAR</button>
                     </div>
                   );
                 })}
@@ -2882,6 +2888,42 @@ export const AdminPanel: React.FC<Props> = ({
         </div>,
         document.body
       )}
+
+      {corporateRemovalTarget &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-3xl border border-[#303036] bg-[#19191E] p-6 shadow-2xl">
+              <div className="flex items-start gap-3">
+                <div className="rounded-2xl bg-red-500/10 p-3 text-red-300"><AlertCircle size={22} /></div>
+                <div className="min-w-0">
+                  <h3 className="text-lg font-black text-white">Kurumsal Rolü Kaldır</h3>
+                  <p className="mt-2 text-sm leading-6 text-[#999999]">{corporateRemovalTarget.companyName || corporateRemovalTarget.name} firmasının kurumsal rolü bu kullanıcıdan kaldırılacak ve kullanıcı normal müşteri hesabına dönüştürülecek.</p>
+                  <p className="mt-2 text-xs leading-5 text-[#77777F]">Bu işlem kurumsal erişimleri kaldırır. Geçmiş ve aktif siparişler silinmez veya değiştirilmez.</p>
+                </div>
+              </div>
+              <div className="mt-6 flex gap-2">
+                <button type="button" disabled={!!removingCorporateRoleId} onClick={() => setCorporateRemovalTarget(null)} className="flex-1 rounded-xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 text-xs font-black text-[#999999] disabled:opacity-50">Vazgeç</button>
+                <button type="button" disabled={!!removingCorporateRoleId} onClick={async () => {
+                  if (!corporateRemovalTarget || removingCorporateRoleId) return;
+                  setRemovingCorporateRoleId(corporateRemovalTarget.id);
+                  try {
+                    await storage.removeCorporateRole(corporateRemovalTarget.id);
+                    setCorporateRemovalTarget(null);
+                    loadUsers();
+                    onRefreshData?.();
+                    alert("Kurumsal rol kaldırıldı. Kullanıcı normal müşteri hesabına dönüştürüldü.");
+                  } catch (error) {
+                    console.error("Kurumsal rol kaldırma hatası:", error);
+                    alert(error instanceof Error ? error.message : "Rol değiştirilemedi. Lütfen tekrar deneyin.");
+                  } finally {
+                    setRemovingCorporateRoleId(null);
+                  }
+                }} className="flex-1 rounded-xl bg-red-500 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{removingCorporateRoleId ? "İşleniyor..." : "Kurumsal Rolü Kaldır"}</button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {selectedCustomerProfile &&
         createPortal(
