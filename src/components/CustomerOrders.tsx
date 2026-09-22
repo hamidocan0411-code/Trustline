@@ -41,6 +41,8 @@ interface Props {
   orders: Order[];
   onOpenNewOrder: () => void;
   selectedOrderId?: string | null;
+  variant?: "customer" | "corporate";
+  initialFilter?: "all" | "active" | "completed" | "cancelled";
 }
 
 const ACTIVE_STATUSES: OrderStatus[] = [
