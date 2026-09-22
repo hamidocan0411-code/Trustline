@@ -28,7 +28,7 @@ export const BottomNavigation: React.FC<Props> = ({
   activeOrdersCount = 0,
   isIPhoneMode = false,
 }) => {
-  if (role === 'customer') {
+  if (role === 'customer' || role === 'corporate') {
     const desktopNavigation = isIPhoneMode
       ? ''
       : 'lg:bottom-auto lg:left-5 lg:right-auto lg:top-24 lg:h-auto lg:w-52 lg:translate-x-0 lg:flex-col lg:items-stretch lg:justify-start lg:gap-1 lg:rounded-2xl lg:border lg:border-[#303036] lg:p-2';
@@ -45,13 +45,13 @@ export const BottomNavigation: React.FC<Props> = ({
       <nav className={`fixed bottom-0 left-0 right-0 z-40 mx-auto flex h-16 max-w-7xl items-center justify-around border-t border-[#303036] bg-[#19191E] px-2 shadow-2xl ${desktopNavigation}`}>
         {/* 1. Ana Sayfa */}
         <button
-          onClick={() => onTabChange('home')}
+          onClick={() => onTabChange(role === 'corporate' ? 'corporate_panel' : 'home')}
           className={`flex flex-col items-center gap-1 rounded-xl px-3 py-1 transition-all cursor-pointer ${desktopItem} ${
             activeTab === 'home' ? 'text-[#D6A84F]' : 'text-[#999999] hover:text-white'
           }`}
         >
           <Home className="w-5 h-5" />
-          <span className={`text-[9px] font-bold uppercase tracking-wider ${desktopLabel}`}>Anasayfa</span>
+          <span className={`text-[9px] font-bold uppercase tracking-wider ${desktopLabel}`}>{role === 'corporate' ? 'Genel Bakış' : 'Anasayfa'}</span>
         </button>
 
         {/* 2. Kurye Çağır (Highlighted CTA) */}
@@ -67,7 +67,7 @@ export const BottomNavigation: React.FC<Props> = ({
 
         {/* 3. Siparişlerim */}
         <button
-          onClick={() => onTabChange('orders')}
+          onClick={() => onTabChange(role === 'corporate' ? 'corporate_orders' : 'orders')}
           className={`relative flex flex-col items-center gap-1 rounded-xl px-3 py-1 transition-all cursor-pointer ${desktopItem} ${
             activeTab === 'orders' ? 'text-[#D6A84F]' : 'text-[#999999] hover:text-white'
           }`}
@@ -76,7 +76,7 @@ export const BottomNavigation: React.FC<Props> = ({
           {activeOrdersCount > 0 && (
             <span className="absolute top-1 right-3 w-2 h-2 rounded-full bg-[#D6A84F] animate-pulse" />
           )}
-          <span className={`text-[9px] font-bold uppercase tracking-wider ${desktopLabel}`}>Siparişlerim</span>
+          <span className={`text-[9px] font-bold uppercase tracking-wider ${desktopLabel}`}>{role === 'corporate' ? 'Siparişler' : 'Siparişlerim'}</span>
         </button>
 
         {/* 4. Trustline AI */}
