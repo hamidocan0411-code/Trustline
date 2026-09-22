@@ -1894,6 +1894,12 @@ const [courierStatus, setCourierStatus] =
 
                   {/* CUSTOMER */}
                   <div className="p-4 pb-0 sm:p-5 sm:pb-0">
+                    {order.customerType === "corporate" && (
+                      <div className="mb-3 flex items-center gap-2 rounded-xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 px-3 py-2">
+                        <span className="text-[9px] font-black tracking-wider text-[#D6A84F]">🏢 KURUMSAL</span>
+                        <span className="truncate text-[10px] font-bold text-white">{order.companyName || "Kurumsal Firma"}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3.5">
                       <div className="flex min-w-0 items-center gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-400"><User size={17} /></div>
