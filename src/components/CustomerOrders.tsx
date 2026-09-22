@@ -628,16 +628,16 @@ export const CustomerOrders: React.FC<Props> = ({
               </div>
 
               <h2 className="font-['Space_Grotesk'] text-xl font-bold">
-                Siparişlerim
+                {isCorporate ? "Kurumsal Siparişler" : "Siparişlerim"}
                 <span className="ml-2 text-[#D6A84F]">
                   ({safeOrders.length})
                 </span>
               </h2>
 
-              <p className="mt-1 text-xs text-[#999999]">
-                Kurye gönderilerinizin
-                durumunu ve canlı konumunu
-                takip edin.
+              <p className="mt-1 max-w-2xl text-xs leading-5 text-[#999999]">
+                {isCorporate
+                  ? "Firmanızın gönderilerini arayın, filtreleyin ve teslimat sürecini tek ekrandan takip edin."
+                  : "Kurye gönderilerinizin durumunu ve canlı konumunu takip edin."}
               </p>
             </div>
 
@@ -646,7 +646,7 @@ export const CustomerOrders: React.FC<Props> = ({
               className="flex items-center justify-center gap-2 rounded-xl bg-[#D6A84F] px-4 py-2.5 text-xs font-bold text-[#0B0B0D] shadow-lg shadow-[#D6A84F]/10 transition hover:bg-[#c49740] active:scale-[0.98]"
             >
               <Truck size={16} />
-              Yeni Kurye Çağır
+              {isCorporate ? "Yeni Sipariş" : "Yeni Kurye Çağır"}
             </button>
           </div>
 
@@ -725,6 +725,11 @@ export const CustomerOrders: React.FC<Props> = ({
               label: "Tamamlanan",
               count: completedOrderCount,
             },
+            {
+              key: "cancelled" as const,
+              label: "İptal",
+              count: safeOrders.filter((order) => order.status === "İptal Edildi").length,
+            },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -750,6 +755,44 @@ export const CustomerOrders: React.FC<Props> = ({
               </span>
             </button>
           ))}
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1">
+            <label className="flex shrink-0 items-center gap-2 rounded-xl border border-[#303036] bg-[#19191E] px-3 py-2">
+              <span className="text-[10px] text-[#777780]">Başlangıç</span>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(event) => setFromDate(event.target.value)}
+                aria-label="Başlangıç tarihi"
+                className="bg-transparent text-xs text-white outline-none"
+              />
+            </label>
+            <label className="flex shrink-0 items-center gap-2 rounded-xl border border-[#303036] bg-[#19191E] px-3 py-2">
+              <span className="text-[10px] text-[#777780]">Bitiş</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(event) => setToDate(event.target.value)}
+                aria-label="Bitiş tarihi"
+                className="bg-transparent text-xs text-white outline-none"
+              />
+            </label>
+          </div>
+
+          <label className="flex shrink-0 items-center gap-2 rounded-xl border border-[#303036] bg-[#19191E] px-3 py-2">
+            <span className="text-[10px] text-[#777780]">Sıralama</span>
+            <select
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value as "newest" | "oldest")}
+              aria-label="Sipariş sıralaması"
+              className="bg-transparent text-xs font-bold text-white outline-none"
+            >
+              <option value="newest" className="bg-[#19191E]">En yeni</option>
+              <option value="oldest" className="bg-[#19191E]">En eski</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -827,6 +870,11 @@ export const CustomerOrders: React.FC<Props> = ({
                       <span className="rounded-lg border border-[#303036] bg-[#0B0B0D] px-2.5 py-1 font-mono text-xs font-bold text-[#D6A84F]">
                         #{order.id}
                       </span>
+                      {isCorporate && (
+                        <span className="hidden rounded-full bg-[#D6A84F]/10 px-2 py-1 text-[9px] font-black text-[#D6A84F] sm:inline-flex">
+                          KURUMSAL
+                        </span>
+                      )}
 
                       <span className="truncate text-[10px] text-[#999999]">
                         {formatDate(
