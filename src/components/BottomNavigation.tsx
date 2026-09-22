@@ -140,7 +140,7 @@ export const BottomNavigation: React.FC<Props> = ({
             </button>
             <button
               type="button"
-              onClick={() => onTabChange('corporate_company')
+              onClick={() => onTabChange('corporate_company')}
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition ${
                 activeTab === 'corporate_company' ? 'bg-[#D6A84F]/10 text-[#D6A84F]' : 'text-[#999999] hover:bg-white/[0.03] hover:text-white'
               }`}
