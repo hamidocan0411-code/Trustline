@@ -107,6 +107,8 @@ export function ProfileView({
       ? 'Yönetici'
       : currentUser.role === 'courier'
       ? 'Kurye'
+      : currentUser.role === 'corporate'
+      ? 'Kurumsal Firma'
       : 'Müşteri';
 
   const initial =
