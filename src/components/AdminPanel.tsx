@@ -148,6 +148,14 @@ const getValidOrderPrice = (order: Order): number | null => {
   return Number.isFinite(price) && price >= 0 ? price : null;
 };
 
+const getOrderReportDateKey = (order: Order): string | null => {
+  if (order.status === "Teslim Edildi" && order.deliveredAt) {
+    return getIstanbulDateKey(order.deliveredAt);
+  }
+
+  return getIstanbulDateKey(order.createdAt);
+};
+
 const isInactiveCourier = (courier: UserProfile) =>
   (courier as CourierWithEmployment).employmentStatus ===
   "inactive";
@@ -2314,17 +2322,17 @@ export const AdminPanel: React.FC<Props> = ({
                 const todayCompleted = orders.filter(
                   (order) =>
                     order.status === "Teslim Edildi" &&
-                    getIstanbulDateKey(order.createdAt) === todayKey
+                    getOrderReportDateKey(order) === todayKey
                 );
                 const monthCompleted = orders.filter(
                   (order) =>
                     order.status === "Teslim Edildi" &&
-                    getIstanbulDateKey(order.createdAt)?.slice(0, 7) === currentMonthKey
+                    getOrderReportDateKey(order)?.slice(0, 7) === currentMonthKey
                 );
 
                 const filteredOrders = reportRange
                   ? orders.filter((order) => {
-                      const key = getIstanbulDateKey(order.createdAt);
+                      const key = getOrderReportDateKey(order);
                       return !!key && key >= reportRange.start && key <= reportRange.end;
                     })
                   : [];
@@ -2348,7 +2356,7 @@ export const AdminPanel: React.FC<Props> = ({
                   const endKey = todayKey || "";
                   const dateKey = shiftDateKey(endKey, -(29 - index));
                   const dayOrders = orders.filter(
-                    (order) => getIstanbulDateKey(order.createdAt) === dateKey
+                    (order) => getOrderReportDateKey(order) === dateKey
                   );
                   const dayCompleted = dayOrders.filter(
                     (order) => order.status === "Teslim Edildi"
@@ -2370,7 +2378,7 @@ export const AdminPanel: React.FC<Props> = ({
                 const monthlyRows = Array.from({ length: 12 }, (_, index) => {
                   const monthKey = `${yearKey}-${String(index + 1).padStart(2, "0")}`;
                   const monthOrders = orders.filter(
-                    (order) => getIstanbulDateKey(order.createdAt)?.slice(0, 7) === monthKey
+                    (order) => getOrderReportDateKey(order)?.slice(0, 7) === monthKey
                   );
                   const monthCompleted = monthOrders.filter(
                     (order) => order.status === "Teslim Edildi"
@@ -2626,7 +2634,7 @@ export const AdminPanel: React.FC<Props> = ({
 
                           {orders.length === 0 ? (
                             <div className="mt-4 rounded-xl border border-dashed border-[#303036] bg-[#0B0B0D] p-6 text-center">
-                              <p className="font-semibold text-white">Henüz tamamlanmış sipariş bulunmuyor.</p>
+                              <p className="font-semibold text-white">Henüz sipariş bulunmuyor.</p>
                               <p className="mt-1 text-xs text-[#77777F]">
                                 Finansal rapor oluşturmak için tamamlanmış sipariş bulunması gerekiyor.
                               </p>
