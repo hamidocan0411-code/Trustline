@@ -185,6 +185,7 @@ service cloud.firestore {
           ])
           && request.resource.data.status in [
             'Kurye Atandı',
+            'Kurye Kabul Etti',
             'Paket Alındı',
             'Teslimatta',
             'Teslim Edildi'
