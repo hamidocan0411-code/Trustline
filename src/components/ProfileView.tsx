@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Check, Edit3, Loader2, Save, X } from 'lucide-react';
+import {
+  Building2,
+  Check,
+  Edit3,
+  FileText,
+  Loader2,
+  Mail,
+  MapPin,
+  Save,
+  UserRound,
+  X,
+} from 'lucide-react';
 import { updateProfile } from 'firebase/auth';
 import type { UserProfile } from '../types';
 import { logoutUser } from '../services/auth';
