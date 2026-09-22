@@ -470,34 +470,43 @@ export const CustomerOrders: React.FC<Props> = ({
           return false;
         }
 
-        if (filter === "active") {
-          return ACTIVE_STATUSES.includes(
-            order.status
-          );
+        if (filter === "active" && !ACTIVE_STATUSES.includes(order.status)) {
+          return false;
         }
 
-        if (filter === "completed") {
-          return (
-            order.status ===
-            "Teslim Edildi"
-          );
+        if (filter === "completed" && order.status !== "Teslim Edildi") {
+          return false;
+        }
+
+        if (filter === "cancelled" && order.status !== "İptal Edildi") {
+          return false;
+        }
+
+        if (fromDate) {
+          const start = new Date(fromDate + "T00:00:00").getTime();
+          if (new Date(order.createdAt).getTime() < start) return false;
+        }
+
+        if (toDate) {
+          const end = new Date(toDate + "T23:59:59").getTime();
+          if (new Date(order.createdAt).getTime() > end) return false;
         }
 
         return true;
       })
-      .sort(
-        (a, b) =>
-          new Date(
-            b.createdAt
-          ).getTime() -
-          new Date(
-            a.createdAt
-          ).getTime()
-      );
+      .sort((a, b) => {
+        const delta =
+          new Date(b.createdAt).getTime() -
+          new Date(a.createdAt).getTime();
+        return sortOrder === "newest" ? delta : -delta;
+      });
   }, [
     safeOrders,
     searchTerm,
     filter,
+    fromDate,
+    toDate,
+    sortOrder,
   ]);
 
   const getStatusBadge = (
