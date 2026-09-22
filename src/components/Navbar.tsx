@@ -23,6 +23,7 @@ export function Navbar({
   onOpenNotifications,
   isIPhoneMode = false,
   onToggleIPhoneMode,
+  activeTab = "home",
 }: NavbarProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -34,6 +35,42 @@ export function Navbar({
       : currentUser.role === 'corporate'
       ? 'Kurumsal Firma'
       : 'Müşteri';
+
+  const displayName =
+    currentUser.role === "corporate"
+      ? currentUser.companyName || currentUser.name
+      : currentUser.name;
+
+  const pageTitle =
+    currentUser.role === "corporate"
+      ? activeTab === "corporate_orders"
+        ? "Siparişlerim"
+        : activeTab === "corporate_active"
+        ? "Aktif Siparişler"
+        : activeTab === "corporate_completed"
+        ? "Tamamlananlar"
+        : activeTab === "corporate_cancelled"
+        ? "İptal Edilenler"
+        : activeTab === "corporate_company"
+        ? "Firma Bilgileri"
+        : activeTab === "corporate_support"
+        ? "Destek"
+        : activeTab === "profile"
+        ? "Profil"
+        : activeTab === "ai"
+        ? "Trustline AI"
+        : "Genel Bakış"
+      : activeTab === "orders"
+      ? "Siparişlerim"
+      : activeTab === "profile"
+      ? "Profil"
+      : activeTab === "ai"
+      ? "Trustline AI"
+      : currentUser.role === "courier"
+      ? "Görevler"
+      : currentUser.role === "admin"
+      ? "Yönetim Masası"
+      : "Anasayfa";
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -73,14 +110,20 @@ export function Navbar({
             />
           </div>
           <div className="min-w-0">
-            <div className="text-white font-black tracking-tight text-sm sm:text-base truncate">Trustline</div>
+            <div className="flex items-center gap-2">
+              <div className="text-white font-black tracking-tight text-sm sm:text-base truncate">Trustline</div>
+              <span className="hidden h-1 w-1 rounded-full bg-[#3A3A42] sm:block" />
+              <span className="hidden truncate text-xs font-semibold text-[#9A9AA3] sm:block">
+                {pageTitle}
+              </span>
+            </div>
             <div className="text-[#D6A84F] text-[9px] sm:text-[10px] font-bold tracking-[0.18em]">Express</div>
           </div>
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
           <div className="hidden sm:block text-right">
-            <div className="text-white text-xs font-semibold truncate max-w-[150px]">{currentUser.name}</div>
+            <div className="text-white text-xs font-semibold truncate max-w-[150px]">{displayName}</div>
             <div className="text-[#777777] text-[10px]">{roleLabel}</div>
           </div>
 
@@ -119,7 +162,9 @@ export function Navbar({
             {currentUser.avatar ? (
               <img src={currentUser.avatar} alt={currentUser.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
             ) : (
-              <span className="text-[#D6A84F] font-black text-sm">{currentUser.name?.trim()?.charAt(0)?.toUpperCase() || 'T'}</span>
+              <span className="text-[#D6A84F] font-black text-sm">
+                {(displayName?.trim()?.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('') || 'T').slice(0, 2)}
+              </span>
             )}
           </div>
 
