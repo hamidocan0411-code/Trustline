@@ -1118,6 +1118,33 @@ export const CustomerOrders: React.FC<Props> = ({
                       </div>
                     )}
 
+                    {/* Order Information */}
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3">
+                        <span className="block text-[9px] uppercase tracking-wider text-[#66666F]">
+                          Gönderici
+                        </span>
+                        <span className="mt-1 block truncate text-xs font-bold text-white">
+                          {order.companyName || order.customerName || "-"}
+                        </span>
+                        <span className="mt-1 block truncate text-[10px] text-[#777780]">
+                          {order.companyContactName || order.customerPhone || "-"}
+                        </span>
+                      </div>
+
+                      <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3">
+                        <span className="block text-[9px] uppercase tracking-wider text-[#66666F]">
+                          Paket & Mesafe
+                        </span>
+                        <span className="mt-1 block text-xs font-bold text-white">
+                          {(order.packageCount || 1)} × {order.packageSize || order.packageType}
+                        </span>
+                        <span className="mt-1 block text-[10px] text-[#777780]">
+                          {order.distanceKm} km • {formatDate(order.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+
                     {/* Courier */}
                     {order.courierName ? (
                       <div className="flex items-center justify-between gap-3 rounded-xl border border-[#303036] bg-[#19191E] p-3">
