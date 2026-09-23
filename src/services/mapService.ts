@@ -423,7 +423,26 @@ class MapService {
       const normalizedName =
         normalizeTurkish(name);
 
-      if (unique.has(normalizedName)) {
+      const existing =
+        unique.get(normalizedName);
+
+      /*
+       * Aynı mahalle OSM'de hem node hem relation/way
+       * olarak bulunabiliyor. Sokak sorgusu için gerçek
+       * sınırı taşıyan relation kaydını tercih et.
+       */
+      if (
+        existing &&
+        existing.osmType !== "node"
+      ) {
+        continue;
+      }
+
+      if (
+        existing &&
+        existing.osmType === "node" &&
+        osmType === "node"
+      ) {
         continue;
       }
 
