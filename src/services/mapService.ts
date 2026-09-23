@@ -176,7 +176,7 @@ class MapService {
   private lastAddressSearchAt = 0;
 
   private buildNominatimQuery(query: string): string {
-    const clean = query.trim().replace(/\\s+/g, " ");
+    const clean = query.trim().replace(/\s+/g, " ");
     const normalized = normalizeTurkish(clean);
     if (normalized.includes("istanbul")) return clean + ", Türkiye";
     if (normalized.includes("avcilar")) return clean + ", İstanbul, Türkiye";
@@ -215,7 +215,7 @@ class MapService {
 
   private scoreNominatimAddress(item: AddressSuggestion, query: string): number {
     const normalizedQuery = normalizeTurkish(query); const text = normalizeTurkish(item.displayName);
-    const hasNumber = /\\d/.test(query); let score = 0;
+    const hasNumber = /\d/.test(query); let score = 0;
     if (item.streetNumber) score += hasNumber ? 100 : 25;
     if (item.street) score += 55;
     if (text.includes(normalizedQuery)) score += 35;
