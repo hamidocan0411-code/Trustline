@@ -769,6 +769,72 @@ class MapService {
     }
   }
 
+  async calculateDistanceFromCoordinates(
+    pickupCoords: GeoCoordinate,
+    deliveryCoords: GeoCoordinate
+  ): Promise<{
+    success: boolean;
+    isAutoCalculated: boolean;
+    distanceKm: number;
+    routePoints: [number, number][];
+    pickupCoords: GeoCoordinate | null;
+    deliveryCoords: GeoCoordinate | null;
+    approximateDistanceText: string;
+    error?: string;
+  }> {
+    if (!isValidCoordinate(pickupCoords) || !isValidCoordinate(deliveryCoords)) {
+      return {
+        success: false,
+        isAutoCalculated: false,
+        distanceKm: 0,
+        routePoints: [],
+        pickupCoords: null,
+        deliveryCoords: null,
+        approximateDistanceText: "",
+        error: "Seçilen adres koordinatları geçersiz.",
+      };
+    }
+
+    const route = await this.calculateRoadRoute(pickupCoords, deliveryCoords);
+    const fallbackDistance = haversineDistance(pickupCoords, deliveryCoords);
+
+    let distanceKm = route?.distanceKm && route.distanceKm > 0
+      ? route.distanceKm
+      : fallbackDistance;
+
+    const routePoints = route?.routePoints?.length
+      ? route.routePoints
+      : [
+          [pickupCoords.lat, pickupCoords.lng],
+          [deliveryCoords.lat, deliveryCoords.lng],
+        ] as [number, number][];
+
+    if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
+      return {
+        success: false,
+        isAutoCalculated: false,
+        distanceKm: 0,
+        routePoints,
+        pickupCoords,
+        deliveryCoords,
+        approximateDistanceText: "",
+        error: "Seçilen adresler için mesafe hesaplanamadı.",
+      };
+    }
+
+    distanceKm = Math.round(distanceKm * 10) / 10;
+
+    return {
+      success: true,
+      isAutoCalculated: true,
+      distanceKm,
+      routePoints,
+      pickupCoords,
+      deliveryCoords,
+      approximateDistanceText: "Yaklaşık mesafe: " + distanceKm + " km",
+    };
+  }
+
   async calculateDistance(
     pickupAddress: string,
     deliveryAddress: string
