@@ -95,7 +95,7 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       </div>
 
       {open && suggestions.length > 0 && (
-        <div className="absolute left-0 right-0 top-full z-[80] mt-1 max-h-72 overflow-y-auto rounded-xl border border-[#3A3A42] bg-[#111116] p-1 shadow-2xl">
+        <div className="absolute left-0 right-0 top-full z-[80] mt-1 max-h-[60vh] overflow-y-auto rounded-xl border border-[#3A3A42] bg-[#111116] p-1 shadow-2xl">
           {suggestions.map((suggestion, index) => (
             <button
               key={(suggestion.placeId || suggestion.displayName) + "-" + index}
@@ -109,9 +109,19 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
                 <span className="block text-xs font-semibold leading-5 text-white">
                   {suggestion.displayName}
                 </span>
+                {suggestion.kind === "neighborhood" && (
+                  <span className="mt-0.5 block text-[10px] text-emerald-300">
+                    MAHALLE • Gerçek OSM adres verisi
+                  </span>
+                )}
+                {suggestion.kind === "street" && (
+                  <span className="mt-0.5 block text-[10px] text-emerald-300">
+                    SOKAK / CADDE • {suggestion.street || suggestion.name}
+                  </span>
+                )}
                 {suggestion.streetNumber && suggestion.street && (
                   <span className="mt-0.5 block text-[10px] text-emerald-300">
-                    Gerçek adres sonucu • {suggestion.street} No: {suggestion.streetNumber}
+                    GERÇEK ADRES • {suggestion.street} No: {suggestion.streetNumber}
                   </span>
                 )}
               </span>
