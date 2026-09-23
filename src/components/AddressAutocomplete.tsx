@@ -2,10 +2,18 @@ import React, { useEffect, useRef, useState } from "react";
 import { Loader2, MapPin } from "lucide-react";
 import { mapService, type AddressSuggestion } from "../services/mapService";
 
+export interface SelectedAddressHierarchy {
+  city: AddressSuggestion | null;
+  district: AddressSuggestion | null;
+  neighborhood: AddressSuggestion | null;
+  street: AddressSuggestion | null;
+}
+
 interface AddressAutocompleteProps {
   value: string;
   onChange: (value: string) => void;
   onSelect?: (suggestion: AddressSuggestion) => void;
+  onHierarchyChange?: (hierarchy: SelectedAddressHierarchy) => void;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
@@ -13,8 +21,14 @@ interface AddressAutocompleteProps {
   id?: string;
 }
 
+const normalizeTurkishForComponent = (value: string) =>
+  value
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
 export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
-  value, onChange, onSelect, placeholder = "Adres ara...", className = "",
+  value, onChange, onSelect, onHierarchyChange, placeholder = "Adres ara...", className = "",
   disabled = false, required = false, id,
 }) => {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
@@ -25,7 +39,17 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const selectedCityRef = useRef<AddressSuggestion | null>(null);
   const selectedDistrictRef = useRef<AddressSuggestion | null>(null);
   const selectedNeighborhoodRef = useRef<AddressSuggestion | null>(null);
+  const selectedStreetRef = useRef<AddressSuggestion | null>(null);
   const skipNextValueSearchRef = useRef(false);
+
+  const emitHierarchy = () => {
+    onHierarchyChange?.({
+      city: selectedCityRef.current,
+      district: selectedDistrictRef.current,
+      neighborhood: selectedNeighborhoodRef.current,
+      street: selectedStreetRef.current,
+    });
+  };
 
   useEffect(() => {
     const query = value.trim();
@@ -97,6 +121,8 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         selectedCityRef.current = selected;
         selectedDistrictRef.current = null;
         selectedNeighborhoodRef.current = null;
+        selectedStreetRef.current = null;
+        emitHierarchy();
 
         skipNextValueSearchRef.current = true;
 
@@ -127,9 +153,14 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
        * İLÇE seçildi: mahalleleri getir.
        */
       if (selected.kind === "district") {
-        selectedCityRef.current = null;
+        /*
+         * İlçe seçimi, daha önce seçilmiş il bağlamını silmez.
+         * Kullanıcı İstanbul → Avcılar yaptıysa city state korunur.
+         */
         selectedDistrictRef.current = selected;
         selectedNeighborhoodRef.current = null;
+        selectedStreetRef.current = null;
+        emitHierarchy();
 
         skipNextValueSearchRef.current = true;
 
@@ -164,6 +195,38 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
        */
       if (selected.kind === "neighborhood") {
         selectedNeighborhoodRef.current = selected;
+        selectedStreetRef.current = null;
+
+        if (
+          selected.parentDistrict &&
+          (
+            !selectedDistrictRef.current ||
+            selectedDistrictRef.current.name !== selected.parentDistrict
+          )
+        ) {
+          try {
+            const districts =
+              await mapService.getDistrictSuggestions();
+            const matchingDistrict =
+              districts.find(
+                (district) =>
+                  normalizeTurkishForComponent(
+                    district.name || ""
+                  ) ===
+                  normalizeTurkishForComponent(
+                    selected.parentDistrict || ""
+                  )
+              );
+
+            if (matchingDistrict) {
+              selectedDistrictRef.current = matchingDistrict;
+            }
+          } catch {
+            // Parent district is optional metadata; neighborhood selection can continue.
+          }
+        }
+
+        emitHierarchy();
 
         skipNextValueSearchRef.current = true;
 
@@ -194,10 +257,14 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 
       /*
        * SOKAK / GERÇEK ADRES seçildi: nihai seçim.
+       * Üst hiyerarşi korunur; yalnızca alt seviye değişir.
        */
-      selectedCityRef.current = null;
-      selectedDistrictRef.current = null;
-      selectedNeighborhoodRef.current = null;
+      selectedStreetRef.current =
+        selected.kind === "street" || selected.kind === "address"
+          ? selected
+          : null;
+
+      emitHierarchy();
 
       onChange(
         selected.formattedAddress ||
@@ -246,7 +313,14 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
             selectedCityRef.current = null;
             selectedDistrictRef.current = null;
             selectedNeighborhoodRef.current = null;
+            selectedStreetRef.current = null;
             skipNextValueSearchRef.current = false;
+            onHierarchyChange?.({
+              city: null,
+              district: null,
+              neighborhood: null,
+              street: null,
+            });
             onChange(event.target.value);
             setOpen(true);
           }}
