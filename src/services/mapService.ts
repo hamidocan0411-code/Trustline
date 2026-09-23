@@ -1568,19 +1568,6 @@ class MapService {
       ) {
         kind = "street";
       } else if (
-        type === "district" ||
-        type === "county" ||
-        osmValue === "neighbourhood" &&
-          Boolean(district)
-      ) {
-        kind =
-          osmValue === "neighbourhood" ||
-          osmValue === "quarter" ||
-          osmValue === "suburb" ||
-          type === "district"
-            ? "neighborhood"
-            : "district";
-      } else if (
         type === "locality" ||
         type === "neighbourhood" ||
         type === "quarter" ||
@@ -1591,9 +1578,13 @@ class MapService {
       ) {
         kind = "neighborhood";
       } else if (
+        type === "district" ||
+        type === "county"
+      ) {
+        kind = "district";
+      } else if (
         type === "city" ||
-        type === "state" ||
-        province
+        type === "state"
       ) {
         kind = "city";
       }
