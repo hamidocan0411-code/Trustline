@@ -54,6 +54,7 @@ export interface UserProfile {
   companyPhone?: string;
   companyEmail?: string;
   companyAddress?: string;
+  address?: string;
   taxNumber?: string;
   taxOffice?: string;
   avatar?: string;
