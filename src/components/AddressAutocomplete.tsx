@@ -22,9 +22,17 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const requestIdRef = useRef(0);
+  const selectedNeighborhoodRef = useRef<AddressSuggestion | null>(null);
+  const skipNextValueSearchRef = useRef(false);
 
   useEffect(() => {
     const query = value.trim();
+
+    if (skipNextValueSearchRef.current) {
+      skipNextValueSearchRef.current = false;
+      return;
+    }
+
     if (query.length < 3) {
       setSuggestions([]);
       setOpen(false);
@@ -36,39 +44,117 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     const timer = window.setTimeout(async () => {
       setLoading(true);
       try {
-        const results = await mapService.searchAddressSuggestions(query);
+        const results =
+          await mapService.searchAddressSuggestions(query);
+
         if (requestId !== requestIdRef.current) return;
+
         setSuggestions(results);
         setOpen(results.length > 0);
       } catch (error) {
         if (requestId !== requestIdRef.current) return;
-        console.warn("OpenStreetMap adres önerileri alınamadı:", error);
+        console.warn(
+          "OpenStreetMap adres önerileri alınamadı:",
+          error
+        );
         setSuggestions([]);
         setOpen(false);
       } finally {
-        if (requestId === requestIdRef.current) setLoading(false);
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
     }, 250);
 
     return () => window.clearTimeout(timer);
   }, [value]);
 
-  const handleSelect = async (suggestion: AddressSuggestion) => {
+  const handleSelect = async (
+    suggestion: AddressSuggestion
+  ) => {
+    const requestId = ++requestIdRef.current;
     setDetailsLoading(true);
+
     try {
-      const selected = await mapService.resolveAddressSuggestion(suggestion);
-      onChange(selected.formattedAddress || selected.displayName);
+      const selected =
+        await mapService.resolveAddressSuggestion(
+          suggestion
+        );
+
+      /*
+       * Mahalle seçildiyse bu seçim nihai adres değildir.
+       * Mahalle değerini üst seviyede koruyup doğrudan
+       * yalnızca o mahalleye ait sokak/cadde listesini aç.
+       */
+      if (selected.kind === "neighborhood") {
+        selectedNeighborhoodRef.current =
+          selected;
+
+        skipNextValueSearchRef.current =
+          true;
+
+        onChange(
+          selected.formattedAddress ||
+            selected.displayName
+        );
+
+        onSelect?.(selected);
+
+        setLoading(true);
+
+        const streets =
+          await mapService.getStreetSuggestionsForNeighborhood(
+            selected
+          );
+
+        if (
+          requestId !== requestIdRef.current ||
+          selectedNeighborhoodRef.current !== selected
+        ) {
+          return;
+        }
+
+        setSuggestions(streets);
+        setOpen(streets.length > 0);
+        return;
+      }
+
+      /*
+       * Sokak/cadde veya gerçek bina adresi seçildiyse
+       * artık nihai seçimdir.
+       */
+      selectedNeighborhoodRef.current =
+        null;
+
+      onChange(
+        selected.formattedAddress ||
+          selected.displayName
+      );
       onSelect?.(selected);
       setSuggestions([]);
       setOpen(false);
     } catch (error) {
-      console.warn("Adres detayları alınamadı:", error);
-      onChange(suggestion.formattedAddress || suggestion.displayName);
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      console.warn(
+        "Adres detayları alınamadı:",
+        error
+      );
+
+      onChange(
+        suggestion.formattedAddress ||
+          suggestion.displayName
+      );
       onSelect?.(suggestion);
       setSuggestions([]);
       setOpen(false);
     } finally {
-      setDetailsLoading(false);
+      if (requestId === requestIdRef.current) {
+        setDetailsLoading(false);
+        setLoading(false);
+      }
     }
   };
 
@@ -81,7 +167,13 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           required={required}
           disabled={disabled || detailsLoading}
           value={value}
-          onChange={(event) => { onChange(event.target.value); setOpen(true); }}
+          onChange={(event) => {
+            requestIdRef.current += 1;
+            selectedNeighborhoodRef.current = null;
+            skipNextValueSearchRef.current = false;
+            onChange(event.target.value);
+            setOpen(true);
+          }}
           onFocus={() => { if (suggestions.length > 0) setOpen(true); }}
           onBlur={() => { window.setTimeout(() => setOpen(false), 160); }}
           onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }}
