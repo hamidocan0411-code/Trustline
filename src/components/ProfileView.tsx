@@ -16,6 +16,7 @@ import type { UserProfile } from '../types';
 import { logoutUser } from '../services/auth';
 import { auth } from '../services/firebase';
 import { storage } from '../services/storage';
+import { AddressAutocomplete } from './AddressAutocomplete';
 
 interface ProfileViewProps {
   currentUser: UserProfile;
@@ -44,6 +45,7 @@ export function ProfileView({
 
   const [name, setName] = useState(currentUser.name || '');
   const [phone, setPhone] = useState(currentUser.phone || '');
+  const [address, setAddress] = useState(currentUser.address || '');
   const [companyName, setCompanyName] = useState(currentUser.companyName || '');
   const [companyContactName, setCompanyContactName] = useState(currentUser.companyContactName || currentUser.name || '');
   const [companyPhone, setCompanyPhone] = useState(currentUser.companyPhone || currentUser.phone || '');
@@ -55,6 +57,7 @@ export function ProfileView({
   useEffect(() => {
     setName(currentUser.name || '');
     setPhone(currentUser.phone || '');
+    setAddress(currentUser.address || '');
     setCompanyName(currentUser.companyName || '');
     setCompanyContactName(currentUser.companyContactName || currentUser.name || '');
     setCompanyPhone(currentUser.companyPhone || currentUser.phone || '');
@@ -66,6 +69,7 @@ export function ProfileView({
     currentUser.id,
     currentUser.name,
     currentUser.phone,
+    currentUser.address,
     currentUser.companyName,
     currentUser.companyContactName,
     currentUser.companyPhone,
@@ -141,6 +145,7 @@ export function ProfileView({
       await storage.updateUser(currentUser.id, {
         name: cleanName,
         phone: cleanPhone,
+        address: address.trim(),
       });
 
       if (auth.currentUser) {
@@ -291,6 +296,10 @@ export function ProfileView({
               <label className="mb-2 block text-xs font-semibold text-[#999999]">Telefon</label>
               <input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" placeholder="05XX XXX XX XX" className="w-full rounded-xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 text-sm text-white outline-none focus:border-[#D6A84F]" />
             </div>
+            <div className="sm:col-span-2">
+              <label className="mb-2 block text-xs font-semibold text-[#999999]">Adres</label>
+              <AddressAutocomplete value={address} onChange={setAddress} placeholder="Örn: Cihangir Mahallesi, X Sokak No:12, Avcılar/İstanbul" className="w-full rounded-xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 pr-10 text-sm text-white outline-none focus:border-[#D6A84F]" />
+            </div>
             <button type="button" disabled={savingProfile} onClick={saveProfile} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#D6A84F] py-3 text-sm font-black text-[#0B0B0D] disabled:opacity-50">
               {savingProfile ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
               {savingProfile ? 'Kaydediliyor...' : 'Profilimi Kaydet'}
@@ -379,14 +388,11 @@ export function ProfileView({
               ].map(([label, value, setter]) => (
                 <div key={String(label)} className={label === 'Adres' ? 'sm:col-span-2' : ''}>
                   <label className="mb-2 block text-xs font-semibold text-[#999999]">{label}</label>
-                  <input
-                    value={String(value)}
-                    onChange={(event) => (setter as React.Dispatch<React.SetStateAction<string>>)(event.target.value)}
-                    type={label === 'E-posta' ? 'email' : 'text'}
-                    inputMode={label === 'Telefon' || label === 'Vergi Numarası' ? 'tel' : undefined}
-                    autoComplete={label === 'E-posta' ? 'email' : 'off'}
-                    className="w-full rounded-xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 text-sm text-white outline-none transition focus:border-[#D6A84F] focus:ring-2 focus:ring-[#D6A84F]/10"
-                  />
+                  {label === 'Adres' ? (
+                    <AddressAutocomplete value={String(value)} onChange={(nextValue) => (setter as React.Dispatch<React.SetStateAction<string>>)(nextValue)} placeholder="Örn: Cihangir Mahallesi, X Sokak No:12, Avcılar/İstanbul" className="w-full rounded-xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 pr-10 text-sm text-white outline-none transition focus:border-[#D6A84F] focus:ring-2 focus:ring-[#D6A84F]/10" />
+                  ) : (
+                    <input value={String(value)} onChange={(event) => (setter as React.Dispatch<React.SetStateAction<string>>)(event.target.value)} type={label === 'E-posta' ? 'email' : 'text'} inputMode={label === 'Telefon' || label === 'Vergi Numarası' ? 'tel' : undefined} autoComplete={label === 'E-posta' ? 'email' : 'off'} className="w-full rounded-xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 text-sm text-white outline-none transition focus:border-[#D6A84F] focus:ring-2 focus:ring-[#D6A84F]/10" />
+                  )}
                 </div>
               ))}
             </div>
