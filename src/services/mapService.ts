@@ -492,7 +492,96 @@ class MapService {
                 osmId
             : null;
         } catch {
-          return null;
+          try {
+            const params =
+              new URLSearchParams();
+
+            params.set(
+              "q",
+              "İstanbul, Türkiye"
+            );
+            params.set(
+              "format",
+              "jsonv2"
+            );
+            params.set(
+              "limit",
+              "10"
+            );
+            params.set(
+              "countrycodes",
+              "tr"
+            );
+
+            const response =
+              await fetch(
+                MAP_CONFIG.searchUrl +
+                  "?" +
+                  params.toString(),
+                {
+                  headers: {
+                    Accept:
+                      "application/json",
+                  },
+                }
+              );
+
+            if (!response.ok) {
+              return null;
+            }
+
+            const data =
+              await response.json();
+
+            const result =
+              Array.isArray(data)
+                ? data.find(
+                    (item: any) =>
+                      normalizeTurkish(
+                        String(
+                          item?.name ||
+                            ""
+                        )
+                      ) ===
+                        "istanbul" &&
+                      (
+                        normalizeTurkish(
+                          String(
+                            item?.type ||
+                              ""
+                          )
+                        ) ===
+                          "administrative" ||
+                        normalizeTurkish(
+                          String(
+                            item?.type ||
+                              ""
+                          )
+                        ) ===
+                          "city"
+                      ) &&
+                      String(
+                        item?.osm_type ||
+                          ""
+                      ).toLowerCase() ===
+                        "relation"
+                  )
+                : null;
+
+            const osmId =
+              Number(
+                result?.osm_id
+              );
+
+            return Number.isFinite(
+              osmId
+            )
+              ? 3600000000 +
+                  osmId
+              : null;
+          } catch {
+            return null;
+          }
         }
       })().finally(
         () => {
@@ -722,7 +811,7 @@ class MapService {
 
     const neighborhoods =
       await this.getDistrictNeighborhoods(
-        districtName
+        district
       );
 
     const cleanQuery =
