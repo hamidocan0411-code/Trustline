@@ -14,6 +14,7 @@ export interface AddressSuggestion {
   osmId?: number;
   areaId?: number;
   kind?: "district" | "neighborhood" | "street" | "address";
+  parentDistrict?: string;
   street?: string;
   streetNumber?: string;
   types?: string[];
@@ -454,6 +455,7 @@ class MapService {
               ? 3600000000 + osmId
               : undefined,
           kind: "neighborhood",
+          parentDistrict: district,
           types: [
             "neighborhood",
             String(
@@ -771,6 +773,41 @@ class MapService {
         ({ neighborhood }) =>
           neighborhood
       );
+  }
+
+  async getStreetSuggestionsForNeighborhood(
+    neighborhood: AddressSuggestion
+  ): Promise<AddressSuggestion[]> {
+    if (neighborhood.kind !== "neighborhood") {
+      return [];
+    }
+
+    const district =
+      neighborhood.parentDistrict ||
+      String(
+        neighborhood.displayName
+          .split(",")[1] ||
+          ""
+      )
+        .trim()
+        .replace(/\\s*Mahallesi\\s*/gi, "");
+
+    if (!district) {
+      return [];
+    }
+
+    try {
+      return await this.getNeighborhoodStreets(
+        neighborhood,
+        district
+      );
+    } catch (error) {
+      console.warn(
+        "Seçilen mahallenin sokakları alınamadı:",
+        error
+      );
+      return [];
+    }
   }
 
   private async searchPhotonSuggestions(
