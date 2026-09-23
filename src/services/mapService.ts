@@ -23,6 +23,8 @@ export interface MapServiceConfig {
   routeUrl: string;
 }
 
+const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+
 const MAP_CONFIG: MapServiceConfig = {
   defaultCenter: [39.0, 35.0],
   defaultZoom: 6,
@@ -229,22 +231,203 @@ class MapService {
     return score;
   }
 
-  private async searchNominatimAddressSuggestions(cleanQuery: string): Promise<AddressSuggestion[]> {
-    const now = Date.now(); const elapsed = now - this.lastAddressSearchAt;
-    if (elapsed < 1100) await new Promise<void>((resolve) => setTimeout(resolve, 1100 - elapsed));
-    this.lastAddressSearchAt = Date.now();
+  private async findNeighborhoodArea(cleanQuery: string): Promise<{ areaId: number; neighborhood: string; district: string; city: string } | null> {
     const params = new URLSearchParams();
     params.set("q", this.buildNominatimQuery(cleanQuery));
-    params.set("format", "jsonv2"); params.set("addressdetails", "1"); params.set("namedetails", "1");
-    params.set("limit", "12"); params.set("countrycodes", "tr"); params.set("layer", "address"); params.set("dedupe", "1");
-    const viewbox = this.getAddressViewbox(cleanQuery); if (viewbox) params.set("viewbox", viewbox);
-    const response = await fetch(MAP_CONFIG.searchUrl + "?" + params.toString(), { headers: { Accept: "application/json" } });
-    if (!response.ok) throw new Error("Adres arama servisi HTTP " + response.status);
+    params.set("format", "jsonv2");
+    params.set("addressdetails", "1");
+    params.set("limit", "10");
+    params.set("countrycodes", "tr");
+    params.set("featuretype", "settlement");
+
+    const response = await fetch(MAP_CONFIG.searchUrl + "?" + params.toString(), {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) return null;
+
     const data = await response.json();
-    const mapped = Array.isArray(data) ? data.map((item: any) => this.mapNominatimAddress(item)).filter(Boolean) as AddressSuggestion[] : [];
+    if (!Array.isArray(data)) return null;
+
+    const normalizedQuery = normalizeTurkish(cleanQuery);
+    const neighborhoodResult = data.find((item: any) => {
+      const osmType = String(item?.osm_type || "").toLowerCase();
+      const type = normalizeTurkish(String(item?.type || item?.addresstype || ""));
+      const display = normalizeTurkish(String(item?.display_name || ""));
+      const name = normalizeTurkish(String(item?.name || ""));
+      return (
+        osmType === "relation" &&
+        (type.includes("neighbourhood") ||
+          type.includes("quarter") ||
+          type.includes("suburb") ||
+          display.includes(normalizedQuery) ||
+          name.includes(normalizedQuery))
+      );
+    });
+
+    if (!neighborhoodResult) return null;
+
+    const osmId = Number(neighborhoodResult.osm_id);
+    if (!Number.isFinite(osmId) || osmId <= 0) return null;
+
+    const address = neighborhoodResult.address || {};
+    const neighborhood =
+      String(
+        address.neighbourhood ||
+          address.quarter ||
+          address.suburb ||
+          neighborhoodResult.name ||
+          ""
+      ).trim();
+    const district = String(
+      address.city_district ||
+        address.town ||
+        address.municipality ||
+        address.county ||
+        ""
+    ).trim();
+    const city = String(
+      address.city ||
+        address.province ||
+        "İstanbul"
+    ).trim();
+
+    return {
+      areaId: 3600000000 + osmId,
+      neighborhood: neighborhood || cleanQuery,
+      district,
+      city,
+    };
+  }
+
+  private async searchNeighborhoodStreets(cleanQuery: string): Promise<AddressSuggestion[]> {
+    const neighborhood = await this.findNeighborhoodArea(cleanQuery);
+    if (!neighborhood) return [];
+
+    const query =
+      "[out:json][timeout:15];" +
+      "area(" + neighborhood.areaId + ")->.searchArea;" +
+      'way["highway"]["name"](area.searchArea);' +
+      "out tags center;";
+
+    const response = await fetch(OVERPASS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      },
+      body: "data=" + encodeURIComponent(query),
+    });
+
+    if (!response.ok) throw new Error("Sokak listesi HTTP " + response.status);
+
+    const data = await response.json();
+    const elements = Array.isArray(data?.elements) ? data.elements : [];
     const unique = new Map<string, AddressSuggestion>();
-    for (const item of mapped) { const key = item.placeId || (item.lat + "," + item.lng); if (!unique.has(key)) unique.set(key, item); }
-    return Array.from(unique.values()).sort((a,b) => this.scoreNominatimAddress(b, cleanQuery) - this.scoreNominatimAddress(a, cleanQuery)).slice(0,8);
+
+    for (const item of elements) {
+      const name = String(item?.tags?.name || "").trim();
+      if (!name) continue;
+
+      const centerLat = Number(item?.center?.lat);
+      const centerLng = Number(item?.center?.lon);
+      if (!Number.isFinite(centerLat) || !Number.isFinite(centerLng)) continue;
+
+      const displayParts = [
+        name,
+        neighborhood.neighborhood + " Mahallesi",
+        neighborhood.district,
+        neighborhood.city,
+      ].filter(Boolean);
+
+      const suggestion: AddressSuggestion = {
+        displayName: displayParts.join(", "),
+        formattedAddress: displayParts.join(", "),
+        lat: centerLat,
+        lng: centerLng,
+        name,
+        street: name,
+        streetNumber: "",
+        source: "openstreetmap-overpass",
+        placeId: "W" + String(item.id),
+        types: ["street", String(item?.tags?.highway || "road")],
+      };
+
+      const key = normalizeTurkish(name);
+      if (!unique.has(key)) unique.set(key, suggestion);
+    }
+
+    return Array.from(unique.values()).sort((a, b) =>
+      String(a.displayName).localeCompare(String(b.displayName), "tr")
+    );
+  }
+
+  private async searchNominatimAddressSuggestions(cleanQuery: string): Promise<AddressSuggestion[]> {
+    const now = Date.now();
+    const elapsed = now - this.lastAddressSearchAt;
+    if (elapsed < 1100) {
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, 1100 - elapsed)
+      );
+    }
+    this.lastAddressSearchAt = Date.now();
+
+    const normalizedQuery = normalizeTurkish(cleanQuery);
+    const isNeighborhoodQuery =
+      normalizedQuery.includes("mahallesi") ||
+      normalizedQuery.includes(" mahalle") ||
+      /(^|\\s)mah($|\\s)/.test(normalizedQuery);
+
+    if (isNeighborhoodQuery) {
+      try {
+        const streets = await this.searchNeighborhoodStreets(cleanQuery);
+        if (streets.length > 0) {
+          return streets.slice(0, 60);
+        }
+      } catch (error) {
+        console.warn("Mahalle sokak listesi alınamadı, adres aramasına dönülüyor:", error);
+      }
+    }
+
+    const params = new URLSearchParams();
+    params.set("q", this.buildNominatimQuery(cleanQuery));
+    params.set("format", "jsonv2");
+    params.set("addressdetails", "1");
+    params.set("namedetails", "1");
+    params.set("limit", "20");
+    params.set("countrycodes", "tr");
+    params.set("layer", "address");
+    params.set("dedupe", "1");
+
+    const viewbox = this.getAddressViewbox(cleanQuery);
+    if (viewbox) params.set("viewbox", viewbox);
+
+    const response = await fetch(
+      MAP_CONFIG.searchUrl + "?" + params.toString(),
+      { headers: { Accept: "application/json" } }
+    );
+    if (!response.ok) {
+      throw new Error("Adres arama servisi HTTP " + response.status);
+    }
+
+    const data = await response.json();
+    const mapped = Array.isArray(data)
+      ? data
+          .map((item: any) => this.mapNominatimAddress(item))
+          .filter(Boolean) as AddressSuggestion[]
+      : [];
+
+    const unique = new Map<string, AddressSuggestion>();
+    for (const item of mapped) {
+      const key = item.placeId || item.lat + "," + item.lng;
+      if (!unique.has(key)) unique.set(key, item);
+    }
+
+    return Array.from(unique.values())
+      .sort(
+        (a, b) =>
+          this.scoreNominatimAddress(b, cleanQuery) -
+          this.scoreNominatimAddress(a, cleanQuery)
+      )
+      .slice(0, 12);
   }
 
   getConfig(): MapServiceConfig {
