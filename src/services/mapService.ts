@@ -227,7 +227,7 @@ class MapService {
 
   private normalizeQueryForHierarchy(value: string): string {
     return normalizeTurkish(value)
-      .replace(/[,/\\-]/g, " ")
+      .replace(/[,./\\-]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -687,10 +687,20 @@ class MapService {
         district
       );
 
-    const neighborhoods =
-      await this.getDistrictNeighborhoods(
-        district
+    let neighborhoods: AddressSuggestion[];
+
+    try {
+      neighborhoods =
+        await this.getDistrictNeighborhoods(
+          district
+        );
+    } catch (error) {
+      console.warn(
+        "İstanbul mahalle/sokak verisi alınamadı:",
+        error
       );
+      return null;
+    }
 
     if (!remainder) {
       return neighborhoods;
@@ -974,6 +984,34 @@ class MapService {
   private async searchAddressSuggestionsInternal(
     cleanQuery: string
   ): Promise<AddressSuggestion[]> {
+    const normalizedQuery =
+      normalizeTurkish(
+        this.normalizeQueryForHierarchy(
+          cleanQuery
+        )
+      );
+
+    if (normalizedQuery === "istanbul") {
+      return ISTANBUL_DISTRICTS.map(
+        (district) => ({
+          displayName:
+            district +
+            ", İstanbul, Türkiye",
+          formattedAddress:
+            district +
+            ", İstanbul, Türkiye",
+          name: district,
+          source:
+            "openstreetmap-overpass",
+          kind: "district",
+          types: [
+            "administrative",
+            "district",
+          ],
+        })
+      );
+    }
+
     const hierarchyResults =
       await this.searchIstanbulAddressHierarchy(
         cleanQuery
