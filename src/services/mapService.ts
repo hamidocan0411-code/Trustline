@@ -307,6 +307,140 @@ class MapService {
     };
   }
 
+  private async findIstanbulAreaId(): Promise<number | null> {
+    if (
+      this.istanbulAreaIdPromise
+    ) {
+      return this.istanbulAreaIdPromise;
+    }
+
+    this.istanbulAreaIdPromise =
+      (async () => {
+        try {
+          const params =
+            new URLSearchParams();
+
+          params.set(
+            "q",
+            "İstanbul, Türkiye"
+          );
+          params.set(
+            "format",
+            "geocodejson"
+          );
+          params.set(
+            "limit",
+            "10"
+          );
+          params.set(
+            "countrycodes",
+            "tr"
+          );
+          params.set(
+            "accept-language",
+            "tr"
+          );
+
+          const response =
+            await fetch(
+              MAP_CONFIG.searchUrl +
+                "?" +
+                params.toString(),
+              {
+                headers: {
+                  Accept:
+                    "application/json",
+                },
+              }
+            );
+
+          if (
+            !response.ok
+          ) {
+            return null;
+          }
+
+          const data =
+            await response.json();
+
+          const features =
+            Array.isArray(
+              data?.features
+            )
+              ? data.features
+              : [];
+
+          const exact =
+            features.find(
+              (feature: any) => {
+                const geocoding =
+                  feature?.properties
+                    ?.geocoding ||
+                  {};
+
+                const name =
+                  normalizeTurkish(
+                    String(
+                      geocoding?.name ||
+                        ""
+                    )
+                  );
+
+                const type =
+                  normalizeTurkish(
+                    String(
+                      geocoding?.type ||
+                        ""
+                    )
+                  );
+
+                const osmType =
+                  String(
+                    geocoding?.osm_type ||
+                      ""
+                  ).toLowerCase();
+
+                return (
+                  name ===
+                    "istanbul" &&
+                  (
+                    type ===
+                      "city" ||
+                    type ===
+                      "state"
+                  ) &&
+                  osmType ===
+                    "relation"
+                );
+              }
+            );
+
+          const osmId =
+            Number(
+              exact?.properties
+                ?.geocoding
+                ?.osm_id
+            );
+
+          return Number.isFinite(
+            osmId
+          )
+            ? 3600000000 +
+                osmId
+            : null;
+        } catch {
+          return null;
+        }
+      })().finally(
+        () => {
+          this.istanbulAreaIdPromise =
+            null;
+        }
+      );
+
+    return this.istanbulAreaIdPromise;
+  }
+
   private async getIstanbulDistrictSuggestions(
     queryText?: string
   ): Promise<AddressSuggestion[]> {
@@ -326,9 +460,20 @@ class MapService {
       if (!this.districtLoadPromise) {
         this.districtLoadPromise =
           (async () => {
+            const istanbulAreaId =
+              await this.findIstanbulAreaId();
+
+            if (!istanbulAreaId) {
+              throw new Error(
+                "İstanbul OSM alanı bulunamadı."
+              );
+            }
+
             const query =
               "[out:json][timeout:20];" +
-              'area["boundary"="administrative"]["admin_level"="4"]["name"="İstanbul"]->.istanbulArea;' +
+              "area(" +
+              istanbulAreaId +
+              ")->.istanbulArea;" +
               'rel["boundary"="administrative"]["admin_level"="6"]["name"](area.istanbulArea);' +
               "out tags center;";
 
