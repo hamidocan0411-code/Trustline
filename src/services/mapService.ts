@@ -410,6 +410,495 @@ class MapService {
     return remaining;
   }
 
+  private async findTurkeyAreaId(): Promise<number | null> {
+    const cached =
+      this.readPersistentAddressCache(
+        "turkey:area"
+      );
+
+    const cachedId =
+      Number(
+        cached?.[0]?.areaId
+      );
+
+    if (
+      Number.isFinite(cachedId) &&
+      cachedId > 3600000000
+    ) {
+      return cachedId;
+    }
+
+    try {
+      const params =
+        new URLSearchParams();
+
+      params.set(
+        "q",
+        "Türkiye"
+      );
+      params.set(
+        "format",
+        "jsonv2"
+      );
+      params.set(
+        "limit",
+        "10"
+      );
+      params.set(
+        "countrycodes",
+        "tr"
+      );
+      params.set(
+        "accept-language",
+        "tr"
+      );
+
+      const response =
+        await fetch(
+          MAP_CONFIG.searchUrl +
+            "?" +
+            params.toString(),
+          {
+            headers: {
+              Accept:
+                "application/json",
+            },
+          }
+        );
+
+      if (response.ok) {
+        const data =
+          await response.json();
+
+        const result =
+          Array.isArray(data)
+            ? data.find(
+                (item: any) =>
+                  normalizeTurkish(
+                    String(
+                      item?.name ||
+                        ""
+                    )
+                  ) === "turkiye" &&
+                  String(
+                    item?.osm_type ||
+                      ""
+                  ).toLowerCase() ===
+                    "relation"
+              )
+            : null;
+
+        const osmId =
+          Number(
+            result?.osm_id
+          );
+
+        if (
+          Number.isFinite(
+            osmId
+          )
+        ) {
+          const areaId =
+            3600000000 +
+            osmId;
+
+          this.writePersistentAddressCache(
+            "turkey:area",
+            [
+              {
+                displayName:
+                  "Türkiye",
+                name:
+                  "Türkiye",
+                osmType:
+                  "relation",
+                osmId,
+                areaId,
+                kind:
+                  "city",
+              },
+            ]
+          );
+
+          return areaId;
+        }
+      }
+    } catch (error) {
+      console.warn(
+        "Türkiye OSM alanı alınamadı:",
+        error
+      );
+    }
+
+    return null;
+  }
+
+  private async getTurkeyProvinceSuggestions(
+    queryText?: string
+  ): Promise<AddressSuggestion[]> {
+    const cacheKey =
+      "turkey:provinces";
+
+    const cached =
+      this.districtNeighborhoodCache.get(
+        cacheKey
+      ) ||
+      this.readPersistentAddressCache(
+        cacheKey
+      );
+
+    let provinces =
+      cached || [];
+
+    if (
+      provinces.length ===
+      0
+    ) {
+      const turkeyAreaId =
+        await this.findTurkeyAreaId();
+
+      if (!turkeyAreaId) {
+        return [];
+      }
+
+      const query =
+        "[out:json][timeout:20];" +
+        "area(" +
+        turkeyAreaId +
+        ")->.turkeyArea;" +
+        'rel["boundary"="administrative"]["admin_level"="4"]["name"](area.turkeyArea);' +
+        "out tags center;";
+
+      try {
+        const data =
+          await this.fetchOverpass(
+            query,
+            10000
+          );
+
+        const elements =
+          Array.isArray(
+            data?.elements
+          )
+            ? data.elements
+            : [];
+
+        const unique =
+          new Map<
+            string,
+            AddressSuggestion
+          >();
+
+        for (
+          const item of
+            elements
+        ) {
+          const name =
+            String(
+              item?.tags?.name ||
+                ""
+            ).trim();
+
+          const osmId =
+            Number(
+              item?.id
+            );
+
+          const lat =
+            Number(
+              item?.center?.lat
+            );
+
+          const lng =
+            Number(
+              item?.center?.lon
+            );
+
+          if (
+            !name ||
+            !Number.isFinite(
+              osmId
+            ) ||
+            !Number.isFinite(
+              lat
+            ) ||
+            !Number.isFinite(
+              lng
+            )
+          ) {
+            continue;
+          }
+
+          unique.set(
+            normalizeTurkish(
+              name
+            ),
+            {
+              displayName:
+                name +
+                ", Türkiye",
+              formattedAddress:
+                name +
+                ", Türkiye",
+              lat,
+              lng,
+              name,
+              source:
+                "openstreetmap-overpass",
+              placeId:
+                "R" + osmId,
+              osmType:
+                "relation",
+              osmId,
+              areaId:
+                3600000000 +
+                osmId,
+              kind:
+                "city",
+              parentCity:
+                name,
+              types: [
+                "administrative",
+                "province",
+              ],
+            }
+          );
+        }
+
+        provinces =
+          Array.from(
+            unique.values()
+          ).sort(
+            (a, b) =>
+              String(
+                a.name || ""
+              ).localeCompare(
+                String(
+                  b.name || ""
+                ),
+                "tr"
+              )
+          );
+
+        if (
+          provinces.length >
+          0
+        ) {
+          this.districtNeighborhoodCache.set(
+            cacheKey,
+            provinces
+          );
+          this.writePersistentAddressCache(
+            cacheKey,
+            provinces
+          );
+        }
+      } catch (error) {
+        console.warn(
+          "Türkiye il havuzu alınamadı:",
+          error
+        );
+        return [];
+      }
+    } else {
+      this.districtNeighborhoodCache.set(
+        cacheKey,
+        provinces
+      );
+    }
+
+    const cleanQuery =
+      String(
+        queryText || ""
+      ).trim();
+
+    return cleanQuery
+      ? this.filterSuggestions(
+          provinces,
+          cleanQuery
+        )
+      : provinces;
+  }
+
+  private async findDistrictRelation(
+    district: string,
+    province: string
+  ): Promise<{
+    osmId: number;
+    areaId: number;
+    lat?: number;
+    lng?: number;
+  } | null> {
+    const districtName =
+      String(
+        district || ""
+      ).trim();
+
+    const provinceName =
+      String(
+        province || ""
+      ).trim();
+
+    if (
+      !districtName ||
+      !provinceName
+    ) {
+      return null;
+    }
+
+    const query =
+      districtName +
+      ", " +
+      provinceName +
+      ", Türkiye";
+
+    try {
+      const params =
+        new URLSearchParams();
+
+      params.set(
+        "q",
+        query
+      );
+      params.set(
+        "format",
+        "jsonv2"
+      );
+      params.set(
+        "limit",
+        "10"
+      );
+      params.set(
+        "addressdetails",
+        "1"
+      );
+      params.set(
+        "countrycodes",
+        "tr"
+      );
+      params.set(
+        "accept-language",
+        "tr"
+      );
+
+      const response =
+        await fetch(
+          MAP_CONFIG.searchUrl +
+            "?" +
+            params.toString(),
+          {
+            headers: {
+              Accept:
+                "application/json",
+            },
+          }
+        );
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data =
+        await response.json();
+
+      const results =
+        Array.isArray(data)
+          ? data
+          : [];
+
+      const normalizedDistrict =
+        normalizeTurkish(
+          districtName
+        );
+
+      const relation =
+        results.find(
+          (item: any) => {
+            const itemName =
+              normalizeTurkish(
+                String(
+                  item?.name ||
+                    ""
+                )
+              );
+
+            const osmType =
+              String(
+                item?.osm_type ||
+                  ""
+              ).toLowerCase();
+
+            const type =
+              normalizeTurkish(
+                String(
+                  item?.type ||
+                    ""
+                )
+              );
+
+            const addresstype =
+              normalizeTurkish(
+                String(
+                  item?.addresstype ||
+                    ""
+                )
+              );
+
+            return (
+              itemName ===
+                normalizedDistrict &&
+              osmType ===
+                "relation" &&
+              (
+                type ===
+                  "administrative" ||
+                type ===
+                  "district" ||
+                type ===
+                  "county" ||
+                addresstype ===
+                  "administrative" ||
+                addresstype ===
+                  "district" ||
+                addresstype ===
+                  "county"
+              )
+            );
+          }
+        );
+
+      const osmId =
+        Number(
+          relation?.osm_id
+        );
+
+      if (
+        !Number.isFinite(
+          osmId
+        )
+      ) {
+        return null;
+      }
+
+      return {
+        osmId,
+        areaId:
+          3600000000 +
+          osmId,
+        lat:
+          Number(
+            relation?.lat
+          ) || undefined,
+        lng:
+          Number(
+            relation?.lon
+          ) || undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   private async findIstanbulDistrictRelation(
     district: string
   ): Promise<{
@@ -1371,6 +1860,12 @@ class MapService {
         ? null
         : district;
 
+    const provinceName =
+      String(
+        districtSuggestion?.parentCity ||
+          ""
+      ).trim();
+
     const districtRelation =
       districtSuggestion?.areaId &&
       districtSuggestion.osmType ===
@@ -1382,9 +1877,12 @@ class MapService {
             areaId:
               districtSuggestion.areaId,
           }
-        : await this.findIstanbulDistrictRelation(
-            districtName
-          );
+        : provinceName
+          ? await this.findDistrictRelation(
+              districtName,
+              provinceName
+            )
+          : null;
 
     if (
       !districtRelation
@@ -1731,7 +2229,9 @@ class MapService {
         const boundary =
           await this.findNeighborhoodBoundary(
             neighborhoodName,
-            districtName
+            districtName,
+            neighborhood.parentCity ||
+              ""
           );
 
         if (boundary) {
@@ -1842,14 +2342,18 @@ class MapService {
               neighborhoodName +
               " Mahallesi, " +
               districtName +
-              ", İstanbul",
+              ", " +
+              (neighborhood.parentCity ||
+                "") ,
             formattedAddress:
               name +
               ", " +
               neighborhoodName +
               " Mahallesi, " +
               districtName +
-              ", İstanbul",
+              ", " +
+              (neighborhood.parentCity ||
+                ""),
             lat,
             lng,
             name,
@@ -1861,7 +2365,8 @@ class MapService {
             osmId,
             kind: "street",
             parentCity:
-              "İstanbul",
+              neighborhood.parentCity ||
+              "",
             parentDistrict:
               districtName,
             parentNeighborhood:
