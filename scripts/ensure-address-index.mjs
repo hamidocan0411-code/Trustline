@@ -27,110 +27,116 @@ if (
 const candidates =
   process.platform === "win32"
     ? [
-        {
-          command: "py",
-          prefix: ["-3"],
-        },
-        {
-          command: "python",
-          prefix: [],
-        },
-        {
-          command: "python3",
-          prefix: [],
-        },
+        { command: "py", prefix: ["-3"] },
+        { command: "python", prefix: [] },
+        { command: "python3", prefix: [] },
       ]
     : [
-        {
-          command: "python3",
-          prefix: [],
-        },
-        {
-          command: "python",
-          prefix: [],
-        },
+        { command: "python3", prefix: [] },
+        { command: "python", prefix: [] },
       ];
 
-let python = null;
-
-for (const candidate of candidates) {
-  const check =
-    spawnSync(
+function findPython(list) {
+  for (const candidate of list) {
+    const check = spawnSync(
       candidate.command,
-      [
-        ...candidate.prefix,
-        "-c",
-        "import sys; print(sys.version)",
-      ],
-      {
-        stdio: "pipe",
-        encoding: "utf8",
-        windowsHide: true,
-      }
+      [...candidate.prefix, "-c", "import sys; print(sys.version)"],
+      { stdio: "pipe", encoding: "utf8", windowsHide: true }
     );
 
-  if (
-    check.status === 0
-  ) {
-    python = candidate;
-    break;
+    if (check.status === 0) return candidate;
+  }
+
+  return null;
+}
+
+let python = findPython(candidates);
+
+if (!python && process.platform === "win32") {
+  console.log(
+    "[address-index] Python 3 bulunamadı. Python 3.13 otomatik kuruluyor..."
+  );
+
+  const winget = spawnSync(
+    "winget",
+    [
+      "install",
+      "--exact",
+      "--id",
+      "Python.Python.3.13",
+      "--scope",
+      "user",
+      "--accept-source-agreements",
+      "--accept-package-agreements",
+    ],
+    { stdio: "inherit", windowsHide: true }
+  );
+
+  if (winget.status === 0) {
+    const appData = process.env.LOCALAPPDATA || "";
+    const knownPaths = [
+      appData + "\\Programs\\Python\\Python313\\python.exe",
+      appData + "\\Programs\\Python\\Python313\\python3.exe",
+    ];
+
+    for (const executable of knownPaths) {
+      const check = spawnSync(
+        executable,
+        ["-c", "import sys; print(sys.version)"],
+        { stdio: "pipe", encoding: "utf8", windowsHide: true }
+      );
+
+      if (check.status === 0) {
+        python = { command: executable, prefix: [] };
+        break;
+      }
+    }
   }
 }
 
 if (!python) {
   console.error(
-    "[address-index] Python 3 is required to generate the OSM index. Install Python 3.13+ and run the build again."
+    "[address-index] Python 3.13+ bulunamadı ve otomatik kurulum başarısız oldu."
   );
   process.exit(1);
 }
 
-const hasPyrosm =
-  spawnSync(
+const requirementsCheck = spawnSync(
+  python.command,
+  [
+    ...python.prefix,
+    "-c",
+    "import geopandas, pyarrow, pyrosm",
+  ],
+  { stdio: "pipe", encoding: "utf8", windowsHide: true }
+);
+
+if (requirementsCheck.status !== 0) {
+  console.log(
+    "[address-index] GeoPandas, PyArrow ve pyrosm kuruluyor..."
+  );
+
+  const install = spawnSync(
     python.command,
     [
       ...python.prefix,
-      "-c",
-      "import pyrosm",
+      "-m",
+      "pip",
+      "install",
+      "--upgrade",
+      "pip",
+      "geopandas",
+      "pyarrow",
+      "pyrosm==0.13.1",
     ],
-    {
-      stdio: "pipe",
-      encoding: "utf8",
-      windowsHide: true,
-    }
+    { stdio: "inherit", windowsHide: true }
   );
 
-if (
-  hasPyrosm.status !== 0
-) {
-  console.log(
-    "[address-index] pyrosm not installed. Installing pyrosm==0.13.1..."
-  );
-
-  const install =
-    spawnSync(
-      python.command,
-      [
-        ...python.prefix,
-        "-m",
-        "pip",
-        "install",
-        "pyrosm==0.13.1",
-      ],
-      {
-        stdio: "inherit",
-        windowsHide: true,
-      }
-    );
-
-  if (
-    install.status !== 0
-  ) {
+  if (install.status !== 0) {
     console.error(
-      "[address-index] pyrosm installation failed."
+      "[address-index] OSM Python paketlerinin kurulumu başarısız."
     );
-    process.exit(
-      install.status ?? 1
-    );
+    process.exit(install.status ?? 1);
   }
 }
 
