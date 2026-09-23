@@ -1290,7 +1290,17 @@ class MapService {
     let cached =
       this.neighborhoodStreetCache.get(
         cacheKey
+      ) ||
+      this.readPersistentAddressCache(
+        cacheKey
       );
+
+    if (cached) {
+      this.neighborhoodStreetCache.set(
+        cacheKey,
+        cached
+      );
+    }
 
     if (!cached) {
       let areaId =
