@@ -230,7 +230,7 @@ class MapService {
   private normalizeQueryForHierarchy(value: string): string {
     return normalizeTurkish(value)
       .replace(/[,/\\-]/g, " ")
-      .replace(/\\s+/g, " ")
+      .replace(/\s+/g, " ")
       .trim();
   }
 
@@ -294,7 +294,7 @@ class MapService {
         /(^|\\s)(mahallesi|mahalle|mah)(?=$|\\s)/gi,
         " "
       )
-      .replace(/\\s+/g, " ")
+      .replace(/\s+/g, " ")
       .trim();
 
     return remaining;
@@ -306,6 +306,7 @@ class MapService {
     const query =
       "[out:json][timeout:20];" +
       'relation["boundary"="administrative"]' +
+      '["admin_level"~"^(6|7)$"]' +
       '["name"~"^' +
       district +
       '$",i]' +
@@ -719,7 +720,7 @@ class MapService {
         );
 
     if (ranked.length === 0) {
-      return neighborhoods.slice(0, 50);
+      return neighborhoods;
     }
 
     const best =
