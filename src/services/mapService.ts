@@ -955,6 +955,207 @@ class MapService {
   }
 
 
+  private async searchNominatimSuggestions(
+    cleanQuery: string
+  ): Promise<AddressSuggestion[]> {
+    const params = new URLSearchParams();
+
+    params.set("q", cleanQuery + ", Türkiye");
+    params.set("format", "jsonv2");
+    params.set("addressdetails", "1");
+    params.set("limit", "12");
+    params.set("countrycodes", "tr");
+    params.set("accept-language", "tr");
+
+    const response = await fetch(
+      MAP_CONFIG.searchUrl + "?" + params.toString(),
+      {
+        headers: {
+          Accept: "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Nominatim HTTP " + response.status);
+    }
+
+    const data = await response.json();
+    const results = Array.isArray(data) ? data : [];
+    const unique = new Map<string, AddressSuggestion>();
+
+    for (const item of results) {
+      const lat = Number(item?.lat);
+      const lng = Number(item?.lon);
+
+      if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng) ||
+        lat < 35 ||
+        lat > 43 ||
+        lng < 25 ||
+        lng > 45
+      ) {
+        continue;
+      }
+
+      const type =
+        normalizeTurkish(String(item?.type || ""));
+      const addressType =
+        normalizeTurkish(String(item?.addresstype || ""));
+      const address = item?.address || {};
+
+      const name =
+        String(item?.name || "").trim() ||
+        String(address?.neighbourhood || "").trim() ||
+        String(address?.road || "").trim() ||
+        cleanQuery;
+
+      const houseNumber =
+        String(
+          item?.extratags?.housenumber ||
+          address?.house_number ||
+          ""
+        ).trim();
+
+      const street =
+        String(
+          address?.road ||
+          address?.street ||
+          (type === "highway" || addressType === "road"
+            ? item?.name
+            : "") ||
+          ""
+        ).trim();
+
+      const district =
+        String(
+          address?.county ||
+          address?.district ||
+          address?.municipality ||
+          ""
+        ).trim();
+
+      const province =
+        String(
+          address?.province ||
+          address?.state ||
+          address?.city ||
+          ""
+        ).trim();
+
+      const neighborhood =
+        String(
+          address?.neighbourhood ||
+          address?.quarter ||
+          address?.suburb ||
+          ""
+        ).trim();
+
+      let kind: AddressSuggestion["kind"] = undefined;
+
+      if (houseNumber && street) {
+        kind = "address";
+      } else if (
+        type === "neighbourhood" ||
+        type === "quarter" ||
+        type === "suburb" ||
+        addressType === "neighbourhood" ||
+        addressType === "quarter" ||
+        addressType === "suburb" ||
+        Boolean(neighborhood && normalizeTurkish(name) === normalizeTurkish(neighborhood))
+      ) {
+        kind = "neighborhood";
+      } else if (
+        type === "highway" ||
+        addressType === "road" ||
+        addressType === "street"
+      ) {
+        kind = "street";
+      } else if (
+        addressType === "county" ||
+        addressType === "district" ||
+        addressType === "municipality"
+      ) {
+        kind = "district";
+      } else if (
+        addressType === "province" ||
+        addressType === "state" ||
+        addressType === "city" ||
+        type === "city" ||
+        type === "administrative" &&
+          (
+            normalizeTurkish(name) === normalizeTurkish(province)
+          )
+      ) {
+        kind = "city";
+      }
+
+      const osmId = Number(item?.osm_id);
+      const osmTypeRaw =
+        String(item?.osm_type || "").toLowerCase();
+      const osmType =
+        osmTypeRaw === "node" ||
+        osmTypeRaw === "way" ||
+        osmTypeRaw === "relation"
+          ? (osmTypeRaw as "node" | "way" | "relation")
+          : undefined;
+
+      const displayName =
+        String(item?.display_name || "").trim() ||
+        [
+          houseNumber ? "No:" + houseNumber : "",
+          street,
+          neighborhood,
+          district,
+          province,
+        ].filter(Boolean).join(", ");
+
+      const suggestion: AddressSuggestion = {
+        displayName,
+        formattedAddress: displayName,
+        lat,
+        lng,
+        name,
+        source: "openstreetmap-nominatim",
+        placeId:
+          Number.isFinite(osmId) && osmType
+            ? osmType.toUpperCase()[0] + osmId
+            : String(item?.place_id || ""),
+        osmType,
+        osmId: Number.isFinite(osmId) ? osmId : undefined,
+        kind,
+        parentDistrict:
+          district || undefined,
+        street: street || undefined,
+        streetNumber: houseNumber,
+        types: [
+          type,
+          addressType,
+        ].filter(Boolean),
+      };
+
+      const key =
+        suggestion.placeId ||
+        normalizeTurkish(
+          [
+            kind || "",
+            name,
+            district,
+            province,
+            lat.toFixed(5),
+            lng.toFixed(5),
+          ].join("|")
+        );
+
+      if (!unique.has(key)) {
+        unique.set(key, suggestion);
+      }
+    }
+
+    return Array.from(unique.values()).slice(0, 12);
+  }
+
   private async searchPhotonSuggestions(
     cleanQuery: string
   ): Promise<AddressSuggestion[]> {
@@ -1174,169 +1375,6 @@ class MapService {
         )
       );
 
-    /*
-     * İstanbul tek başına yalnızca İL seviyesidir.
-     * İlçeleri aynı dropdown'a doldurmak yerine
-     * gerçek OSM il sonucu döndürülür.
-     */
-    if (normalizedQuery === "istanbul") {
-      const params =
-        new URLSearchParams();
-
-      params.set(
-        "q",
-        "İstanbul, Türkiye"
-      );
-      params.set(
-        "format",
-        "jsonv2"
-      );
-      params.set(
-        "addressdetails",
-        "1"
-      );
-      params.set(
-        "limit",
-        "5"
-      );
-      params.set(
-        "countrycodes",
-        "tr"
-      );
-
-      const response =
-        await fetch(
-          MAP_CONFIG.searchUrl +
-            "?" +
-            params.toString(),
-          {
-            headers: {
-              Accept:
-                "application/json",
-            },
-          }
-        );
-
-      if (response.ok) {
-        const data =
-          await response.json();
-
-        const cityResult =
-          Array.isArray(data)
-            ? data.find(
-                (item: any) => {
-                  const type =
-                    normalizeTurkish(
-                      String(
-                        item?.type ||
-                          item?.addresstype ||
-                          ""
-                      )
-                    );
-
-                  const name =
-                    normalizeTurkish(
-                      String(
-                        item?.name ||
-                          ""
-                      )
-                    );
-
-                  return (
-                    name === "istanbul" &&
-                    (
-                      type === "city" ||
-                      type === "province" ||
-                      type ===
-                        "administrative"
-                    )
-                  );
-                }
-              )
-            : null;
-
-        const lat = Number(
-          cityResult?.lat
-        );
-        const lng = Number(
-          cityResult?.lon
-        );
-
-        if (
-          cityResult &&
-          Number.isFinite(lat) &&
-          Number.isFinite(lng)
-        ) {
-          const placeId =
-            cityResult?.osm_type &&
-            cityResult?.osm_id
-              ? String(
-                  cityResult.osm_type
-                ).charAt(0).toUpperCase() +
-                String(
-                  cityResult.osm_id
-                )
-              : String(
-                  cityResult?.place_id ||
-                    ""
-                );
-
-          return [
-            {
-              displayName:
-                "İstanbul, Türkiye",
-              formattedAddress:
-                "İstanbul, Türkiye",
-              name: "İstanbul",
-              source:
-                "openstreetmap-nominatim",
-              placeId,
-              osmType:
-                String(
-                  cityResult?.osm_type ||
-                    ""
-                ) as
-                  | "node"
-                  | "way"
-                  | "relation",
-              osmId: Number(
-                cityResult?.osm_id
-              ),
-              lat,
-              lng,
-              kind: "city",
-              types: [
-                String(
-                  cityResult?.type ||
-                    ""
-                ),
-                String(
-                  cityResult?.addresstype ||
-                    ""
-                ),
-              ].filter(Boolean),
-            },
-          ];
-        }
-      }
-
-      return [
-        {
-          displayName:
-            "İstanbul, Türkiye",
-          formattedAddress:
-            "İstanbul, Türkiye",
-          name: "İstanbul",
-          source:
-            "openstreetmap",
-          kind: "city",
-          types: [
-            "city",
-          ],
-        },
-      ];
-    }
-
     const districtResults =
       await this.getIstanbulDistrictSuggestions();
 
@@ -1370,6 +1408,28 @@ class MapService {
 
     if (hierarchyResults) {
       return hierarchyResults;
+    }
+
+    /*
+     * Hiyerarşi bağlamı olmadan yazılan bir mahalle/adres için
+     * önce mevcut Nominatim sonucunu kullan.
+     * kind + addressdetails gerçek OSM sınıflandırmasından gelir;
+     * input metni tek başına mahalle state'ine zorlanmaz.
+     */
+    try {
+      const nominatimResults =
+        await this.searchNominatimSuggestions(
+          cleanQuery
+        );
+
+      if (nominatimResults.length > 0) {
+        return nominatimResults;
+      }
+    } catch (error) {
+      console.warn(
+        "Nominatim adres araması başarısız, Photon deneniyor:",
+        error
+      );
     }
 
     return this.searchPhotonSuggestions(
@@ -1411,7 +1471,49 @@ class MapService {
   async resolveAddressSuggestion(
     suggestion: AddressSuggestion
   ): Promise<AddressSuggestion> {
-    return suggestion;
+    if (
+      suggestion.kind !== "neighborhood" ||
+      !suggestion.name
+    ) {
+      return suggestion;
+    }
+
+    const parentDistrict =
+      String(
+        suggestion.parentDistrict || ""
+      ).trim();
+
+    if (!parentDistrict) {
+      return suggestion;
+    }
+
+    try {
+      const neighborhoods =
+        await this.getDistrictNeighborhoods(
+          parentDistrict
+        );
+
+      const normalizedName =
+        normalizeTurkish(
+          suggestion.name
+        );
+
+      const canonical =
+        neighborhoods.find(
+          (neighborhood) =>
+            normalizeTurkish(
+              String(neighborhood.name || "")
+            ) === normalizedName
+        );
+
+      return canonical || suggestion;
+    } catch (error) {
+      console.warn(
+        "Mahalle OSM alanı eşleştirilemedi:",
+        error
+      );
+      return suggestion;
+    }
   }
 
   getConfig(): MapServiceConfig {
