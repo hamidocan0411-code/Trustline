@@ -64,7 +64,8 @@ function normalizeTurkish(value: string): string {
   return value
     .toLocaleLowerCase("tr-TR")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i");
 }
 
 function isValidCoordinate(
@@ -865,6 +866,136 @@ class MapService {
           cleanQuery
         )
       : results;
+  }
+
+  private async queryIstanbulDistrictSuggestions(
+    queryText: string
+  ): Promise<AddressSuggestion[]> {
+    const cleanQuery =
+      this.normalizeQueryForHierarchy(
+        queryText
+      );
+
+    if (!cleanQuery) {
+      return this.getIstanbulDistrictSuggestions();
+    }
+
+    const cachedAll =
+      this.districtNeighborhoodCache.get(
+        "istanbul:districts"
+      ) ||
+      this.readPersistentAddressCache(
+        "istanbul:districts"
+      );
+
+    if (cachedAll) {
+      return this.filterSuggestions(
+        cachedAll,
+        cleanQuery
+      );
+    }
+
+    const istanbulAreaId =
+      await this.findIstanbulAreaId();
+
+    if (!istanbulAreaId) {
+      return [];
+    }
+
+    const fragment =
+      cleanQuery
+        .split(" ")
+        .filter(Boolean)
+        .join("\\\\s+");
+
+    const query =
+      "[out:json][timeout:15];" +
+      "area(" +
+      istanbulAreaId +
+      ")->.istanbulArea;" +
+      "rel[\"boundary\"=\"administrative\"][\"admin_level\"=\"6\"][\"name\"~\"^" +
+      fragment +
+      ",i](area.istanbulArea);" +
+      "out tags center;";
+
+    try {
+      const data =
+        await this.fetchOverpass(
+          query,
+          9000
+        );
+
+      const unique =
+        new Map<string, AddressSuggestion>();
+
+      const elements =
+        Array.isArray(data?.elements)
+          ? data.elements
+          : [];
+
+      for (const item of elements) {
+        const name =
+          String(
+            item?.tags?.name ||
+              ""
+          ).trim();
+        const osmId = Number(item?.id);
+        const lat = Number(item?.center?.lat);
+        const lng = Number(item?.center?.lon);
+
+        if (
+          !name ||
+          !Number.isFinite(osmId) ||
+          !Number.isFinite(lat) ||
+          !Number.isFinite(lng)
+        ) {
+          continue;
+        }
+
+        unique.set(
+          normalizeTurkish(name),
+          {
+            displayName:
+              name +
+              ", İstanbul, Türkiye",
+            formattedAddress:
+              name +
+              ", İstanbul, Türkiye",
+            lat,
+            lng,
+            name,
+            source:
+              "openstreetmap-overpass",
+            placeId:
+              "R" + osmId,
+            osmType:
+              "relation",
+            osmId,
+            areaId:
+              3600000000 + osmId,
+            kind:
+              "district",
+            parentCity:
+              "İstanbul",
+            types: [
+              "administrative",
+              "district",
+            ],
+          }
+        );
+      }
+
+      return this.filterSuggestions(
+        Array.from(unique.values()),
+        cleanQuery
+      );
+    } catch (error) {
+      console.warn(
+        "Kısmi İstanbul ilçe sorgusu başarısız:",
+        error
+      );
+      return [];
+    }
   }
 
   async getDistrictSuggestions(
