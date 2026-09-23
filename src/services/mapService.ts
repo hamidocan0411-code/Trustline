@@ -379,6 +379,9 @@ class MapService {
 
     this.istanbulAreaIdPromise =
       (async () => {
+        /*
+         * 1) Nominatim GeocodeJSON: gerçek İstanbul relation.
+         */
         try {
           const params =
             new URLSearchParams();
@@ -420,7 +423,10 @@ class MapService {
           if (
             !response.ok
           ) {
-            return null;
+            throw new Error(
+              "Nominatim GeocodeJSON HTTP " +
+                response.status
+            );
           }
 
           const data =
@@ -485,86 +491,100 @@ class MapService {
                 ?.osm_id
             );
 
-          return Number.isFinite(
-            osmId
-          )
-            ? 3600000000 +
-                osmId
-            : null;
+          if (
+            Number.isFinite(
+              osmId
+            )
+          ) {
+            return (
+              3600000000 +
+              osmId
+            );
+          }
         } catch {
-          try {
-            const params =
-              new URLSearchParams();
+          // Continue with jsonv2 and Overpass fallbacks.
+        }
 
-            params.set(
-              "q",
-              "İstanbul, Türkiye"
-            );
-            params.set(
-              "format",
-              "jsonv2"
-            );
-            params.set(
-              "limit",
-              "10"
-            );
-            params.set(
-              "countrycodes",
-              "tr"
+        /*
+         * 2) Nominatim jsonv2 fallback.
+         */
+        try {
+          const params =
+            new URLSearchParams();
+
+          params.set(
+            "q",
+            "İstanbul, Türkiye"
+          );
+          params.set(
+            "format",
+            "jsonv2"
+          );
+          params.set(
+            "limit",
+            "10"
+          );
+          params.set(
+            "countrycodes",
+            "tr"
+          );
+
+          const response =
+            await fetch(
+              MAP_CONFIG.searchUrl +
+                "?" +
+                params.toString(),
+              {
+                headers: {
+                  Accept:
+                    "application/json",
+                },
+              }
             );
 
-            const response =
-              await fetch(
-                MAP_CONFIG.searchUrl +
-                  "?" +
-                  params.toString(),
-                {
-                  headers: {
-                    Accept:
-                      "application/json",
-                  },
-                }
-              );
-
-            if (!response.ok) {
-              return null;
-            }
-
+          if (
+            response.ok
+          ) {
             const data =
               await response.json();
 
             const result =
               Array.isArray(data)
                 ? data.find(
-                    (item: any) =>
-                      normalizeTurkish(
+                    (item: any) => {
+                      const name =
+                        normalizeTurkish(
+                          String(
+                            item?.name ||
+                              ""
+                          )
+                        );
+                      const type =
+                        normalizeTurkish(
+                          String(
+                            item?.type ||
+                              ""
+                          )
+                        );
+                      const osmType =
                         String(
-                          item?.name ||
+                          item?.osm_type ||
                             ""
-                        )
-                      ) ===
-                        "istanbul" &&
-                      (
-                        normalizeTurkish(
-                          String(
-                            item?.type ||
-                              ""
-                          )
-                        ) ===
-                          "administrative" ||
-                        normalizeTurkish(
-                          String(
-                            item?.type ||
-                              ""
-                          )
-                        ) ===
-                          "city"
-                      ) &&
-                      String(
-                        item?.osm_type ||
-                          ""
-                      ).toLowerCase() ===
-                        "relation"
+                        ).toLowerCase();
+
+                      return (
+                        name ===
+                          "istanbul" &&
+                        (
+                          type ===
+                            "administrative" ||
+                          type ===
+                            "city"
+                        ) &&
+                        osmType ===
+                          "relation"
+                      );
+                    }
                   )
                 : null;
 
@@ -573,15 +593,71 @@ class MapService {
                 result?.osm_id
               );
 
-            return Number.isFinite(
-              osmId
-            )
-              ? 3600000000 +
-                  osmId
-              : null;
-          } catch {
-            return null;
+            if (
+              Number.isFinite(
+                osmId
+              )
+            ) {
+              return (
+                3600000000 +
+                osmId
+              );
+            }
           }
+        } catch {
+          // Continue with Overpass fallback.
+        }
+
+        /*
+         * 3) Small Overpass relation lookup as final resolver.
+         * This query resolves one city relation; it does not enumerate addresses.
+         */
+        try {
+          const query =
+            "[out:json][timeout:15];" +
+            'rel["boundary"="administrative"]["admin_level"="4"]["name"="İstanbul"]' +
+            "(" +
+            ISTANBUL_BBOX +
+            ");" +
+            "out ids;";
+
+          const data =
+            await this.fetchOverpass(
+              query,
+              8000
+            );
+
+          const relation =
+            (
+              Array.isArray(
+                data?.elements
+              )
+                ? data.elements
+                : []
+            ).find(
+              (item: any) =>
+                item?.type ===
+                  "relation" &&
+                Number.isFinite(
+                  Number(
+                    item?.id
+                  )
+                )
+            );
+
+          const osmId =
+            Number(
+              relation?.id
+            );
+
+          return Number.isFinite(
+            osmId
+          )
+            ? 3600000000 +
+                osmId
+            : null;
+        } catch {
+          return null;
         }
       })().finally(
         () => {
@@ -601,6 +677,9 @@ class MapService {
 
     const cached =
       this.districtNeighborhoodCache.get(
+        cacheKey
+      ) ||
+      this.readPersistentAddressCache(
         cacheKey
       );
 
@@ -756,6 +835,10 @@ class MapService {
             }
 
             this.districtNeighborhoodCache.set(
+              cacheKey,
+              loaded
+            );
+            this.writePersistentAddressCache(
               cacheKey,
               loaded
             );
