@@ -34,8 +34,10 @@ import { storage } from "../services/storage";
 import {
   type GeoCoordinate,
   mapService,
+  type AddressSuggestion,
 } from "../services/mapService";
 
+import { AddressAutocomplete } from "./AddressAutocomplete";
 import { RouteMap } from "./RouteMap";
 
 interface Props {
@@ -101,6 +103,9 @@ export const NewOrderModal: React.FC<Props> = ({
 
   const [deliveryCoords, setDeliveryCoords] =
     useState<GeoCoordinate | null>(null);
+
+  const [pickupPlaceId, setPickupPlaceId] = useState("");
+  const [deliveryPlaceId, setDeliveryPlaceId] = useState("");
 
   const [routePoints, setRoutePoints] =
     useState<[number, number][]>([]);
@@ -1112,44 +1117,35 @@ export const NewOrderModal: React.FC<Props> = ({
                     )}
                   </div>
 
-                  <input
-                    type="text"
-                    required
-                    value={
-                      pickupAddress
-                    }
-                    onChange={(e) => {
-                      setPickupAddress(
-                        e.target.value
-                      );
-
-                      setPickupCoords(
-                        null
-                      );
-
-                      setDeliveryCoords(
-                        null
-                      );
-
-                      setRoutePoints(
-                        []
-                      );
-
-                      setIsAutoCalculated(
-                        false
-                      );
-
-                      setApproximateDistanceText(
-                        ""
-                      );
-
-                      setAutoCalcError(
-                        ""
-                      );
+                  <AddressAutocomplete
+                    value={pickupAddress}
+                    onChange={(value) => {
+                      setPickupAddress(value);
+                      setPickupPlaceId("");
+                      setPickupCoords(null);
+                      setDeliveryCoords(null);
+                      setRoutePoints([]);
+                      setIsAutoCalculated(false);
+                      setApproximateDistanceText("");
+                      setAutoCalcError("");
                     }}
-                    placeholder="Örn: Bahçelievler, İstanbul"
-                    autoComplete="off"
-                    className="w-full bg-[#222229] border border-[#303036] focus:border-[#D6A84F] rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none"
+                    onSelect={(suggestion: AddressSuggestion) => {
+                      setPickupAddress(suggestion.formattedAddress || suggestion.displayName);
+                      setPickupPlaceId(suggestion.placeId || "");
+                      setPickupCoords(
+                        suggestion.lat != null && suggestion.lng != null
+                          ? { lat: suggestion.lat, lng: suggestion.lng, name: suggestion.formattedAddress || suggestion.displayName }
+                          : null
+                      );
+                      setDeliveryCoords(null);
+                      setRoutePoints([]);
+                      setIsAutoCalculated(false);
+                      setApproximateDistanceText("");
+                      setAutoCalcError("");
+                    }}
+                    required
+                    placeholder="Örn: Avcılar Cihangir X Sokak 15"
+                    className="w-full bg-[#222229] border border-[#303036] focus:border-[#D6A84F] rounded-xl px-3.5 py-2.5 pr-10 text-sm text-white focus:outline-none"
                   />
                 </div>
 
@@ -1159,44 +1155,35 @@ export const NewOrderModal: React.FC<Props> = ({
                     Teslimat Adresi
                   </label>
 
-                  <input
-                    type="text"
-                    required
-                    value={
-                      deliveryAddress
-                    }
-                    onChange={(e) => {
-                      setDeliveryAddress(
-                        e.target.value
-                      );
-
-                      setPickupCoords(
-                        null
-                      );
-
-                      setDeliveryCoords(
-                        null
-                      );
-
-                      setRoutePoints(
-                        []
-                      );
-
-                      setIsAutoCalculated(
-                        false
-                      );
-
-                      setApproximateDistanceText(
-                        ""
-                      );
-
-                      setAutoCalcError(
-                        ""
-                      );
+                  <AddressAutocomplete
+                    value={deliveryAddress}
+                    onChange={(value) => {
+                      setDeliveryAddress(value);
+                      setDeliveryPlaceId("");
+                      setPickupCoords(null);
+                      setDeliveryCoords(null);
+                      setRoutePoints([]);
+                      setIsAutoCalculated(false);
+                      setApproximateDistanceText("");
+                      setAutoCalcError("");
                     }}
-                    placeholder="Örn: Beşiktaş, İstanbul"
-                    autoComplete="off"
-                    className="w-full bg-[#222229] border border-[#303036] focus:border-[#D6A84F] rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none"
+                    onSelect={(suggestion: AddressSuggestion) => {
+                      setDeliveryAddress(suggestion.formattedAddress || suggestion.displayName);
+                      setDeliveryPlaceId(suggestion.placeId || "");
+                      setDeliveryCoords(
+                        suggestion.lat != null && suggestion.lng != null
+                          ? { lat: suggestion.lat, lng: suggestion.lng, name: suggestion.formattedAddress || suggestion.displayName }
+                          : null
+                      );
+                      setPickupCoords(null);
+                      setRoutePoints([]);
+                      setIsAutoCalculated(false);
+                      setApproximateDistanceText("");
+                      setAutoCalcError("");
+                    }}
+                    required
+                    placeholder="Örn: Cihangir Mahallesi X Sokak 12, Avcılar/İstanbul"
+                    className="w-full bg-[#222229] border border-[#303036] focus:border-[#D6A84F] rounded-xl px-3.5 py-2.5 pr-10 text-sm text-white focus:outline-none"
                   />
                 </div>
               </div>
