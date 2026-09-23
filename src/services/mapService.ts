@@ -524,7 +524,7 @@ class MapService {
         neighborhood.lat +
         "," +
         neighborhood.lng +
-        ')"["highway"]["name"];' +
+        ')["highway"]["name"];' +
         "out tags center;";
     } else {
       return [];
