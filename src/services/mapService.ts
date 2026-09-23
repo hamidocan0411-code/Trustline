@@ -2216,18 +2216,30 @@ class MapService {
           name
         );
 
+      const provinceName =
+        String(
+          districtSuggestion?.parentCity ||
+            ""
+        ).trim();
+
+      const locationTail = [
+        districtName,
+        provinceName,
+        "Türkiye",
+      ]
+        .filter(Boolean)
+        .join(", ");
+
       const suggestion:
         AddressSuggestion = {
         displayName:
           name +
           " Mahallesi, " +
-          districtName +
-          ", İstanbul",
+          locationTail,
         formattedAddress:
           name +
           " Mahallesi, " +
-          districtName +
-          ", İstanbul",
+          locationTail,
         lat,
         lng,
         name,
@@ -2247,7 +2259,8 @@ class MapService {
         kind:
           "neighborhood",
         parentCity:
-          "İstanbul",
+          provinceName ||
+          undefined,
         parentDistrict:
           districtName,
         types: [
@@ -2321,68 +2334,248 @@ class MapService {
 
   private async findNeighborhoodBoundary(
     neighborhoodName: string,
-    district: string
+    district: string,
+    province?: string
   ): Promise<{
     osmId: number;
     areaId: number;
     lat?: number;
     lng?: number;
   } | null> {
-    const districtRelation =
-      await this.findIstanbulDistrictRelation(
-        district
+    const cleanNeighborhood =
+      String(
+        neighborhoodName || ""
+      ).trim();
+    const cleanDistrict =
+      String(
+        district || ""
+      ).trim();
+    const cleanProvince =
+      String(
+        province || ""
+      ).trim();
+
+    if (
+      !cleanNeighborhood ||
+      !cleanDistrict
+    ) {
+      return null;
+    }
+
+    try {
+      const params =
+        new URLSearchParams();
+
+      params.set(
+        "q",
+        [
+          cleanNeighborhood +
+            " Mahallesi",
+          cleanDistrict,
+          cleanProvince,
+          "Türkiye",
+        ]
+          .filter(Boolean)
+          .join(", ")
+      );
+      params.set(
+        "format",
+        "jsonv2"
+      );
+      params.set(
+        "limit",
+        "10"
+      );
+      params.set(
+        "addressdetails",
+        "1"
+      );
+      params.set(
+        "countrycodes",
+        "tr"
+      );
+      params.set(
+        "accept-language",
+        "tr"
       );
 
-    if (!districtRelation) return null;
+      const response =
+        await fetch(
+          MAP_CONFIG.searchUrl +
+            "?" +
+            params.toString(),
+          {
+            headers: {
+              Accept:
+                "application/json",
+            },
+          }
+        );
 
-    const escapedName =
-      String(neighborhoodName || "")
-        .trim()
-        .replace(/["\\]/g, "\\$&");
+      if (response.ok) {
+        const data =
+          await response.json();
 
-    const query =
-      "[out:json][timeout:15];" +
-      "area(" +
-      districtRelation.areaId +
-      ")->.districtArea;" +
-      'rel["boundary"="administrative"]["admin_level"="8"]["name"="' +
-      escapedName +
-      '"](area.districtArea);' +
-      "out tags center;";
+        const results =
+          Array.isArray(data)
+            ? data
+            : [];
 
-    const data =
-      await this.fetchOverpass(
-        query,
-        9000
-      );
+        const normalizedName =
+          normalizeTurkish(
+            cleanNeighborhood
+          );
 
-    const elements =
-      Array.isArray(data?.elements)
-        ? data.elements
-        : [];
+        const relation =
+          results.find(
+            (item: any) => {
+              const itemName =
+                normalizeTurkish(
+                  String(
+                    item?.name ||
+                      ""
+                  )
+                    .replace(
+                      /\bmahallesi\b/gi,
+                      ""
+                    )
+                    .trim()
+                );
 
-    const relation =
-      elements.find(
-        (item: any) =>
-          String(item?.type) === "relation" &&
-          Number.isFinite(Number(item?.id))
-      );
+              const osmType =
+                String(
+                  item?.osm_type ||
+                    ""
+                ).toLowerCase();
 
-    if (!relation) return null;
+              const type =
+                normalizeTurkish(
+                  String(
+                    item?.type ||
+                      ""
+                  )
+                );
 
-    const osmId = Number(relation.id);
+              const addresstype =
+                normalizeTurkish(
+                  String(
+                    item?.addresstype ||
+                      ""
+                  )
+                );
 
-    return {
-      osmId,
-      areaId:
-        3600000000 + osmId,
-      lat:
-        Number(relation?.center?.lat) ||
-        undefined,
-      lng:
-        Number(relation?.center?.lon) ||
-        undefined,
-    };
+              return (
+                itemName ===
+                  normalizedName &&
+                osmType ===
+                  "relation" &&
+                (
+                  type ===
+                    "administrative" ||
+                  addresstype ===
+                    "administrative"
+                )
+              );
+            }
+          );
+
+        const osmId =
+          Number(
+            relation?.osm_id
+          );
+
+        if (
+          Number.isFinite(
+            osmId
+          )
+        ) {
+          return {
+            osmId,
+            areaId:
+              3600000000 +
+              osmId,
+            lat:
+              Number(
+                relation?.lat
+              ) || undefined,
+            lng:
+              Number(
+                relation?.lon
+              ) || undefined,
+          };
+        }
+      }
+    } catch {
+      // Fall through to generic Overpass.
+    }
+
+    try {
+      const escapedName =
+        cleanNeighborhood.replace(
+          /["\\]/g,
+          "\\$&"
+        );
+
+      const query =
+        "[out:json][timeout:12];" +
+        'rel["boundary"="administrative"]["admin_level"="8"]["name"="' +
+        escapedName +
+        '"](35.5,25.5,42.2,45.0);' +
+        "out tags center;";
+
+      const data =
+        await this.fetchOverpass(
+          query,
+          7000
+        );
+
+      const relation =
+        (
+          Array.isArray(
+            data?.elements
+          )
+            ? data.elements
+            : []
+        ).find(
+          (item: any) =>
+            String(
+              item?.type ||
+                ""
+            ) ===
+              "relation" &&
+            Number.isFinite(
+              Number(
+                item?.id
+              )
+            )
+        );
+
+      const osmId =
+        Number(
+          relation?.id
+        );
+
+      return Number.isFinite(
+        osmId
+      )
+        ? {
+            osmId,
+            areaId:
+              3600000000 +
+              osmId,
+            lat:
+              Number(
+                relation?.center?.lat
+              ) || undefined,
+            lng:
+              Number(
+                relation?.center?.lon
+              ) || undefined,
+          }
+        : null;
+    } catch {
+      return null;
+    }
   }
 
   private async getNeighborhoodStreets(
@@ -2680,7 +2873,10 @@ class MapService {
           }
         : await this.findNeighborhoodBoundary(
             neighborhoodName,
-            districtName
+            districtName,
+            neighborhood.parentCity ||
+              street.parentCity ||
+              ""
           );
 
     if (!boundary) return [];
@@ -2801,7 +2997,12 @@ class MapService {
           neighborhoodName +
           " Mahallesi, " +
           districtName +
-          ", İstanbul";
+          ", " +
+          (
+            neighborhood.parentCity ||
+              street.parentCity ||
+              ""
+          );
 
         const suggestion:
           AddressSuggestion = {
@@ -2828,7 +3029,9 @@ class MapService {
           kind:
             "address",
           parentCity:
-            "İstanbul",
+            neighborhood.parentCity ||
+            street.parentCity ||
+            "",
           parentDistrict:
             districtName,
           parentNeighborhood:
