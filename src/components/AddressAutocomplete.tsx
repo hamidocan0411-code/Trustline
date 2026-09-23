@@ -449,6 +449,7 @@ export const AddressAutocomplete: React.FC<
         const city =
           current.city ||
           makeCitySuggestion(
+            selected.parentCity || "",
             selected.source
           );
 
@@ -508,6 +509,8 @@ export const AddressAutocomplete: React.FC<
           city:
             current.city ||
             makeCitySuggestion(
+              selected.parentCity ||
+                "",
               selected.source
             ),
           district:
