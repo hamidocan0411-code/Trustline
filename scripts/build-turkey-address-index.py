@@ -156,6 +156,13 @@ def row_value(row, column: str, default=None):
     return value
 
 
+def osm_id_text(value: object) -> str:
+    try:
+        return str(int(value))
+    except Exception:
+        return str(value or "").strip()
+
+
 def relation_place_id(row, default_prefix: str = "R") -> str:
     osm_type = str(row_value(row, "osm_type", "relation") or "").lower()
     prefix = {"relation": "R", "way": "W", "node": "N"}.get(
@@ -340,13 +347,13 @@ def process_province(osm_path, province_row, districts, neighborhoods):
     bbox = list(geometry.bounds)
 
     province_districts = districts[
-        districts["_province_id"].astype(str)
-        == str(row_value(province_row, "id"))
+        districts["_province_id"].map(osm_id_text)
+        == osm_id_text(row_value(province_row, "id"))
     ].copy()
 
     province_neighborhoods = neighborhoods[
-        neighborhoods["_province_id"].astype(str)
-        == str(row_value(province_row, "id"))
+        neighborhoods["_province_id"].map(osm_id_text)
+        == osm_id_text(row_value(province_row, "id"))
     ].copy()
 
     neighborhood_place_ids = {
@@ -608,8 +615,8 @@ def process_province(osm_path, province_row, districts, neighborhoods):
         if district_id is None:
             continue
         neighborhood_to_district[
-            str(row_value(nrow, "id"))
-        ] = str(district_id)
+            osm_id_text(row_value(nrow, "id"))
+        ] = osm_id_text(district_id)
 
     for _, nrow in province_neighborhoods.iterrows():
         nid_raw = str(row_value(nrow, "id"))
@@ -649,7 +656,7 @@ def process_province(osm_path, province_row, districts, neighborhoods):
         nid = row_value(street_row, "_neighborhood_id", None)
         if nid is None:
             continue
-        nid = str(nid)
+        nid = osm_id_text(nid)
         district_raw = neighborhood_to_district.get(nid)
         if district_raw not in district_payloads:
             continue
@@ -709,7 +716,7 @@ def process_province(osm_path, province_row, districts, neighborhoods):
             nid = row_value(arow, "_neighborhood_id", None)
             if nid is None:
                 continue
-            nid = str(nid)
+            nid = osm_id_text(nid)
             district_raw = neighborhood_to_district.get(nid)
             if district_raw not in district_payloads:
                 continue
@@ -1047,7 +1054,7 @@ def main():
 
     districts_payload = []
     for _, drow in districts.iterrows():
-        province_id = str(row_value(drow, "_parent_id"))
+        province_id = osm_id_text(row_value(drow, "_parent_id"))
         province_row = provinces[
             provinces["id"].astype(str) == province_id
         ]
