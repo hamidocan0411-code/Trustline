@@ -246,22 +246,32 @@ def prepare_boundary_tables(osm):
     return provinces, districts, neighborhoods
 
 
-def spatial_parent(child_gdf, parent_gdf):
+def spatial_parent(
+    child_gdf,
+    parent_gdf,
+    id_column: str,
+    name_column: str,
+):
     import geopandas as gpd
 
     if child_gdf.empty or parent_gdf.empty:
         return child_gdf
 
-    parents = parent_gdf[["id", "name", "geometry"]].copy()
+    parents = parent_gdf[
+        ["id", "name", "geometry"]
+    ].copy()
+
     parents = parents.rename(
         columns={
-            "id": "_parent_id",
-            "name": "_parent_name",
+            "id": id_column,
+            "name": name_column,
         }
     )
 
     points = child_gdf.copy()
-    points["_join_geom"] = points.geometry.representative_point()
+    points["_join_geom"] = (
+        points.geometry.representative_point()
+    )
     join_points = gpd.GeoDataFrame(
         points.drop(columns=["geometry"]),
         geometry="_join_geom",
@@ -275,15 +285,16 @@ def spatial_parent(child_gdf, parent_gdf):
         predicate="within",
     )
 
-    # A child may touch more than one parent at a border.
     joined = joined.drop_duplicates(
         subset=["id"],
         keep="first",
     )
 
     child_gdf = child_gdf.copy()
-    child_gdf["_parent_id"] = joined["_parent_id"].values
-    child_gdf["_parent_name"] = joined["_parent_name"].values
+    child_gdf[id_column] =
+        joined[id_column].values
+    child_gdf[name_column] =
+        joined[name_column].values
     return child_gdf
 
 
@@ -951,16 +962,34 @@ def main():
 
     # Build province / district parent links.
     log("İl-ilçe-mahalle üst ilişkileri hazırlanıyor...")
-    districts = spatial_parent(districts, provinces)
-    neighborhoods = spatial_parent(neighborhoods, districts)
-    neighborhoods = spatial_parent(neighborhoods, provinces)
+    districts = spatial_parent(
+        districts,
+        provinces,
+        "_province_id",
+        "_province_name",
+    )
+
+    neighborhoods = spatial_parent(
+        neighborhoods,
+        districts,
+        "_district_id",
+        "_district_name",
+    )
+
+    neighborhoods = spatial_parent(
+        neighborhoods,
+        provinces,
+        "_province_id",
+        "_province_name",
+    )
 
     # Remove broken/unassigned records.
     districts = districts[
-        districts["_parent_id"].notna()
+        districts["_province_id"].notna()
     ].copy()
     neighborhoods = neighborhoods[
-        neighborhoods["_parent_id"].notna()
+        neighborhoods["_district_id"].notna()
+        & neighborhoods["_province_id"].notna()
     ].copy()
 
     provinces_payload = []
