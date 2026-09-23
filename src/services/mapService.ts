@@ -40,7 +40,6 @@ export interface MapServiceConfig {
 const OVERPASS_URLS = [
   "https://z.overpass-api.de/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
-  "https://overpass.nchc.org.tw/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
 
@@ -122,6 +121,7 @@ class MapService {
   private readonly neighborhoodStreetCache = new Map<string, AddressSuggestion[]>();
   private districtLoadPromise: Promise<AddressSuggestion[]> | null = null;
   private istanbulAreaIdPromise: Promise<number | null> | null = null;
+  private overpassQueue: Promise<void> = Promise.resolve();
 
   private readPersistentAddressCache(
     key: string
@@ -189,46 +189,114 @@ class MapService {
     query: string,
     timeoutMs = 12000
   ): Promise<any> {
+    /*
+     * Public Overpass sunucularının istemci başına eşzamanlı
+     * istek slotları sınırlıdır. Aynı sayfada pickup/delivery
+     * autocomplete isteklerinin üst üste binmesini engelliyoruz.
+     */
+    let releaseQueue!: () => void;
+    const previous =
+      this.overpassQueue;
+
+    this.overpassQueue =
+      new Promise<void>((resolve) => {
+        releaseQueue = resolve;
+      });
+
+    await previous;
+
     let lastError: unknown = null;
 
-    for (const endpoint of OVERPASS_URLS) {
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(
-        () => controller.abort(),
-        timeoutMs
-      );
+    try {
+      for (
+        let endpointIndex = 0;
+        endpointIndex < OVERPASS_URLS.length;
+        endpointIndex += 1
+      ) {
+        const endpoint =
+          OVERPASS_URLS[endpointIndex];
 
-      try {
-        const response = await fetch(
-          endpoint,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/x-www-form-urlencoded;charset=UTF-8",
-              Accept: "application/json",
-            },
-            body:
-              "data=" +
-              encodeURIComponent(query),
-            signal: controller.signal,
-          }
-        );
+        const controller =
+          new AbortController();
 
-        if (!response.ok) {
-          lastError = new Error(
-            "Overpass HTTP " +
-              response.status
+        const timeoutId =
+          window.setTimeout(
+            () => controller.abort(),
+            timeoutMs
           );
-          continue;
-        }
 
-        return await response.json();
-      } catch (error) {
-        lastError = error;
-      } finally {
-        window.clearTimeout(timeoutId);
+        try {
+          const response =
+            await fetch(
+              endpoint,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type":
+                    "application/x-www-form-urlencoded;charset=UTF-8",
+                  Accept:
+                    "application/json",
+                },
+                body:
+                  "data=" +
+                  encodeURIComponent(
+                    query
+                  ),
+                signal:
+                  controller.signal,
+              }
+            );
+
+          if (response.ok) {
+            return await response.json();
+          }
+
+          lastError =
+            new Error(
+              "Overpass HTTP " +
+                response.status
+            );
+
+          /*
+           * 429/5xx geçici olabilir. Aynı anda başka
+           * endpoint'e yük bindirmemek için kısa bekle.
+           */
+          if (
+            response.status === 429 ||
+            response.status === 502 ||
+            response.status === 503 ||
+            response.status === 504
+          ) {
+            const delayMs =
+              response.status === 429
+                ? 1200
+                : 500 +
+                  endpointIndex * 400;
+
+            await new Promise<void>(
+              (resolve) =>
+                window.setTimeout(
+                  resolve,
+                  delayMs
+                )
+            );
+          }
+        } catch (error) {
+          lastError = error;
+
+          /*
+           * Abort/network hatasında sıradaki global
+           * endpoint'i dene; son endpoint de başarısızsa
+           * aşağıdaki hata döndürülür.
+           */
+        } finally {
+          window.clearTimeout(
+            timeoutId
+          );
+        }
       }
+    } finally {
+      releaseQueue();
     }
 
     throw lastError instanceof Error
@@ -2410,24 +2478,40 @@ class MapService {
   private async searchPhotonSuggestions(
     cleanQuery: string
   ): Promise<AddressSuggestion[]> {
+    const normalizedQuery =
+      cleanQuery.trim();
+
+    if (
+      normalizedQuery.length < 3
+    ) {
+      return [];
+    }
+
     const params =
       new URLSearchParams();
 
+    /*
+     * Photon /api q parametresi doğrudan arama terimini
+     * alır. Türkiye filtresi için q'ya ", Türkiye"
+     * eklemek yerine resmi countrycode filtresini kullan.
+     */
     params.set(
       "q",
-      cleanQuery + ", Türkiye"
+      normalizedQuery
     );
     params.set(
       "limit",
       "12"
     );
     params.set(
-      "lang",
-      "tr"
+      "countrycode",
+      "TR"
     );
 
     const normalized =
-      normalizeTurkish(cleanQuery);
+      normalizeTurkish(
+        normalizedQuery
+      );
 
     if (
       normalized.includes("istanbul")
@@ -2446,15 +2530,22 @@ class MapService {
           headers: {
             Accept:
               "application/json",
+            "Accept-Language":
+              "tr-TR,tr;q=0.9",
           },
         }
       );
 
     if (!response.ok) {
-      throw new Error(
-        "Photon HTTP " +
+      /*
+       * Photon yalnızca son fallback'tir. 4xx/5xx
+       * durumda autocomplete akışını kırma.
+       */
+      console.warn(
+        "Photon fallback HTTP " +
           response.status
       );
+      return [];
     }
 
     const data =
@@ -2626,6 +2717,16 @@ class MapService {
           cleanQuery
         )
       );
+
+    const hierarchyTokens =
+      this.normalizeQueryForHierarchy(
+        cleanQuery
+      )
+        .split(" ")
+        .filter(Boolean);
+
+    const oneWordQuery =
+      hierarchyTokens.length === 1;
 
     /*
      * 1. Seçili mahalle varsa:
@@ -2863,12 +2964,45 @@ class MapService {
       AddressSuggestion[] = [];
 
     try {
-      districts =
-        oneWordQuery
-          ? await this.getDistrictSuggestions(
-              cleanQuery
-            )
-          : await this.getIstanbulDistrictSuggestions();
+      if (oneWordQuery) {
+        districts =
+          await this.getDistrictSuggestions(
+            cleanQuery
+          );
+      } else {
+        /*
+         * Bileşik sorguda bütün İstanbul ilçe havuzunu
+         * indirmek gereksiz ve pahalıdır. Şehir adını
+         * atıp olası ilçe tokenlarını sırayla deneriz.
+         * Böylece "İstanbul Avcılar Cihangir" gibi yazımlar
+         * tek tek gerçek OSM ilçe verisine bağlanabilir.
+         */
+        const districtCandidates =
+          hierarchyTokens.filter(
+            (token) =>
+              token.length >= 3 &&
+              token !== "istanbul" &&
+              token !== "turkiye"
+          );
+
+        for (const candidate of districtCandidates.slice(
+          0,
+          3
+        )) {
+          const candidateDistricts =
+            await this.getDistrictSuggestions(
+              candidate
+            );
+
+          if (
+            candidateDistricts.length > 0
+          ) {
+            districts =
+              candidateDistricts;
+            break;
+          }
+        }
+      }
     } catch (error) {
       console.warn(
         "İlçe havuzu alınamadı:",
