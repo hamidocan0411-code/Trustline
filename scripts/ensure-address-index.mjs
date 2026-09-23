@@ -112,6 +112,40 @@ const requirementsCheck = spawnSync(
 );
 
 if (requirementsCheck.status !== 0) {
+  if (process.platform === "win32") {
+    console.log(
+      "[address-index] Python paketlerinden cykhash derlemesi gerekebilir. MSVC C++ Build Tools otomatik kuruluyor..."
+    );
+
+    const buildTools = spawnSync(
+      "winget",
+      [
+        "install",
+        "--exact",
+        "--id",
+        "Microsoft.VisualStudio.2022.BuildTools",
+        "--override",
+        "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended",
+        "--accept-source-agreements",
+        "--accept-package-agreements",
+      ],
+      { stdio: "inherit", windowsHide: true }
+    );
+
+    if (
+      buildTools.status !== 0 &&
+      buildTools.status !== 3010 &&
+      buildTools.status !== 1641
+    ) {
+      console.error(
+        "[address-index] Visual Studio C++ Build Tools otomatik kurulamadı."
+      );
+      process.exit(
+        buildTools.status ?? 1
+      );
+    }
+  }
+
   console.log(
     "[address-index] GeoPandas, PyArrow ve pyrosm kuruluyor..."
   );
