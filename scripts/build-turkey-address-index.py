@@ -291,10 +291,12 @@ def spatial_parent(
     )
 
     child_gdf = child_gdf.copy()
-    child_gdf[id_column] =
+    child_gdf[id_column] = (
         joined[id_column].values
-    child_gdf[name_column] =
+    )
+    child_gdf[name_column] = (
         joined[name_column].values
+    )
     return child_gdf
 
 
@@ -330,6 +332,12 @@ def process_province(osm_path, province_row, districts, neighborhoods):
         neighborhoods["_province_id"].astype(str)
         == str(row_value(province_row, "id"))
     ].copy()
+
+    neighborhood_place_ids = {
+        str(row_value(nrow, "id")):
+        relation_place_id(nrow)
+        for _, nrow in province_neighborhoods.iterrows()
+    }
 
     # Province-specific OSM reader keeps memory bounded.
     regional = OSM(
@@ -651,12 +659,15 @@ def process_province(osm_path, province_row, districts, neighborhoods):
                 "osmId": int(row_value(street_row, "id")),
                 "name": street_name,
                 "kind": "street",
-                "neighborhoodId": stable_place_id(
-                    "R",
+                "neighborhoodId": neighborhood_place_ids.get(
                     nid,
-                    row_value(
-                        street_row,
-                        "_neighborhood_name",
+                    stable_place_id(
+                        "R",
+                        nid,
+                        row_value(
+                            street_row,
+                            "_neighborhood_name",
+                        ),
                     ),
                 ),
                 "neighborhoodName": str(
@@ -724,12 +735,15 @@ def process_province(osm_path, province_row, districts, neighborhoods):
                         "osmId": None,
                         "name": street_name,
                         "kind": "street",
-                        "neighborhoodId": stable_place_id(
-                            "R",
+                        "neighborhoodId": neighborhood_place_ids.get(
                             nid,
-                            row_value(
-                                arow,
-                                "addr:neighbourhood",
+                            stable_place_id(
+                                "R",
+                                nid,
+                                row_value(
+                                    arow,
+                                    "addr:neighbourhood",
+                                ),
                             ),
                         ),
                         "neighborhoodName": "",
@@ -793,10 +807,8 @@ def process_province(osm_path, province_row, districts, neighborhoods):
                     continue
 
                 lat, lng = center_of_geometry(arow.geometry)
-                neighborhood_pid = relation_place_id(
-                    province_neighborhoods[
-                        province_neighborhoods["id"].astype(str) == nid
-                    ].iloc[0]
+                neighborhood_pid = neighborhood_place_ids.get(
+                    nid
                 )
 
                 street_match = next(
