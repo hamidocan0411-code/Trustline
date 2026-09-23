@@ -13,6 +13,9 @@ export interface AddressSuggestion {
   osmType?: "node" | "way" | "relation";
   osmId?: number;
   areaId?: number;
+  provinceId?: string;
+  districtId?: string;
+  neighborhoodId?: string;
   kind?: "city" | "district" | "neighborhood" | "street" | "address";
   parentCity?: string;
   parentDistrict?: string;
