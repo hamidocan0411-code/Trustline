@@ -120,6 +120,69 @@ class MapService {
   private readonly districtNeighborhoodCache = new Map<string, AddressSuggestion[]>();
   private readonly neighborhoodStreetCache = new Map<string, AddressSuggestion[]>();
   private districtLoadPromise: Promise<AddressSuggestion[]> | null = null;
+  private istanbulAreaIdPromise: Promise<number | null> | null = null;
+
+  private readPersistentAddressCache(
+    key: string
+  ): AddressSuggestion[] | null {
+    try {
+      const raw =
+        window.localStorage.getItem(
+          "trustline-address-cache:" + key
+        );
+
+      if (!raw) return null;
+
+      const parsed =
+        JSON.parse(raw) as {
+          savedAt?: number;
+          data?: AddressSuggestion[];
+        };
+
+      if (
+        !parsed ||
+        !Array.isArray(parsed.data) ||
+        typeof parsed.savedAt !== "number"
+      ) {
+        return null;
+      }
+
+      const maxAge =
+        24 * 60 * 60 * 1000;
+
+      if (
+        Date.now() -
+          parsed.savedAt >
+        maxAge
+      ) {
+        window.localStorage.removeItem(
+          "trustline-address-cache:" + key
+        );
+        return null;
+      }
+
+      return parsed.data;
+    } catch {
+      return null;
+    }
+  }
+
+  private writePersistentAddressCache(
+    key: string,
+    data: AddressSuggestion[]
+  ): void {
+    try {
+      window.localStorage.setItem(
+        "trustline-address-cache:" + key,
+        JSON.stringify({
+          savedAt: Date.now(),
+          data,
+        })
+      );
+    } catch {
+      // localStorage is only an optimization; never block address lookup.
+    }
+  }
 
   private async fetchOverpass(
     query: string,
@@ -805,7 +868,7 @@ class MapService {
         parentCity:
           "İstanbul",
         parentDistrict:
-          district,
+          districtName,
         types: [
           "neighborhood",
           String(
@@ -842,6 +905,10 @@ class MapService {
         );
 
     this.districtNeighborhoodCache.set(
+      cacheKey,
+      results
+    );
+    this.writePersistentAddressCache(
       cacheKey,
       results
     );
@@ -1192,6 +1259,39 @@ class MapService {
       String(street.street)
         .trim()
         .replace(/["\\]/g, "\\$&");
+
+    const cacheKey =
+      "addresses:" +
+      normalizeTurkish(
+        districtName
+      ) +
+      ":" +
+      normalizeTurkish(
+        neighborhoodName
+      ) +
+      ":" +
+      normalizeTurkish(
+        street.street
+      );
+
+    const cached =
+      this.neighborhoodStreetCache.get(
+        cacheKey
+      ) ||
+      this.readPersistentAddressCache(
+        cacheKey
+      );
+
+    if (
+      cached
+    ) {
+      return queryText?.trim()
+        ? this.filterSuggestions(
+            cached,
+            queryText
+          )
+        : cached;
+    }
 
     const query =
       "[out:json][timeout:25];" +
