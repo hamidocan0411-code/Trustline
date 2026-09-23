@@ -374,7 +374,7 @@ class MapService {
     const isNeighborhoodQuery =
       normalizedQuery.includes("mahallesi") ||
       normalizedQuery.includes(" mahalle") ||
-      /(^|\\s)mah($|\\s)/.test(normalizedQuery);
+      /(^|\s)mah($|\s)/.test(normalizedQuery);
 
     if (isNeighborhoodQuery) {
       try {
