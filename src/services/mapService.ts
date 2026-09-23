@@ -8,6 +8,11 @@ export interface AddressSuggestion {
   lng?: number;
   name?: string;
   source?: string;
+  placeId?: string;
+  formattedAddress?: string;
+  street?: string;
+  streetNumber?: string;
+  types?: string[];
 }
 
 export interface MapServiceConfig {
@@ -168,6 +173,189 @@ function haversineDistance(
 }
 
 class MapService {
+  private googlePlacesPromise: Promise<any> | null = null;
+  private googleSessionToken: any | null = null;
+  private lastAddressQueryForBias = "";
+
+  private getGoogleMapsApiKey(): string {
+    const env = import.meta.env as Record<string, string | undefined>;
+    return (env.VITE_GOOGLE_MAPS_API_KEY || "").trim();
+  }
+
+  private async loadGooglePlaces(): Promise<any | null> {
+    if (typeof window === "undefined") return null;
+    const apiKey = this.getGoogleMapsApiKey();
+    if (!apiKey) return null;
+    if (this.googlePlacesPromise) return this.googlePlacesPromise;
+
+    this.googlePlacesPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-trustline-google-maps="true"]') as HTMLScriptElement | null;
+      const finish = () => {
+        const googleObject = (window as any).google;
+        if (!googleObject?.maps?.importLibrary) {
+          reject(new Error("Google Maps JavaScript API yüklenemedi."));
+          return;
+        }
+        resolve(googleObject);
+      };
+
+      if (existing) {
+        if ((window as any).google?.maps?.importLibrary) finish();
+        else {
+          existing.addEventListener("load", finish, { once: true });
+          existing.addEventListener("error", () => reject(new Error("Google Maps JavaScript API yüklenemedi.")), { once: true });
+        }
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(apiKey) + "&v=weekly&loading=async";
+      script.async = true;
+      script.defer = true;
+      script.dataset.trustlineGoogleMaps = "true";
+      script.addEventListener("load", finish, { once: true });
+      script.addEventListener("error", () => reject(new Error("Google Maps JavaScript API yüklenemedi.")), { once: true });
+      document.head.appendChild(script);
+    }).catch((error) => {
+      this.googlePlacesPromise = null;
+      throw error;
+    });
+
+    return this.googlePlacesPromise;
+  }
+
+  private async getGooglePlacesLibrary(): Promise<any | null> {
+    const googleObject = await this.loadGooglePlaces();
+    if (!googleObject?.maps?.importLibrary) return null;
+    return googleObject.maps.importLibrary("places");
+  }
+
+  private async getGoogleSessionToken(): Promise<any | null> {
+    const places = await this.getGooglePlacesLibrary();
+    if (!places?.AutocompleteSessionToken) return null;
+    if (!this.googleSessionToken) this.googleSessionToken = new places.AutocompleteSessionToken();
+    return this.googleSessionToken;
+  }
+
+  private finishGoogleAutocompleteSession(): void {
+    this.googleSessionToken = null;
+  }
+
+  private getGoogleLocationBias(): any {
+    const query = this.lastAddressQueryForBias.toLocaleLowerCase("tr-TR");
+    return {
+      center: { lat: 41.02, lng: 28.72 },
+      radius: query.includes("istanbul") || query.includes("avcılar") || query.includes("avcilar") ? 25000 : 50000,
+    };
+  }
+
+  private mapGooglePrediction(prediction: any): AddressSuggestion | null {
+    if (!prediction) return null;
+    const text = prediction.text?.toString?.() || "";
+    const secondary = prediction.secondaryText?.toString?.() || "";
+    return {
+      displayName: [text, secondary].filter(Boolean).join(", ") || text,
+      name: text,
+      placeId: prediction.placeId,
+      source: "google-places",
+      types: Array.isArray(prediction.types) ? prediction.types : [],
+    };
+  }
+
+  private async searchGoogleAddressSuggestions(cleanQuery: string): Promise<AddressSuggestion[]> {
+    const places = await this.getGooglePlacesLibrary();
+    if (!places?.AutocompleteSuggestion) return [];
+
+    this.lastAddressQueryForBias = cleanQuery;
+    const token = await this.getGoogleSessionToken();
+    const baseRequest: any = {
+      input: cleanQuery,
+      includedRegionCodes: ["tr"],
+      locationBias: this.getGoogleLocationBias(),
+      language: "tr",
+      region: "tr",
+      sessionToken: token || undefined,
+    };
+
+    const requests = [
+      { ...baseRequest, includedPrimaryTypes: ["street_address", "premise", "subpremise", "route"] },
+      { ...baseRequest, includedPrimaryTypes: ["route", "street_address", "premise"] },
+    ];
+
+    const responses = await Promise.all(requests.map((request) =>
+      places.AutocompleteSuggestion.fetchAutocompleteSuggestions(request)
+    ));
+
+    const mapped: AddressSuggestion[] = [];
+    for (const response of responses) {
+      for (const suggestion of response?.suggestions || []) {
+        const item = this.mapGooglePrediction(suggestion?.placePrediction);
+        if (item) mapped.push(item);
+      }
+    }
+
+    const unique = new Map<string, AddressSuggestion>();
+    for (const item of mapped) {
+      const key = item.placeId || item.displayName.toLocaleLowerCase("tr-TR");
+      if (!unique.has(key)) unique.set(key, item);
+    }
+
+    const queryLower = cleanQuery.toLocaleLowerCase("tr-TR");
+    return Array.from(unique.values()).sort((a, b) => {
+      const score = (item: AddressSuggestion) => {
+        const types = item.types || [];
+        let value = 0;
+        if (types.includes("street_address")) value += 100;
+        if (types.includes("subpremise")) value += 90;
+        if (types.includes("premise")) value += 80;
+        if (types.includes("route")) value += 60;
+        if (item.displayName.toLocaleLowerCase("tr-TR").includes(queryLower)) value += 10;
+        return value;
+      };
+      return score(b) - score(a);
+    }).slice(0, 8);
+  }
+
+  async resolveAddressSuggestion(suggestion: AddressSuggestion): Promise<AddressSuggestion> {
+    if (!suggestion.placeId) return suggestion;
+    const places = await this.getGooglePlacesLibrary();
+    if (!places) return suggestion;
+
+    const googleObject = (window as any).google;
+    const place = new googleObject.maps.places.Place({ id: suggestion.placeId });
+
+    await place.fetchFields({
+      fields: ["id", "displayName", "formattedAddress", "location", "addressComponents", "types"],
+    });
+
+    const components = Array.isArray(place.addressComponents) ? place.addressComponents : [];
+    const getComponent = (type: string): string => {
+      const component = components.find((item: any) => Array.isArray(item.types) && item.types.includes(type));
+      return component?.longText || component?.longName || component?.shortText || component?.shortName || "";
+    };
+
+    const streetNumber = getComponent("street_number");
+    const route = getComponent("route");
+    const formattedAddress = place.formattedAddress || suggestion.displayName;
+    const location = place.location;
+    const lat = typeof location?.lat === "function" ? location.lat() : Number(location?.lat);
+    const lng = typeof location?.lng === "function" ? location.lng() : Number(location?.lng);
+
+    this.finishGoogleAutocompleteSession();
+
+    return {
+      ...suggestion,
+      displayName: formattedAddress,
+      formattedAddress,
+      placeId: place.id || suggestion.placeId,
+      lat: Number.isFinite(lat) ? lat : suggestion.lat,
+      lng: Number.isFinite(lng) ? lng : suggestion.lng,
+      street: route || suggestion.street,
+      streetNumber: streetNumber || suggestion.streetNumber,
+      types: Array.isArray(place.types) ? place.types : suggestion.types,
+    };
+  }
+
   getConfig(): MapServiceConfig {
     return {
       ...MAP_CONFIG,
@@ -201,92 +389,14 @@ class MapService {
       }));
   }
 
-  async searchAddressSuggestions(
-    query: string
-  ): Promise<AddressSuggestion[]> {
+  async searchAddressSuggestions(query: string): Promise<AddressSuggestion[]> {
     const cleanQuery = query.trim();
-
-    const localResults =
-      this.getAddressSuggestions(cleanQuery);
-
-    if (cleanQuery.length < 3) {
-      return localResults;
-    }
-
+    if (cleanQuery.length < 3) return [];
     try {
-      const params = new URLSearchParams();
-
-      params.set("q", cleanQuery);
-      params.set("format", "json");
-      params.set("addressdetails", "1");
-      params.set("limit", "5");
-      params.set("countrycodes", "tr");
-
-      const response = await fetch(
-        MAP_CONFIG.searchUrl +
-          "?" +
-          params.toString(),
-        {
-          headers: {
-            Accept:
-              "application/json",
-          },
-        }
-      );
-
-      if (!response.ok) {
-        return localResults;
-      }
-
-      const data =
-        (await response.json()) as Array<{
-          display_name?: string;
-          lat?: string;
-          lon?: string;
-        }>;
-
-      const remoteResults =
-        data
-          .map((item) => ({
-            displayName:
-              item.display_name ||
-              cleanQuery,
-            lat: Number(item.lat),
-            lng: Number(item.lon),
-            source: "nominatim",
-          }))
-          .filter(
-            (item) =>
-              Number.isFinite(item.lat) &&
-              Number.isFinite(item.lng)
-          );
-
-      return [
-        ...remoteResults,
-        ...localResults.filter(
-          (local) =>
-            !remoteResults.some(
-              (remote) =>
-                remote.displayName
-                  .toLocaleLowerCase(
-                    "tr-TR"
-                  )
-                  .includes(
-                    local.displayName
-                      .toLocaleLowerCase(
-                        "tr-TR"
-                      )
-                  )
-            )
-        ),
-      ].slice(0, 8);
+      return await this.searchGoogleAddressSuggestions(cleanQuery);
     } catch (error) {
-      console.warn(
-        "Adres önerileri alınamadı:",
-        error
-      );
-
-      return localResults;
+      console.warn("Google Places adres önerileri alınamadı:", error);
+      return [];
     }
   }
 
