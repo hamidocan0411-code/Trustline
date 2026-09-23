@@ -290,12 +290,28 @@ def spatial_parent(
         keep="first",
     )
 
-    child_gdf = child_gdf.copy()
-    child_gdf[id_column] = (
-        joined[id_column].values
+    mapping = (
+        joined[
+            [
+                "id",
+                id_column,
+                name_column,
+            ]
+        ]
+        .drop_duplicates(
+            subset=["id"],
+            keep="first",
+        )
+        .set_index("id")
     )
-    child_gdf[name_column] = (
-        joined[name_column].values
+
+    child_gdf = child_gdf.copy()
+    child_ids = child_gdf["id"]
+    child_gdf[id_column] = child_ids.map(
+        mapping[id_column]
+    )
+    child_gdf[name_column] = child_ids.map(
+        mapping[name_column]
     )
     return child_gdf
 
