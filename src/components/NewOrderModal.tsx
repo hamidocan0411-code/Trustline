@@ -510,6 +510,8 @@ export const NewOrderModal: React.FC<Props> = ({
 
           ...(pickupPlaceId ? {
             pickupPlaceId,
+            pickupStreet: pickupStreet || undefined,
+            pickupStreetNumber: pickupStreetNumber || undefined,
             ...(pickupCoords ? {
               pickupLatitude: pickupCoords.lat,
               pickupLongitude: pickupCoords.lng,
@@ -521,6 +523,8 @@ export const NewOrderModal: React.FC<Props> = ({
 
           ...(deliveryPlaceId ? {
             deliveryPlaceId,
+            deliveryStreet: deliveryStreet || undefined,
+            deliveryStreetNumber: deliveryStreetNumber || undefined,
             ...(deliveryCoords ? {
               deliveryLatitude: deliveryCoords.lat,
               deliveryLongitude: deliveryCoords.lng,
@@ -1149,6 +1153,8 @@ export const NewOrderModal: React.FC<Props> = ({
                     onSelect={(suggestion: AddressSuggestion) => {
                       setPickupAddress(suggestion.formattedAddress || suggestion.displayName);
                       setPickupPlaceId(suggestion.placeId || "");
+                      setPickupStreet(suggestion.street || "");
+                      setPickupStreetNumber(suggestion.streetNumber || "");
                       setPickupCoords(
                         suggestion.lat != null && suggestion.lng != null
                           ? { lat: suggestion.lat, lng: suggestion.lng, name: suggestion.formattedAddress || suggestion.displayName }
@@ -1186,6 +1192,8 @@ export const NewOrderModal: React.FC<Props> = ({
                     onSelect={(suggestion: AddressSuggestion) => {
                       setDeliveryAddress(suggestion.formattedAddress || suggestion.displayName);
                       setDeliveryPlaceId(suggestion.placeId || "");
+                      setDeliveryStreet(suggestion.street || "");
+                      setDeliveryStreetNumber(suggestion.streetNumber || "");
                       setDeliveryCoords(
                         suggestion.lat != null && suggestion.lng != null
                           ? { lat: suggestion.lat, lng: suggestion.lng, name: suggestion.formattedAddress || suggestion.displayName }
