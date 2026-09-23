@@ -122,7 +122,6 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         selectedDistrictRef.current = null;
         selectedNeighborhoodRef.current = null;
         selectedStreetRef.current = null;
-        emitHierarchy();
 
         skipNextValueSearchRef.current = true;
 
@@ -131,6 +130,7 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
             selected.displayName
         );
         onSelect?.(selected);
+        emitHierarchy();
 
         setLoading(true);
 
@@ -160,7 +160,6 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         selectedDistrictRef.current = selected;
         selectedNeighborhoodRef.current = null;
         selectedStreetRef.current = null;
-        emitHierarchy();
 
         skipNextValueSearchRef.current = true;
 
@@ -169,6 +168,7 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
             selected.displayName
         );
         onSelect?.(selected);
+        emitHierarchy();
 
         setLoading(true);
 
@@ -226,8 +226,6 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           }
         }
 
-        emitHierarchy();
-
         skipNextValueSearchRef.current = true;
 
         onChange(
@@ -235,6 +233,7 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
             selected.displayName
         );
         onSelect?.(selected);
+        emitHierarchy();
 
         setLoading(true);
 
@@ -264,13 +263,12 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           ? selected
           : null;
 
-      emitHierarchy();
-
       onChange(
         selected.formattedAddress ||
           selected.displayName
       );
       onSelect?.(selected);
+      emitHierarchy();
       setSuggestions([]);
       setOpen(false);
     } catch (error) {
@@ -321,6 +319,7 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
               neighborhood: null,
               street: null,
             });
+            setSuggestions([]);
             onChange(event.target.value);
             setOpen(true);
           }}
