@@ -409,7 +409,16 @@ def process_province(osm_path, province_row, districts, neighborhoods):
             crs="EPSG:4326",
         )
 
-    roads["name"] = roads.get("name", "").fillna("").astype(str).str.strip()
+    if "name" not in roads.columns:
+        roads["name"] = ""
+    else:
+        roads["name"] = (
+            roads["name"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
     roads = roads[
         roads["name"] != ""
     ].copy()
