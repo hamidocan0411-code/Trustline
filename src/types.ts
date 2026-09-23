@@ -109,6 +109,16 @@ export interface Order {
 
   pickupAddress: string;
   deliveryAddress: string;
+  pickupPlaceId?: string;
+  pickupLatitude?: number;
+  pickupLongitude?: number;
+  pickupStreet?: string;
+  pickupStreetNumber?: string;
+  deliveryPlaceId?: string;
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
+  deliveryStreet?: string;
+  deliveryStreetNumber?: string;
 
   packageType: PackageType;
   packageSize?: 'Küçük' | 'Orta' | 'Büyük' | 'Çok Büyük';
