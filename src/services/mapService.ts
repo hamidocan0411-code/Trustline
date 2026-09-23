@@ -121,6 +121,16 @@ class MapService {
   private readonly neighborhoodStreetCache = new Map<string, AddressSuggestion[]>();
   private districtLoadPromise: Promise<AddressSuggestion[]> | null = null;
   private istanbulAreaIdPromise: Promise<number | null> | null = null;
+  private readonly districtRelationCache =
+    new Map<
+      string,
+      {
+        osmId: number;
+        areaId: number;
+        lat?: number;
+        lng?: number;
+      } | null
+    >();
   private overpassQueue: Promise<void> = Promise.resolve();
 
   private readPersistentAddressCache(
@@ -402,6 +412,199 @@ class MapService {
   private async findIstanbulDistrictRelation(
     district: string
   ): Promise<{ osmId: number; areaId: number; lat?: number; lng?: number } | null> {
+    const name =
+      String(district || "").trim();
+
+    if (!name) return null;
+
+    const cacheKey =
+      normalizeTurkish(name);
+
+    if (
+      this.districtRelationCache.has(
+        cacheKey
+      )
+    ) {
+      return (
+        this.districtRelationCache.get(
+          cacheKey
+        ) || null
+      );
+    }
+
+    /*
+     * Öncelik: Nominatim.
+     *
+     * Burada yalnızca tek bir ilçe relation'ını çözüyoruz.
+     * Böylece "Avcılar" -> mahalleler geçişinde ağır
+     * bir İstanbul/ilçe Overpass relation sorgusu yapmak
+     * zorunda kalmıyoruz.
+     */
+    try {
+      const params =
+        new URLSearchParams();
+
+      params.set(
+        "q",
+        name +
+          ", İstanbul, Türkiye"
+      );
+      params.set(
+        "format",
+        "jsonv2"
+      );
+      params.set(
+        "limit",
+        "10"
+      );
+      params.set(
+        "addressdetails",
+        "1"
+      );
+      params.set(
+        "countrycodes",
+        "tr"
+      );
+      params.set(
+        "accept-language",
+        "tr"
+      );
+
+      const response =
+        await fetch(
+          MAP_CONFIG.searchUrl +
+            "?" +
+            params.toString(),
+          {
+            headers: {
+              Accept:
+                "application/json",
+            },
+          }
+        );
+
+      if (response.ok) {
+        const data =
+          await response.json();
+
+        const results =
+          Array.isArray(data)
+            ? data
+            : [];
+
+        const normalizedName =
+          normalizeTurkish(name);
+
+        const relation =
+          results.find(
+            (item: any) => {
+              const itemName =
+                normalizeTurkish(
+                  String(
+                    item?.name ||
+                      ""
+                  )
+                );
+
+              const osmType =
+                String(
+                  item?.osm_type ||
+                    ""
+                ).toLowerCase();
+
+              const type =
+                normalizeTurkish(
+                  String(
+                    item?.type ||
+                      ""
+                  )
+                );
+
+              const address =
+                item?.address || {};
+
+              const city =
+                normalizeTurkish(
+                  String(
+                    address?.city ||
+                      address?.state ||
+                      ""
+                  )
+                );
+
+              return (
+                itemName ===
+                  normalizedName &&
+                osmType ===
+                  "relation" &&
+                (
+                  type ===
+                    "administrative" ||
+                  type ===
+                    "district" ||
+                  type ===
+                    "county"
+                ) &&
+                (
+                  city ===
+                    "istanbul" ||
+                  city === ""
+                )
+              );
+            }
+          );
+
+        const osmId =
+          Number(
+            relation?.osm_id
+          );
+
+        if (
+          Number.isFinite(
+            osmId
+          )
+        ) {
+          const resolved = {
+            osmId,
+            areaId:
+              3600000000 +
+              osmId,
+            lat:
+              Number(
+                relation?.lat
+              ) || undefined,
+            lng:
+              Number(
+                relation?.lon
+              ) || undefined,
+          };
+
+          this.districtRelationCache.set(
+            cacheKey,
+            resolved
+          );
+
+          return resolved;
+        }
+      }
+    } catch (error) {
+      console.warn(
+        "Nominatim ilçe relation çözümü başarısız, Overpass yedeği deneniyor:",
+        error
+      );
+    }
+
+    /*
+     * Son yedek: yalnız tek ilçeyi hedefleyen küçük Overpass sorgusu.
+     * Bu yol normal akışta kullanılmamalıdır.
+     */
+    try {
+      const escapedName =
+        name.replace(
+          /["\\]/g,
+          "\\  private async findIstanbulDistrictRelation(
+    district: string
+  ): Promise<{ osmId: number; areaId: number; lat?: number; lng?: number } | null> {
     const name = String(district || "").trim();
     if (!name) return null;
 
@@ -437,6 +640,85 @@ class MapService {
       lat: Number(relation?.center?.lat) || undefined,
       lng: Number(relation?.center?.lon) || undefined,
     };
+  }"
+        );
+
+      const query =
+        "[out:json][timeout:12];" +
+        'rel["boundary"="administrative"]["admin_level"="6"]["name"="' +
+        escapedName +
+        '"](40.80,28.40,41.35,29.55);' +
+        "out tags center;";
+
+      const data =
+        await this.fetchOverpass(
+          query,
+          7000
+        );
+
+      const elements =
+        Array.isArray(
+          data?.elements
+        )
+          ? data.elements
+          : [];
+
+      const relation =
+        elements.find(
+          (item: any) =>
+            String(
+              item?.type
+            ) === "relation" &&
+            Number.isFinite(
+              Number(item?.id)
+            )
+        ) || null;
+
+      const osmId =
+        Number(
+          relation?.id
+        );
+
+      if (
+        Number.isFinite(
+          osmId
+        )
+      ) {
+        const resolved = {
+          osmId,
+          areaId:
+            3600000000 +
+            osmId,
+          lat:
+            Number(
+              relation?.center?.lat
+            ) || undefined,
+          lng:
+            Number(
+              relation?.center?.lon
+            ) || undefined,
+        };
+
+        this.districtRelationCache.set(
+          cacheKey,
+          resolved
+        );
+
+        return resolved;
+      }
+    } catch (error) {
+      console.warn(
+        "Overpass ilçe relation yedeği başarısız:",
+        error
+      );
+    }
+
+    this.districtRelationCache.set(
+      cacheKey,
+      null
+    );
+
+    return null;
   }
 
   private async findIstanbulAreaId(): Promise<number | null> {
