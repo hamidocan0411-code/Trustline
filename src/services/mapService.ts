@@ -29,7 +29,7 @@ export interface MapServiceConfig {
 
 const OVERPASS_URLS = [
   "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
 ];
 
 const ISTANBUL_BBOX = "40.80,28.40,41.35,29.55";
@@ -289,7 +289,7 @@ class MapService {
         " "
       )
       .replace(
-        /(^|\\s)(mahallesi|mahalle|mah)(?=$|\\s)/gi,
+        /(^|\\s)(mahallesi|mahalle|mah|mh)(?=$|\\s)/gi,
         " "
       )
       .replace(/\s+/g, " ")
