@@ -411,11 +411,18 @@ class MapService {
 
   private async findIstanbulDistrictRelation(
     district: string
-  ): Promise<{ osmId: number; areaId: number; lat?: number; lng?: number } | null> {
+  ): Promise<{
+    osmId: number;
+    areaId: number;
+    lat?: number;
+    lng?: number;
+  } | null> {
     const name =
       String(district || "").trim();
 
-    if (!name) return null;
+    if (!name) {
+      return null;
+    }
 
     const cacheKey =
       normalizeTurkish(name);
@@ -433,12 +440,9 @@ class MapService {
     }
 
     /*
-     * Öncelik: Nominatim.
-     *
-     * Burada yalnızca tek bir ilçe relation'ını çözüyoruz.
-     * Böylece "Avcılar" -> mahalleler geçişinde ağır
-     * bir İstanbul/ilçe Overpass relation sorgusu yapmak
-     * zorunda kalmıyoruz.
+     * Öncelik Nominatim:
+     * Tek bir ilçe relation'ını çözeriz. Normal akışta
+     * ağır Overpass relation sorgusuna ihtiyaç kalmaz.
      */
     try {
       const params =
@@ -548,7 +552,8 @@ class MapService {
                 (
                   city ===
                     "istanbul" ||
-                  city === ""
+                  city ===
+                    ""
                 )
               );
             }
@@ -596,51 +601,12 @@ class MapService {
 
     /*
      * Son yedek: yalnız tek ilçeyi hedefleyen küçük Overpass sorgusu.
-     * Bu yol normal akışta kullanılmamalıdır.
      */
     try {
       const escapedName =
         name.replace(
           /["\\]/g,
-          "\\  private async findIstanbulDistrictRelation(
-    district: string
-  ): Promise<{ osmId: number; areaId: number; lat?: number; lng?: number } | null> {
-    const name = String(district || "").trim();
-    if (!name) return null;
-
-    const escapedName =
-      name.replace(/["\\]/g, "\\$&");
-
-    const query =
-      "[out:json][timeout:15];" +
-      'rel["boundary"="administrative"]["admin_level"="6"]["name"="' +
-      escapedName +
-      '"](40.80,28.40,41.35,29.55);' +
-      "out tags center;";
-
-    const data = await this.fetchOverpass(query, 9000);
-    const elements = Array.isArray(data?.elements)
-      ? data.elements
-      : [];
-
-    const relation =
-      elements.find(
-        (item: any) =>
-          String(item?.type) === "relation" &&
-          Number.isFinite(Number(item?.id))
-      ) || null;
-
-    if (!relation) return null;
-
-    const osmId = Number(relation.id);
-
-    return {
-      osmId,
-      areaId: 3600000000 + osmId,
-      lat: Number(relation?.center?.lat) || undefined,
-      lng: Number(relation?.center?.lon) || undefined,
-    };
-  }"
+          "\\$&"
         );
 
       const query =
@@ -668,9 +634,12 @@ class MapService {
           (item: any) =>
             String(
               item?.type
-            ) === "relation" &&
+            ) ===
+              "relation" &&
             Number.isFinite(
-              Number(item?.id)
+              Number(
+                item?.id
+              )
             )
         ) || null;
 
