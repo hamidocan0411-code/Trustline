@@ -77,6 +77,20 @@ export const NewOrderModal: React.FC<Props> = ({
   const [deliveryAddress, setDeliveryAddress] =
     useState("");
 
+  const [pickupPlaceId, setPickupPlaceId] =
+    useState("");
+  const [pickupStreet, setPickupStreet] =
+    useState("");
+  const [pickupStreetNumber, setPickupStreetNumber] =
+    useState("");
+
+  const [deliveryPlaceId, setDeliveryPlaceId] =
+    useState("");
+  const [deliveryStreet, setDeliveryStreet] =
+    useState("");
+  const [deliveryStreetNumber, setDeliveryStreetNumber] =
+    useState("");
+
   const [packageType, setPackageType] =
     useState<PackageType>("Evrak");
 
