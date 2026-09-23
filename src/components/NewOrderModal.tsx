@@ -250,10 +250,15 @@ export const NewOrderModal: React.FC<Props> = ({
             setAutoCalcError("");
 
             const result =
-              await mapService.calculateDistance(
-                pickup,
-                delivery
-              );
+              pickupCoords && deliveryCoords
+                ? await mapService.calculateDistanceFromCoordinates(
+                    pickupCoords,
+                    deliveryCoords
+                  )
+                : await mapService.calculateDistance(
+                    pickup,
+                    delivery
+                  );
 
             if (
               requestId !==
@@ -503,8 +508,24 @@ export const NewOrderModal: React.FC<Props> = ({
           pickupAddress:
             pickupAddress.trim(),
 
+          ...(pickupPlaceId ? {
+            pickupPlaceId,
+            ...(pickupCoords ? {
+              pickupLatitude: pickupCoords.lat,
+              pickupLongitude: pickupCoords.lng,
+            } : {}),
+          } : {}),
+
           deliveryAddress:
             deliveryAddress.trim(),
+
+          ...(deliveryPlaceId ? {
+            deliveryPlaceId,
+            ...(deliveryCoords ? {
+              deliveryLatitude: deliveryCoords.lat,
+              deliveryLongitude: deliveryCoords.lng,
+            } : {}),
+          } : {}),
 
           packageType,
 
