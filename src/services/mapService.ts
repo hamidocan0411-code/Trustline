@@ -133,6 +133,9 @@ class MapService {
       } | null
     >();
   private overpassQueue: Promise<void> = Promise.resolve();
+  private staticDataPromise: Promise<boolean> | null = null;
+  private readonly staticDataCache = new Map<string, any>();
+
 
   private readPersistentAddressCache(
     key: string
@@ -408,6 +411,239 @@ class MapService {
       .trim();
 
     return remaining;
+  }
+
+  private async ensureStaticAddressData(): Promise<boolean> {
+    if (this.staticDataPromise) {
+      return this.staticDataPromise;
+    }
+
+    this.staticDataPromise = (async () => {
+      try {
+        const response = await fetch(
+          "/address-data/manifest.json",
+          { cache: "no-store" }
+        );
+
+        if (!response.ok) {
+          return false;
+        }
+
+        const manifest = await response.json();
+        this.staticDataCache.set("manifest", manifest);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+
+    return this.staticDataPromise;
+  }
+
+  private async loadStaticAddressData<T>(
+    path: string
+  ): Promise<T | null> {
+    const normalizedPath = path.replace(
+      /^\/+/, 
+      ""
+    );
+
+    const cached = this.staticDataCache.get(
+      normalizedPath
+    );
+
+    if (cached !== undefined) {
+      return cached as T;
+    }
+
+    if (!(await this.ensureStaticAddressData())) {
+      return null;
+    }
+
+    try {
+      const response = await fetch(
+        "/address-data/" +
+          normalizedPath,
+        { cache: "force-cache" }
+      );
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = (await response.json()) as T;
+      this.staticDataCache.set(
+        normalizedPath,
+        data
+      );
+
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
+  private async loadStaticHierarchy(): Promise<{
+    version?: number;
+    generatedAt?: string;
+    provinces: AddressSuggestion[];
+    districts: AddressSuggestion[];
+    neighborhoods: AddressSuggestion[];
+  } | null> {
+    return this.loadStaticAddressData(
+      "hierarchy.json"
+    );
+  }
+
+  private filterStaticEntries(
+    entries: AddressSuggestion[],
+    query: string
+  ): AddressSuggestion[] {
+    const normalized =
+      normalizeTurkish(
+        this.normalizeQueryForHierarchy(
+          query
+        )
+      );
+
+    if (!normalized) {
+      return entries;
+    }
+
+    const tokens = normalized
+      .split(" ")
+      .filter(Boolean);
+
+    return entries
+      .map((item) => {
+        const name =
+          normalizeTurkish(
+            String(item.name || "")
+          );
+
+        const haystack =
+          normalizeTurkish(
+            [
+              item.name || "",
+              item.parentDistrict || "",
+              item.parentCity || "",
+              item.street || "",
+              item.streetNumber || "",
+            ].join(" ")
+          );
+
+        const score =
+          name === normalized
+            ? 1000
+            : name.startsWith(normalized)
+              ? 800
+              : tokens.every(
+                    (token) =>
+                      haystack.includes(token)
+                  )
+                ? 500
+                : haystack.includes(normalized)
+                  ? 300
+                  : 0;
+
+        return { item, score };
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((entry) => entry.item);
+  }
+
+  private async getStaticProvinceSuggestions(
+    queryText?: string
+  ): Promise<AddressSuggestion[]> {
+    const hierarchy = await this.loadStaticHierarchy();
+
+    if (!hierarchy) {
+      return [];
+    }
+
+    const provinces = Array.isArray(hierarchy.provinces)
+      ? hierarchy.provinces
+      : [];
+
+    return queryText?.trim()
+      ? this.filterStaticEntries(provinces, queryText).slice(0, 50)
+      : provinces;
+  }
+
+  private async getStaticDistrictSuggestions(
+    province?: AddressSuggestion | string,
+    queryText?: string
+  ): Promise<AddressSuggestion[]> {
+    const hierarchy = await this.loadStaticHierarchy();
+
+    if (!hierarchy) {
+      return [];
+    }
+
+    let districts = Array.isArray(hierarchy.districts)
+      ? hierarchy.districts
+      : [];
+
+    if (province) {
+      const provinceName =
+        typeof province === "string"
+          ? province
+          : String(province.name || "");
+
+      const provinceId =
+        typeof province === "string"
+          ? ""
+          : String(province.placeId || "");
+
+      districts = districts.filter(
+        (item) =>
+          (provinceId &&
+            String(item.provinceId || "") === provinceId) ||
+          (provinceName &&
+            normalizeTurkish(
+              String(item.parentCity || "")
+            ) === normalizeTurkish(provinceName))
+      );
+    }
+
+    return queryText?.trim()
+      ? this.filterStaticEntries(districts, queryText).slice(0, 50)
+      : districts;
+  }
+
+  private async getStaticNeighborhoodSuggestions(
+    district: AddressSuggestion,
+    queryText?: string
+  ): Promise<AddressSuggestion[]> {
+    const hierarchy = await this.loadStaticHierarchy();
+
+    if (!hierarchy) {
+      return [];
+    }
+
+    const districtId = String(district.placeId || "");
+    const districtName = normalizeTurkish(
+      String(district.name || "")
+    );
+
+    let neighborhoods = Array.isArray(hierarchy.neighborhoods)
+      ? hierarchy.neighborhoods
+      : [];
+
+    neighborhoods = neighborhoods.filter(
+      (item) =>
+        (districtId &&
+          String(item.districtId || "") === districtId) ||
+        (!districtId &&
+          normalizeTurkish(
+            String(item.parentDistrict || "")
+          ) === districtName)
+    );
+
+    return queryText?.trim()
+      ? this.filterStaticEntries(neighborhoods, queryText).slice(0, 100)
+      : neighborhoods;
   }
 
   private async findTurkeyAreaId(): Promise<number | null> {
@@ -1774,254 +2010,19 @@ class MapService {
       | string,
     queryText?: string
   ): Promise<AddressSuggestion[]> {
-    const provinceName =
-      typeof province === "string"
-        ? province.trim()
-        : String(
-            province?.name || ""
-          ).trim();
-
-    /*
-     * Backward-compatible behavior:
-     * no province means "show/search Turkish provinces" is
-     * handled by the caller; a plain string is treated as a
-     * province name, not an Istanbul-specific district query.
-     */
-    if (!provinceName) {
-      return [];
-    }
-
-    try {
-      const cacheKey =
-        "districts:" +
-        normalizeTurkish(
-          provinceName
-        );
-
-      const cached =
-        this.districtNeighborhoodCache.get(
-          cacheKey
-        ) ||
-        this.readPersistentAddressCache(
-          cacheKey
-        );
-
-      let districts =
-        cached || [];
-
-      if (
-        districts.length ===
-        0
-      ) {
-        const relation =
-          typeof province !==
-              "string" &&
-          province?.areaId &&
-          province?.osmType ===
-            "relation"
-            ? {
-                osmId:
-                  province.osmId ||
-                  0,
-                areaId:
-                  province.areaId,
-              }
-            : await this.resolveProvinceRelation(
-                provinceName
-              );
-
-        if (!relation) {
-          return [];
-        }
-
-        const query =
-          "[out:json][timeout:20];" +
-          "area(" +
-          relation.areaId +
-          ")->.provinceArea;" +
-          'rel["boundary"="administrative"]["admin_level"="6"]["name"](area.provinceArea);' +
-          "out tags center;";
-
-        const data =
-          await this.fetchOverpass(
-            query,
-            9000
-          );
-
-        const elements =
-          Array.isArray(
-            data?.elements
-          )
-            ? data.elements
-            : [];
-
-        const unique =
-          new Map<
-            string,
-            AddressSuggestion
-          >();
-
-        for (
-          const item of
-            elements
-        ) {
-          const name =
-            String(
-              item?.tags?.name ||
-                ""
-            ).trim();
-
-          const osmId =
-            Number(
-              item?.id
-            );
-
-          const lat =
-            Number(
-              item?.center?.lat
-            );
-
-          const lng =
-            Number(
-              item?.center?.lon
-            );
-
-          if (
-            !name ||
-            !Number.isFinite(
-              osmId
-            ) ||
-            !Number.isFinite(
-              lat
-            ) ||
-            !Number.isFinite(
-              lng
-            )
-          ) {
-            continue;
-          }
-
-          unique.set(
-            normalizeTurkish(
-              name
-            ),
-            {
-              displayName:
-                name +
-                ", " +
-                provinceName +
-                ", Türkiye",
-              formattedAddress:
-                name +
-                ", " +
-                provinceName +
-                ", Türkiye",
-              lat,
-              lng,
-              name,
-              source:
-                "openstreetmap-overpass",
-              placeId:
-                "R" + osmId,
-              osmType:
-                "relation",
-              osmId,
-              areaId:
-                3600000000 +
-                osmId,
-              kind:
-                "district",
-              parentCity:
-                provinceName,
-              types: [
-                "administrative",
-                "district",
-              ],
-            }
-          );
-        }
-
-        districts =
-          Array.from(
-            unique.values()
-          ).sort(
-            (a, b) =>
-              String(
-                a.name || ""
-              ).localeCompare(
-                String(
-                  b.name || ""
-                ),
-                "tr"
-              )
-          );
-
-        if (
-          districts.length >
-          0
-        ) {
-          this.districtNeighborhoodCache.set(
-            cacheKey,
-            districts
-          );
-          this.writePersistentAddressCache(
-            cacheKey,
-            districts
-          );
-        }
-      } else {
-        this.districtNeighborhoodCache.set(
-          cacheKey,
-          districts
-        );
-      }
-
-      const cleanQuery =
-        String(
-          queryText || ""
-        ).trim();
-
-      return cleanQuery
-        ? this.filterSuggestions(
-            districts,
-            cleanQuery
-          )
-        : districts;
-    } catch (error) {
-      console.warn(
-        "İlçe listesi alınamadı:",
-        provinceName,
-        error
-      );
-
-      return [];
-    }
+    return this.getStaticDistrictSuggestions(
+      province,
+      queryText
+    );
   }
 
   async getNeighborhoodSuggestionsForDistrict(
     district: AddressSuggestion,
     queryText?: string
   ): Promise<AddressSuggestion[]> {
-    const districtName =
-      String(district.name || "").trim();
-
-    if (!districtName) return [];
-
-    const neighborhoods =
-      await this.getDistrictNeighborhoods(
-        district
-      );
-
-    const cleanQuery =
-      String(queryText || "").trim();
-
-    if (!cleanQuery) {
-      return neighborhoods;
-    }
-
-    return this.filterSuggestions(
-      neighborhoods,
-      cleanQuery
+    return this.getStaticNeighborhoodSuggestions(
+      district,
+      queryText
     );
   }
 
@@ -2814,9 +2815,19 @@ class MapService {
 
   async getStreetSuggestionsForNeighborhood(
     neighborhood: AddressSuggestion,
-    district?: AddressSuggestion | string | null,
+    district?:
+      | AddressSuggestion
+      | string
+      | null,
     queryText?: string
   ): Promise<AddressSuggestion[]> {
+    const hierarchy =
+      await this.loadStaticHierarchy();
+
+    if (!hierarchy) {
+      return [];
+    }
+
     const districtName =
       typeof district === "string"
         ? district
@@ -2824,21 +2835,157 @@ class MapService {
             district?.name ||
               neighborhood.parentDistrict ||
               ""
-          ).trim();
+          );
 
-    return this.getNeighborhoodStreets(
-      neighborhood,
-      districtName,
-      queryText
-    );
+    const provinceName =
+      typeof district === "object" &&
+      district
+        ? String(
+            district.parentCity ||
+              neighborhood.parentCity ||
+              ""
+          )
+        : String(
+            neighborhood.parentCity ||
+              ""
+          );
+
+    const districtEntry =
+      typeof district === "object" &&
+      district?.placeId
+        ? district
+        : hierarchy.districts.find(
+            (item) =>
+              normalizeTurkish(
+                String(item.name || "")
+              ) ===
+                normalizeTurkish(
+                  districtName
+                ) &&
+              (
+                !provinceName ||
+                normalizeTurkish(
+                  String(
+                    item.parentCity ||
+                      ""
+                  )
+                ) ===
+                  normalizeTurkish(
+                    provinceName
+                  )
+              )
+          );
+
+    if (!districtEntry?.placeId) {
+      return [];
+    }
+
+    const provinceEntry =
+      hierarchy.provinces.find(
+        (item) =>
+          String(
+            item.placeId || ""
+          ) ===
+            String(
+              districtEntry.provinceId ||
+                ""
+            )
+      );
+
+    if (!provinceEntry?.placeId) {
+      return [];
+    }
+
+    const payload =
+      await this.loadStaticAddressData<{
+        neighborhoods?: AddressSuggestion[];
+        streets?: AddressSuggestion[];
+      }>(
+        "districts/" +
+          encodeURIComponent(
+            String(
+              provinceEntry.placeId
+            )
+          ) +
+          "/" +
+          encodeURIComponent(
+            String(
+              districtEntry.placeId
+            )
+          ) +
+          ".json"
+      );
+
+    if (!payload) {
+      return [];
+    }
+
+    let streets =
+      Array.isArray(payload.streets)
+        ? payload.streets
+        : [];
+
+    const neighborhoodId =
+      String(
+        neighborhood.placeId ||
+          ""
+      );
+
+    streets =
+      streets.filter(
+        (item) =>
+          (
+            neighborhoodId &&
+            String(
+              item.neighborhoodId ||
+                ""
+            ) ===
+              neighborhoodId
+          ) ||
+          (
+            !neighborhoodId &&
+            normalizeTurkish(
+              String(
+                item.neighborhoodName ||
+                  ""
+              )
+            ) ===
+              normalizeTurkish(
+                String(
+                  neighborhood.name ||
+                    ""
+                )
+              )
+          )
+      );
+
+    return queryText?.trim()
+      ? this.filterStaticEntries(
+          streets,
+          queryText
+        ).slice(0, 100)
+      : streets.slice(0, 200);
   }
 
   async getAddressSuggestionsForStreet(
     street: AddressSuggestion,
     neighborhood: AddressSuggestion,
-    district?: AddressSuggestion | string | null,
+    district?:
+      | AddressSuggestion
+      | string
+      | null,
     queryText?: string
   ): Promise<AddressSuggestion[]> {
+    const hierarchy =
+      await this.loadStaticHierarchy();
+
+    if (
+      !hierarchy ||
+      !neighborhood.placeId
+    ) {
+      return [];
+    }
+
     const districtName =
       typeof district === "string"
         ? district
@@ -2847,329 +2994,114 @@ class MapService {
               neighborhood.parentDistrict ||
               street.parentDistrict ||
               ""
-          ).trim();
-
-    const neighborhoodName =
-      String(
-        neighborhood.name ||
-          street.parentNeighborhood ||
-          ""
-      ).trim();
-
-    if (
-      !districtName ||
-      !neighborhoodName ||
-      !street.street
-    ) {
-      return [];
-    }
-
-    const boundary =
-      neighborhood.areaId &&
-      neighborhood.osmType === "relation"
-        ? {
-            areaId:
-              neighborhood.areaId,
-          }
-        : await this.findNeighborhoodBoundary(
-            neighborhoodName,
-            districtName,
-            neighborhood.parentCity ||
-              street.parentCity ||
-              ""
           );
 
-    if (!boundary) return [];
-
-    const escapedStreet =
-      String(street.street)
-        .trim()
-        .replace(/["\\]/g, "\\$&");
-
-    const cacheKey =
-      "addresses:" +
-      normalizeTurkish(
-        districtName
-      ) +
-      ":" +
-      normalizeTurkish(
-        neighborhoodName
-      ) +
-      ":" +
-      normalizeTurkish(
-        street.street
-      );
-
-    const cached =
-      this.neighborhoodStreetCache.get(
-        cacheKey
-      ) ||
-      this.readPersistentAddressCache(
-        cacheKey
-      );
-
-    if (
-      cached
-    ) {
-      return queryText?.trim()
-        ? this.filterSuggestions(
-            cached,
-            queryText
-          )
-        : cached;
-    }
-
-    const query =
-      "[out:json][timeout:25];" +
-      "area(" +
-      boundary.areaId +
-      ")->.searchArea;" +
-      'nwr["addr:housenumber"]["addr:street"="' +
-      escapedStreet +
-      '"](area.searchArea);' +
-      "out tags center;";
-
-    try {
-      const data =
-        await this.fetchOverpass(
-          query,
-          12000
-        );
-
-      const elements =
-        Array.isArray(data?.elements)
-          ? data.elements
-          : [];
-
-      const unique =
-        new Map<string, AddressSuggestion>();
-
-      for (const item of elements) {
-        const houseNumber =
-          String(
-            item?.tags?.["addr:housenumber"] ||
-              ""
-          ).trim();
-
-        if (!houseNumber) continue;
-
-        const lat = Number(
-          item?.center?.lat ??
-            item?.lat
-        );
-        const lng = Number(
-          item?.center?.lon ??
-            item?.lon
-        );
-
-        if (
-          !Number.isFinite(lat) ||
-          !Number.isFinite(lng)
-        ) {
-          continue;
-        }
-
-        const osmId =
-          Number(item?.id);
-
-        const osmTypeRaw =
-          String(
-            item?.type || ""
-          );
-
-        const osmType =
-          osmTypeRaw === "node" ||
-          osmTypeRaw === "way" ||
-          osmTypeRaw === "relation"
-            ? (
-                osmTypeRaw as
-                  | "node"
-                  | "way"
-                  | "relation"
+    const districtEntry =
+      typeof district === "object" &&
+      district?.placeId
+        ? district
+        : hierarchy.districts.find(
+            (item) =>
+              normalizeTurkish(
+                String(item.name || "")
+              ) ===
+                normalizeTurkish(
+                  districtName
+                ) &&
+              (
+                !neighborhood.parentCity ||
+                normalizeTurkish(
+                  String(item.parentCity || "")
+                ) ===
+                  normalizeTurkish(
+                    String(
+                      neighborhood.parentCity ||
+                        ""
+                    )
+                  )
               )
-            : undefined;
-
-        const displayName =
-          street.street +
-          " No: " +
-          houseNumber +
-          ", " +
-          neighborhoodName +
-          " Mahallesi, " +
-          districtName +
-          ", " +
-          (
-            neighborhood.parentCity ||
-              street.parentCity ||
-              ""
           );
 
-        const suggestion:
-          AddressSuggestion = {
-          displayName,
-          formattedAddress:
-            displayName,
-          lat,
-          lng,
-          name:
-            street.street,
-          source:
-            "openstreetmap-overpass",
-          placeId:
-            Number.isFinite(osmId) &&
-            osmType
-              ? osmType.toUpperCase()[0] +
-                osmId
-              : undefined,
-          osmType,
-          osmId:
-            Number.isFinite(osmId)
-              ? osmId
-              : undefined,
-          kind:
-            "address",
-          parentCity:
-            neighborhood.parentCity ||
-            street.parentCity ||
-            "",
-          parentDistrict:
-            districtName,
-          parentNeighborhood:
-            neighborhoodName,
-          street:
-            street.street,
-          streetNumber:
-            houseNumber,
-          types: [
-            "address",
-            "building",
-            "housenumber",
-          ],
-        };
-
-        const key =
-          [
-            normalizeTurkish(
-              street.street
-            ),
-            houseNumber,
-          ].join("|");
-
-        if (!unique.has(key)) {
-          unique.set(
-            key,
-            suggestion
-          );
-        }
-      }
-
-      const results =
-        Array.from(
-          unique.values()
-        ).sort((a, b) =>
-          String(
-            a.streetNumber || ""
-          ).localeCompare(
-            String(
-              b.streetNumber || ""
-            ),
-            "tr",
-            {
-              numeric: true,
-            }
-          )
-        );
-
-      const cleanQuery =
-        String(queryText || "").trim();
-
-      return cleanQuery
-        ? this.filterSuggestions(
-            results,
-            cleanQuery
-          )
-        : results;
-    } catch (error) {
-      console.warn(
-        "Gerçek bina numaraları alınamadı:",
-        error
-      );
+    if (!districtEntry?.placeId) {
       return [];
     }
-  }
 
-  private rankNeighborhood(
-    neighborhood: AddressSuggestion,
-    query: string
-  ): number {
-    const name =
-      normalizeTurkish(
-        String(
-          neighborhood.name || ""
-        )
+    const payload =
+      await this.loadStaticAddressData<{
+        streets?: Array<{
+          streetId?: string;
+          streetName?: string;
+          addresses?: AddressSuggestion[];
+        }>;
+      }>(
+        "addresses/" +
+          encodeURIComponent(
+            String(districtEntry.placeId)
+          ) +
+          "/" +
+          encodeURIComponent(
+            String(neighborhood.placeId)
+          ) +
+          ".json"
       );
 
-    const normalizedQuery =
-      normalizeTurkish(query);
-
-    if (!normalizedQuery) return 0;
-
-    if (name === normalizedQuery) return 1000;
-    if (name.startsWith(normalizedQuery)) return 700;
-    if (name.includes(normalizedQuery)) return 500;
-
-    return 0;
-  }
-
-  private filterSuggestions(
-    suggestions: AddressSuggestion[],
-    query: string
-  ): AddressSuggestion[] {
-    const normalized =
-      normalizeTurkish(
-        this.normalizeQueryForHierarchy(
-          query
-        )
-      );
-
-    if (!normalized) {
-      return suggestions;
+    if (!payload) {
+      return [];
     }
 
-    return suggestions
-      .map((item) => {
-        const name =
-          normalizeTurkish(
-            String(item.name || "")
-          );
-        let score = 0;
-
-        if (name === normalized) {
-          score = 1000;
-        } else if (
-          name.startsWith(normalized)
-        ) {
-          score = 700;
-        } else if (
-          name.includes(normalized)
-        ) {
-          score = 500;
-        }
-
-        return {
-          item,
-          score,
-        };
-      })
-      .filter(
-        (entry) => entry.score > 0
-      )
-      .sort(
-        (a, b) => b.score - a.score
-      )
-      .map(
-        (entry) => entry.item
+    const streetName =
+      String(
+        street.street ||
+          street.name ||
+          ""
       );
+
+    const group =
+      (
+        Array.isArray(
+          payload.streets
+        )
+          ? payload.streets
+          : []
+      ).find(
+        (item) =>
+          (
+            street.placeId &&
+            String(
+              item.streetId ||
+                ""
+            ) ===
+              String(
+                street.placeId
+              )
+          ) ||
+          normalizeTurkish(
+            String(
+              item.streetName ||
+                ""
+            )
+          ) ===
+            normalizeTurkish(
+              streetName
+            )
+      );
+
+    const addresses =
+      Array.isArray(
+        group?.addresses
+      )
+        ? group.addresses
+        : [];
+
+    return queryText?.trim()
+      ? this.filterStaticEntries(
+          addresses,
+          queryText
+        ).slice(0, 100)
+      : addresses.slice(
+          0,
+          200
+        );
   }
 
   private async resolveDistrictForQuery(
@@ -3854,6 +3786,87 @@ class MapService {
     cleanQuery: string,
     context?: AddressSearchContext
   ): Promise<AddressSuggestion[]> {
+    const hierarchy =
+      await this.loadStaticHierarchy();
+
+    if (!hierarchy) {
+      return [];
+    }
+
+    if (
+      context?.neighborhood &&
+      context?.district
+    ) {
+      const streets =
+        await this.getStreetSuggestionsForNeighborhood(
+          context.neighborhood,
+          context.district,
+          cleanQuery
+        );
+
+      if (
+        streets.length > 0
+      ) {
+        return streets;
+      }
+
+      return this.getNeighborhoodSuggestionsForDistrict(
+        context.district,
+        this.removeHierarchyLabels(
+          cleanQuery,
+          String(
+            context.district.name ||
+              ""
+          )
+        )
+      );
+    }
+
+    if (
+      context?.district
+    ) {
+      return this.getNeighborhoodSuggestionsForDistrict(
+        context.district,
+        this.removeHierarchyLabels(
+          cleanQuery,
+          String(
+            context.district.name ||
+              ""
+          )
+        )
+      );
+    }
+
+    if (
+      context?.city
+    ) {
+      return this.getDistrictSuggestions(
+        context.city,
+        cleanQuery
+      );
+    }
+
+    const provinces =
+      Array.isArray(
+        hierarchy.provinces
+      )
+        ? hierarchy.provinces
+        : [];
+
+    const districts =
+      Array.isArray(
+        hierarchy.districts
+      )
+        ? hierarchy.districts
+        : [];
+
+    const neighborhoods =
+      Array.isArray(
+        hierarchy.neighborhoods
+      )
+        ? hierarchy.neighborhoods
+        : [];
+
     const normalized =
       normalizeTurkish(
         this.normalizeQueryForHierarchy(
@@ -3861,266 +3874,8 @@ class MapService {
         )
       );
 
-    const hierarchyTokens =
-      this.normalizeQueryForHierarchy(
-        cleanQuery
-      )
-        .split(" ")
-        .filter(Boolean);
-
-    const oneWordQuery =
-      hierarchyTokens.length === 1;
-
-    /*
-     * 1. Seçili mahalle: yalnız bu mahallenin gerçek sokakları.
-     */
-    if (
-      context?.neighborhood
-    ) {
-      const districtName =
-        String(
-          context.neighborhood
-            .parentDistrict ||
-            context.district?.name ||
-            ""
-        ).trim();
-
-      if (districtName) {
-        const neighborhoods =
-          await this.getDistrictNeighborhoods(
-            context.district ||
-              context.neighborhood
-          );
-
-        const candidateQuery =
-          this.removeHierarchyLabels(
-            cleanQuery,
-            districtName
-          );
-
-        const matches =
-          this.filterSuggestions(
-            neighborhoods,
-            candidateQuery
-          );
-
-        const currentName =
-          normalizeTurkish(
-            String(
-              context.neighborhood
-                .name || ""
-            )
-          );
-
-        const differentNeighborhood =
-          matches.filter(
-            (item) =>
-              normalizeTurkish(
-                String(
-                  item.name || ""
-                )
-              ) !==
-              currentName
-          );
-
-        if (
-          differentNeighborhood.length >
-          0
-        ) {
-          return differentNeighborhood.slice(
-            0,
-            50
-          );
-        }
-
-        const streets =
-          await this.getNeighborhoodStreets(
-            context.neighborhood,
-            districtName,
-            cleanQuery
-          );
-
-        if (
-          streets.length > 0
-        ) {
-          return streets;
-        }
-      }
-    }
-
-    /*
-     * 2. Seçili ilçe: yalnız o ilçenin gerçek mahalleleri.
-     */
-    if (
-      context?.district?.name
-    ) {
-      const districtName =
-        String(
-          context.district.name
-        ).trim();
-
-      const candidateQuery =
-        this.removeHierarchyLabels(
-          cleanQuery,
-          districtName
-        );
-
-      const neighborhoods =
-        await this.getDistrictNeighborhoods(
-          context.district
-        );
-
-      const matches =
-        this.filterSuggestions(
-          neighborhoods,
-          candidateQuery
-        );
-
-      if (
-        matches.length > 0
-      ) {
-        const exact =
-          matches.find(
-            (item) =>
-              normalizeTurkish(
-                String(
-                  item.name || ""
-                )
-              ) ===
-              normalizeTurkish(
-                candidateQuery
-              )
-          );
-
-        if (exact) {
-          const streets =
-            await this.getNeighborhoodStreets(
-              exact,
-              districtName,
-              ""
-            );
-
-          return streets.length
-            ? streets
-            : [exact];
-        }
-
-        return matches.slice(
-          0,
-          50
-        );
-      }
-    }
-
-    /*
-     * 3. Seçili il/province: yalnız o ilin gerçek ilçeleri.
-     */
-    if (
-      context?.city &&
-      !context?.district?.name
-    ) {
-      const districts =
-        await this.getDistrictSuggestions(
-          context.city,
-          cleanQuery
-        );
-
-      if (
-        districts.length > 0
-      ) {
-        return districts.slice(
-          0,
-          50
-        );
-      }
-    }
-
-    /*
-     * 4. Genel sorguda Nominatim yardımcı kaynaktır.
-     */
-    let nominatimResults:
-      AddressSuggestion[] = [];
-
-    try {
-      nominatimResults =
-        await this.searchNominatimSuggestions(
-          cleanQuery
-        );
-    } catch (error) {
-      console.warn(
-        "Nominatim araması başarısız:",
-        error
-      );
-    }
-
-    /*
-     * 5. Türkiye'nin gerçek il havuzu.
-     * İlk yüklemede 81 il cache'lenir; sonrasında local cache kullanılır.
-     */
-    const provinces =
-      await this.getTurkeyProvinceSuggestions();
-
     const exactProvince =
       provinces.find(
-        (province) =>
-          normalizeTurkish(
-            String(
-              province.name || ""
-            )
-          ) ===
-          normalized
-      );
-
-    if (
-      exactProvince
-    ) {
-      const districts =
-        await this.getDistrictSuggestions(
-          exactProvince
-        );
-
-      if (
-        districts.length > 0
-      ) {
-        return districts;
-      }
-    }
-
-    /*
-     * 6. Tek kelimelik il sorgusunda gerçek il eşleşmelerini göster.
-     */
-    if (
-      oneWordQuery
-    ) {
-      const provinceMatches =
-        this.filterSuggestions(
-          provinces,
-          cleanQuery
-        );
-
-      if (
-        provinceMatches.length > 0
-      ) {
-        return provinceMatches.slice(
-          0,
-          20
-        );
-      }
-    }
-
-    /*
-     * 7. Nominatim'in gerçek ilçe sonucunu canonical OSM
-     * district relation'ına bağla ve mahalleleri getir.
-     */
-    const nominatimDistricts =
-      nominatimResults.filter(
-        (result) =>
-          result.kind ===
-          "district"
-      );
-
-    const exactNominatimDistrict =
-      nominatimDistricts.find(
         (item) =>
           normalizeTurkish(
             String(
@@ -4131,285 +3886,102 @@ class MapService {
       );
 
     if (
-      exactNominatimDistrict?.parentCity
+      exactProvince
     ) {
-      const districts =
-        await this.getDistrictSuggestions(
-          exactNominatimDistrict.parentCity,
-          exactNominatimDistrict.name
-        );
-
-      const exact =
-        districts.find(
-          (item) =>
-            normalizeTurkish(
-              String(
-                item.name || ""
-              )
-            ) ===
-            normalized
-        );
-
-      if (
-        exact
-      ) {
-        const neighborhoods =
-          await this.getDistrictNeighborhoods(
-            exact
-          );
-
-        if (
-          neighborhoods.length > 0
-        ) {
-          return neighborhoods;
-        }
-      }
-
-      if (
-        districts.length > 0
-      ) {
-        return districts.slice(
-          0,
-          20
-        );
-      }
+      return this.getDistrictSuggestions(
+        exactProvince
+      );
     }
 
-    /*
-     * 8. "İstanbul Avcılar Cihangir" gibi birleşik sorgularda
-     * Nominatim'in parent hiyerarşisini kullan.
-     */
-    const parentDistrictName =
-      nominatimResults.find(
+    const exactDistrict =
+      districts.find(
         (item) =>
-          item.parentDistrict
-      )?.parentDistrict;
-
-    const parentProvinceName =
-      nominatimResults.find(
-        (item) =>
-          item.parentCity
-      )?.parentCity;
+          normalizeTurkish(
+            String(
+              item.name || ""
+            )
+          ) ===
+          normalized
+      );
 
     if (
-      parentDistrictName &&
-      parentProvinceName
+      exactDistrict
     ) {
-      const districtCandidates =
-        await this.getDistrictSuggestions(
-          parentProvinceName,
-          parentDistrictName
-        );
+      return this.getNeighborhoodSuggestionsForDistrict(
+        exactDistrict
+      );
+    }
 
-      const districtMatch =
-        districtCandidates.find(
+    const exactNeighborhood =
+      neighborhoods.find(
+        (item) =>
+          normalizeTurkish(
+            String(
+              item.name || ""
+            )
+          ) ===
+          normalized
+      );
+
+    if (
+      exactNeighborhood
+    ) {
+      const district =
+        districts.find(
           (item) =>
-            normalizeTurkish(
-              String(
-                item.name || ""
-              )
+            String(
+              item.placeId || ""
             ) ===
-            normalizeTurkish(
-              parentDistrictName
+            String(
+              exactNeighborhood.districtId ||
+                ""
             )
         );
 
       if (
-        districtMatch
+        district
       ) {
-        const hierarchyResults =
-          await this.searchGenericAddressHierarchy(
-            cleanQuery,
-            districtMatch
-          );
-
-        if (
-          hierarchyResults
-        ) {
-          return hierarchyResults;
-        }
-      }
-    }
-
-    /*
-     * 9. Tek başına gerçek mahalle sonucu.
-     */
-    const neighborhoodResults =
-      nominatimResults.filter(
-        (result) =>
-          result.kind ===
-          "neighborhood"
-      );
-
-    if (
-      neighborhoodResults.length >
-      0
-    ) {
-      const exact =
-        neighborhoodResults.find(
-          (item) =>
-            normalizeTurkish(
-              String(
-                item.name || ""
-              )
-            ) ===
-            normalized
-        );
-
-      if (
-        exact?.parentDistrict &&
-        exact?.parentCity
-      ) {
-        const districts =
-          await this.getDistrictSuggestions(
-            exact.parentCity,
-            exact.parentDistrict
-          );
-
-        const district =
-          districts.find(
-            (item) =>
-              normalizeTurkish(
-                String(
-                  item.name || ""
-                )
-              ) ===
-              normalizeTurkish(
-                exact.parentDistrict ||
-                  ""
-              )
-          );
-
-        if (
+        return this.getStreetSuggestionsForNeighborhood(
+          exactNeighborhood,
           district
-        ) {
-          const neighborhoods =
-            await this.getDistrictNeighborhoods(
-              district
-            );
-
-          const canonical =
-            neighborhoods.find(
-              (item) =>
-                normalizeTurkish(
-                  String(
-                    item.name || ""
-                  )
-                ) ===
-                normalized
-            );
-
-          if (
-            canonical
-          ) {
-            const streets =
-              await this.getNeighborhoodStreets(
-                canonical,
-                district.name || "",
-                ""
-              );
-
-            if (
-              streets.length > 0
-            ) {
-              return streets;
-            }
-          }
-
-          return [canonical || exact];
-        }
-      }
-
-      return neighborhoodResults;
-    }
-
-    if (
-      nominatimResults.length >
-      0
-    ) {
-      return nominatimResults;
-    }
-
-    return this.searchPhotonSuggestions(
-      cleanQuery
-    );
-  }
-
-  private async searchGenericAddressHierarchy(
-    cleanQuery: string,
-    districtHint: AddressSuggestion
-  ): Promise<AddressSuggestion[] | null> {
-    const districtName =
-      String(
-        districtHint.name || ""
-      ).trim();
-
-    if (!districtName) {
-      return null;
-    }
-
-    const provinceName =
-      String(
-        districtHint.parentCity || ""
-      ).trim();
-
-    if (!provinceName) {
-      return null;
-    }
-
-    const remainder =
-      this.removeHierarchyLabels(
-        cleanQuery,
-        districtName
-      );
-
-    const neighborhoods =
-      await this.getDistrictNeighborhoods(
-        districtHint
-      );
-
-    if (!remainder) {
-      return neighborhoods;
-    }
-
-    const ranked =
-      this.filterSuggestions(
-        neighborhoods,
-        remainder
-      );
-
-    if (
-      !ranked.length
-    ) {
-      return neighborhoods;
-    }
-
-    const best =
-      ranked[0];
-
-    if (
-      normalizeTurkish(
-        String(
-          best.name || ""
-        )
-      ) ===
-      normalizeTurkish(
-        remainder
-      )
-    ) {
-      const streets =
-        await this.getNeighborhoodStreets(
-          best,
-          districtName,
-          ""
         );
-
-      return streets.length
-        ? streets
-        : [best];
+      }
     }
 
-    return ranked.slice(
+    const districtMatches =
+      this.filterStaticEntries(
+        districts,
+        cleanQuery
+      );
+
+    if (
+      districtMatches.length > 0
+    ) {
+      return districtMatches.slice(
+        0,
+        20
+      );
+    }
+
+    const provinceMatches =
+      this.filterStaticEntries(
+        provinces,
+        cleanQuery
+      );
+
+    if (
+      provinceMatches.length > 0
+    ) {
+      return provinceMatches.slice(
+        0,
+        20
+      );
+    }
+
+    return this.filterStaticEntries(
+      neighborhoods,
+      cleanQuery
+    ).slice(
       0,
       50
     );
