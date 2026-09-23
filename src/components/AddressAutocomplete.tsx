@@ -128,6 +128,9 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
             </button>
           ))}
         </div>
+        <div className="border-t border-[#2A2A31] px-3 py-2 text-[9px] text-white/40">
+          © OpenStreetMap contributors
+        </div>
       )}
     </div>
   );
