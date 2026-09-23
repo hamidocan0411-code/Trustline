@@ -1143,6 +1143,9 @@ export const NewOrderModal: React.FC<Props> = ({
                     value={pickupAddress}
                     onChange={(value) => {
                       setPickupAddress(value);
+                      setPickupPlaceId("");
+                      setPickupStreet("");
+                      setPickupStreetNumber("");
                       setPickupCoords(null);
                       setDeliveryCoords(null);
                       setRoutePoints([]);
@@ -1182,6 +1185,9 @@ export const NewOrderModal: React.FC<Props> = ({
                     value={deliveryAddress}
                     onChange={(value) => {
                       setDeliveryAddress(value);
+                      setDeliveryPlaceId("");
+                      setDeliveryStreet("");
+                      setDeliveryStreetNumber("");
                       setPickupCoords(null);
                       setDeliveryCoords(null);
                       setRoutePoints([]);
