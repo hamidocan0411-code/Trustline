@@ -440,9 +440,11 @@ class MapService {
     }
 
     /*
-     * Öncelik Nominatim:
-     * Tek bir ilçe relation'ını çözeriz. Normal akışta
-     * ağır Overpass relation sorgusuna ihtiyaç kalmaz.
+     * İlçe relation'ını önce Nominatim'den çözüyoruz.
+     * Bu normal akışta Overpass'a gitmemelidir.
+     *
+     * İstanbul viewbox + bounded=1 kullanıldığı için aynı
+     * isimli başka şehir/ilçe sonuçlarının karışması engellenir.
      */
     try {
       const params =
@@ -450,8 +452,7 @@ class MapService {
 
       params.set(
         "q",
-        name +
-          ", İstanbul, Türkiye"
+        name
       );
       params.set(
         "format",
@@ -459,7 +460,7 @@ class MapService {
       );
       params.set(
         "limit",
-        "10"
+        "20"
       );
       params.set(
         "addressdetails",
@@ -468,6 +469,14 @@ class MapService {
       params.set(
         "countrycodes",
         "tr"
+      );
+      params.set(
+        "viewbox",
+        "28.40,41.35,29.55,40.80"
+      );
+      params.set(
+        "bounded",
+        "1"
       );
       params.set(
         "accept-language",
@@ -524,37 +533,63 @@ class MapService {
                   )
                 );
 
-              const address =
-                item?.address || {};
-
-              const city =
+              const addresstype =
                 normalizeTurkish(
                   String(
-                    address?.city ||
-                      address?.state ||
+                    item?.addresstype ||
                       ""
                   )
                 );
+
+              const lat =
+                Number(
+                  item?.lat
+                );
+
+              const lon =
+                Number(
+                  item?.lon
+                );
+
+              /*
+               * Nominatim sürümleri "administrative",
+               * "district" veya "county" döndürebilir.
+               * İlçe relation'ını anlamak için addresstype'i
+               * de kabul ediyoruz.
+               */
+              const administrative =
+                type ===
+                  "administrative" ||
+                type ===
+                  "district" ||
+                type ===
+                  "county" ||
+                addresstype ===
+                  "administrative" ||
+                addresstype ===
+                  "district" ||
+                addresstype ===
+                  "county";
+
+              const insideIstanbul =
+                Number.isFinite(
+                  lat
+                ) &&
+                Number.isFinite(
+                  lon
+                ) &&
+                lat >= 40.80 &&
+                lat <= 41.35 &&
+                lon >= 28.40 &&
+                lon <= 29.55;
 
               return (
                 itemName ===
                   normalizedName &&
                 osmType ===
                   "relation" &&
-                (
-                  type ===
-                    "administrative" ||
-                  type ===
-                    "district" ||
-                  type ===
-                    "county"
-                ) &&
-                (
-                  city ===
-                    "istanbul" ||
-                  city ===
-                    ""
-                )
+                administrative &&
+                insideIstanbul
               );
             }
           );
@@ -594,94 +629,20 @@ class MapService {
       }
     } catch (error) {
       console.warn(
-        "Nominatim ilçe relation çözümü başarısız, Overpass yedeği deneniyor:",
+        "Nominatim ilçe relation çözümü başarısız:",
         error
       );
     }
 
     /*
-     * Son yedek: yalnız tek ilçeyi hedefleyen küçük Overpass sorgusu.
+     * Nominatim'de bulunamayan ilçe relation'ı için burada
+     * Overpass fallback'i çalıştırmıyoruz. Çünkü bu method,
+     * autocomplete sırasında kullanıcı yazarken çağrılıyor
+     * ve public Overpass 504/429 olduğunda tüm UX'i kilitleyebilir.
+     *
+     * Seçili bir ilçe AddressSuggestion olarak geliyorsa
+     * areaId zaten doğrudan suggestion üzerinden kullanılır.
      */
-    try {
-      const escapedName =
-        name.replace(
-          /["\\]/g,
-          "\\$&"
-        );
-
-      const query =
-        "[out:json][timeout:12];" +
-        'rel["boundary"="administrative"]["admin_level"="6"]["name"="' +
-        escapedName +
-        '"](40.80,28.40,41.35,29.55);' +
-        "out tags center;";
-
-      const data =
-        await this.fetchOverpass(
-          query,
-          7000
-        );
-
-      const elements =
-        Array.isArray(
-          data?.elements
-        )
-          ? data.elements
-          : [];
-
-      const relation =
-        elements.find(
-          (item: any) =>
-            String(
-              item?.type
-            ) ===
-              "relation" &&
-            Number.isFinite(
-              Number(
-                item?.id
-              )
-            )
-        ) || null;
-
-      const osmId =
-        Number(
-          relation?.id
-        );
-
-      if (
-        Number.isFinite(
-          osmId
-        )
-      ) {
-        const resolved = {
-          osmId,
-          areaId:
-            3600000000 +
-            osmId,
-          lat:
-            Number(
-              relation?.center?.lat
-            ) || undefined,
-          lng:
-            Number(
-              relation?.center?.lon
-            ) || undefined,
-        };
-
-        this.districtRelationCache.set(
-          cacheKey,
-          resolved
-        );
-
-        return resolved;
-      }
-    } catch (error) {
-      console.warn(
-        "Overpass ilçe relation yedeği başarısız:",
-        error
-      );
-    }
-
     this.districtRelationCache.set(
       cacheKey,
       null
