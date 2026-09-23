@@ -449,8 +449,7 @@ class MapService {
           osmType,
           osmId,
           areaId:
-            osmType === "relation" ||
-            osmType === "way"
+            osmType === "relation"
               ? 3600000000 + osmId
               : undefined,
           kind: "neighborhood",
