@@ -906,7 +906,7 @@ class MapService {
       cleanQuery
         .split(" ")
         .filter(Boolean)
-        .join("\\\\s+");
+        .join("\\s+");
 
     const query =
       "[out:json][timeout:15];" +
@@ -1002,9 +1002,11 @@ class MapService {
     queryText?: string
   ): Promise<AddressSuggestion[]> {
     try {
-      return await this.getIstanbulDistrictSuggestions(
-        queryText
-      );
+      return queryText?.trim()
+        ? await this.queryIstanbulDistrictSuggestions(
+            queryText
+          )
+        : await this.getIstanbulDistrictSuggestions();
     } catch (error) {
       console.warn(
         "İstanbul ilçe listesi alınamadı:",
