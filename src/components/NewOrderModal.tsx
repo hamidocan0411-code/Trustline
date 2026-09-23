@@ -104,9 +104,6 @@ export const NewOrderModal: React.FC<Props> = ({
   const [deliveryCoords, setDeliveryCoords] =
     useState<GeoCoordinate | null>(null);
 
-  const [pickupPlaceId, setPickupPlaceId] = useState("");
-  const [deliveryPlaceId, setDeliveryPlaceId] = useState("");
-
   const [routePoints, setRoutePoints] =
     useState<[number, number][]>([]);
 
@@ -1121,7 +1118,6 @@ export const NewOrderModal: React.FC<Props> = ({
                     value={pickupAddress}
                     onChange={(value) => {
                       setPickupAddress(value);
-                      setPickupPlaceId("");
                       setPickupCoords(null);
                       setDeliveryCoords(null);
                       setRoutePoints([]);
@@ -1159,7 +1155,6 @@ export const NewOrderModal: React.FC<Props> = ({
                     value={deliveryAddress}
                     onChange={(value) => {
                       setDeliveryAddress(value);
-                      setDeliveryPlaceId("");
                       setPickupCoords(null);
                       setDeliveryCoords(null);
                       setRoutePoints([]);
