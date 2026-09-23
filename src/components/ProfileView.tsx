@@ -158,6 +158,7 @@ export function ProfileView({
         ...currentUser,
         name: cleanName,
         phone: cleanPhone,
+        address: address.trim(),
       });
 
       setEditing(false);
