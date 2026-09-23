@@ -42,7 +42,7 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         setOpen(results.length > 0);
       } catch (error) {
         if (requestId !== requestIdRef.current) return;
-        console.warn("Google adres önerileri alınamadı:", error);
+        console.warn("OpenStreetMap adres önerileri alınamadı:", error);
         setSuggestions([]);
         setOpen(false);
       } finally {
@@ -111,7 +111,7 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
                 </span>
                 {suggestion.streetNumber && suggestion.street && (
                   <span className="mt-0.5 block text-[10px] text-emerald-300">
-                    Google adres sonucu • {suggestion.street} No: {suggestion.streetNumber}
+                    Gerçek adres sonucu • {suggestion.street} No: {suggestion.streetNumber}
                   </span>
                 )}
               </span>
