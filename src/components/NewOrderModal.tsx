@@ -40,6 +40,20 @@ import {
 import { AddressAutocomplete } from "./AddressAutocomplete";
 import { RouteMap } from "./RouteMap";
 
+interface AddressHierarchyState {
+  city: string;
+  district: string;
+  neighborhood: string;
+  street: string;
+}
+
+const EMPTY_ADDRESS_HIERARCHY: AddressHierarchyState = {
+  city: "",
+  district: "",
+  neighborhood: "",
+  street: "",
+};
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -132,6 +146,22 @@ export const NewOrderModal: React.FC<Props> = ({
   const debounceTimerRef =
     useRef<ReturnType<typeof setTimeout> | null>(
       null
+    );
+
+  /*
+   * Seçili adres hiyerarşisi pickup ve delivery için
+   * birbirinden tamamen ayrı tutulur.
+   *
+   * Bunlar yalnızca UI state'idir; Firestore şeması değişmez.
+   */
+  const [pickupHierarchy, setPickupHierarchy] =
+    useState<AddressHierarchyState>(
+      EMPTY_ADDRESS_HIERARCHY
+    );
+
+  const [deliveryHierarchy, setDeliveryHierarchy] =
+    useState<AddressHierarchyState>(
+      EMPTY_ADDRESS_HIERARCHY
     );
 
   /*
@@ -718,6 +748,14 @@ export const NewOrderModal: React.FC<Props> = ({
       to
     );
 
+    setPickupHierarchy(
+      EMPTY_ADDRESS_HIERARCHY
+    );
+
+    setDeliveryHierarchy(
+      EMPTY_ADDRESS_HIERARCHY
+    );
+
     setPickupCoords(
       null
     );
@@ -1143,6 +1181,9 @@ export const NewOrderModal: React.FC<Props> = ({
                     value={pickupAddress}
                     onChange={(value) => {
                       setPickupAddress(value);
+                      setPickupHierarchy(
+                        EMPTY_ADDRESS_HIERARCHY
+                      );
                       setPickupPlaceId("");
                       setPickupStreet("");
                       setPickupStreetNumber("");
@@ -1153,8 +1194,38 @@ export const NewOrderModal: React.FC<Props> = ({
                       setApproximateDistanceText("");
                       setAutoCalcError("");
                     }}
+                    onHierarchyChange={(hierarchy) => {
+                      setPickupHierarchy({
+                        city: hierarchy.city?.name || "",
+                        district:
+                          hierarchy.district?.name ||
+                          hierarchy.neighborhood?.parentDistrict ||
+                          "",
+                        neighborhood:
+                          hierarchy.neighborhood?.name || "",
+                        street: hierarchy.street?.street || hierarchy.street?.name || "",
+                      });
+                    }}
                     onSelect={(suggestion: AddressSuggestion) => {
                       setPickupAddress(suggestion.formattedAddress || suggestion.displayName);
+
+                      if (
+                        suggestion.kind === "city" ||
+                        suggestion.kind === "district" ||
+                        suggestion.kind === "neighborhood"
+                      ) {
+                        setPickupPlaceId("");
+                        setPickupStreet("");
+                        setPickupStreetNumber("");
+                        setPickupCoords(null);
+                        setDeliveryCoords(null);
+                        setRoutePoints([]);
+                        setIsAutoCalculated(false);
+                        setApproximateDistanceText("");
+                        setAutoCalcError("");
+                        return;
+                      }
+
                       setPickupPlaceId(suggestion.placeId || "");
                       setPickupStreet(suggestion.street || "");
                       setPickupStreetNumber(suggestion.streetNumber || "");
@@ -1185,6 +1256,9 @@ export const NewOrderModal: React.FC<Props> = ({
                     value={deliveryAddress}
                     onChange={(value) => {
                       setDeliveryAddress(value);
+                      setDeliveryHierarchy(
+                        EMPTY_ADDRESS_HIERARCHY
+                      );
                       setDeliveryPlaceId("");
                       setDeliveryStreet("");
                       setDeliveryStreetNumber("");
@@ -1195,8 +1269,38 @@ export const NewOrderModal: React.FC<Props> = ({
                       setApproximateDistanceText("");
                       setAutoCalcError("");
                     }}
+                    onHierarchyChange={(hierarchy) => {
+                      setDeliveryHierarchy({
+                        city: hierarchy.city?.name || "",
+                        district:
+                          hierarchy.district?.name ||
+                          hierarchy.neighborhood?.parentDistrict ||
+                          "",
+                        neighborhood:
+                          hierarchy.neighborhood?.name || "",
+                        street: hierarchy.street?.street || hierarchy.street?.name || "",
+                      });
+                    }}
                     onSelect={(suggestion: AddressSuggestion) => {
                       setDeliveryAddress(suggestion.formattedAddress || suggestion.displayName);
+
+                      if (
+                        suggestion.kind === "city" ||
+                        suggestion.kind === "district" ||
+                        suggestion.kind === "neighborhood"
+                      ) {
+                        setDeliveryPlaceId("");
+                        setDeliveryStreet("");
+                        setDeliveryStreetNumber("");
+                        setDeliveryCoords(null);
+                        setPickupCoords(null);
+                        setRoutePoints([]);
+                        setIsAutoCalculated(false);
+                        setApproximateDistanceText("");
+                        setAutoCalcError("");
+                        return;
+                      }
+
                       setDeliveryPlaceId(suggestion.placeId || "");
                       setDeliveryStreet(suggestion.street || "");
                       setDeliveryStreetNumber(suggestion.streetNumber || "");
