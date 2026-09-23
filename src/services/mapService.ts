@@ -3896,8 +3896,8 @@ class MapService {
       );
     }
 
-    const exactDistrict =
-      districts.find(
+    const exactDistricts =
+      districts.filter(
         (item) =>
           normalizeTurkish(
             String(
@@ -3908,15 +3908,23 @@ class MapService {
       );
 
     if (
-      exactDistrict
+      exactDistricts.length ===
+      1
     ) {
       return this.getNeighborhoodSuggestionsForDistrict(
-        exactDistrict
+        exactDistricts[0]
       );
     }
 
-    const exactNeighborhood =
-      neighborhoods.find(
+    if (
+      exactDistricts.length >
+      1
+    ) {
+      return exactDistricts;
+    }
+
+    const exactNeighborhoods =
+      neighborhoods.filter(
         (item) =>
           normalizeTurkish(
             String(
@@ -3927,8 +3935,12 @@ class MapService {
       );
 
     if (
-      exactNeighborhood
+      exactNeighborhoods.length ===
+      1
     ) {
+      const exactNeighborhood =
+        exactNeighborhoods[0];
+
       const district =
         districts.find(
           (item) =>
@@ -3949,6 +3961,13 @@ class MapService {
           district
         );
       }
+    }
+
+    if (
+      exactNeighborhoods.length >
+      1
+    ) {
+      return exactNeighborhoods;
     }
 
     const districtMatches =
