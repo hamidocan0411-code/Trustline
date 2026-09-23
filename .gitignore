@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+# Local OSM address build cache (never commit the raw Turkey PBF)
+.osm-cache/
+public/address-data/
