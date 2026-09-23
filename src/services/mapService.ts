@@ -27,8 +27,6 @@ export interface MapServiceConfig {
   routeUrl: string;
 }
 
-const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
-
 const OVERPASS_URLS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
@@ -1019,6 +1017,12 @@ class MapService {
     );
 
     return results;
+  }
+
+  async resolveAddressSuggestion(
+    suggestion: AddressSuggestion
+  ): Promise<AddressSuggestion> {
+    return suggestion;
   }
 
   getConfig(): MapServiceConfig {
