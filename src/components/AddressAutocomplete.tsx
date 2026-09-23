@@ -34,25 +34,51 @@ const EMPTY_HIERARCHY: SelectedAddressHierarchy = {
   street: null,
 };
 
-const normalize = (value: string) =>
-  value
-    .toLocaleLowerCase("tr-TR")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
 const suggestionKindOf = (
   suggestions: AddressSuggestion[]
 ): AddressSuggestion["kind"] => {
-  const first = suggestions[0]?.kind;
+  const kinds = new Set(
+    suggestions
+      .map((suggestion) => suggestion.kind)
+      .filter(Boolean)
+  );
 
-  if (first === "address") return "address";
-  if (first === "street") return "street";
-  if (first === "neighborhood") return "neighborhood";
-  if (first === "district") return "district";
-  if (first === "city") return "city";
+  if (kinds.size === 1) {
+    return suggestions[0]?.kind;
+  }
 
   return undefined;
 };
+
+const makeCitySuggestion = (
+  source?: string
+): AddressSuggestion => ({
+  displayName: "İstanbul, Türkiye",
+  formattedAddress: "İstanbul, Türkiye",
+  name: "İstanbul",
+  kind: "city",
+  parentCity: "İstanbul",
+  source: source || "openstreetmap",
+  types: ["city"],
+});
+
+const makeDistrictSuggestion = (
+  name: string,
+  source?: string
+): AddressSuggestion => ({
+  displayName:
+    name + ", İstanbul, Türkiye",
+  formattedAddress:
+    name + ", İstanbul, Türkiye",
+  name,
+  kind: "district",
+  parentCity: "İstanbul",
+  source: source || "openstreetmap",
+  types: [
+    "district",
+    "administrative",
+  ],
+});
 
 export const AddressAutocomplete: React.FC<
   AddressAutocompleteProps
@@ -79,32 +105,49 @@ export const AddressAutocomplete: React.FC<
     useState(false);
 
   const requestIdRef = useRef(0);
-  const suppressNextSearchRef = useRef(false);
-  const contextRef =
+  const suppressNextSearchRef =
+    useRef(false);
+
+  /*
+   * Bu ref yalnızca autocomplete'in mevcut seçili
+   * hiyerarşi bağlamını taşır. Gerçek parent state,
+   * onHierarchyChange ile NewOrderModal/ProfileView
+   * tarafında tutulur.
+   */
+  const hierarchyRef =
     useRef<SelectedAddressHierarchy>(
       EMPTY_HIERARCHY
     );
 
-  const emitHierarchy = (
-    next: SelectedAddressHierarchy
+  const notifyHierarchy = (
+    hierarchy: SelectedAddressHierarchy
   ) => {
-    contextRef.current = next;
-    onHierarchyChange?.(next);
+    hierarchyRef.current =
+      hierarchy;
+    onHierarchyChange?.(
+      hierarchy
+    );
   };
 
-  const clearSelectedForRawInput = () => {
-    emitHierarchy({
-      ...contextRef.current,
-      street: null,
-      city: null,
-      district: contextRef.current.district,
-      neighborhood:
-        contextRef.current.neighborhood,
-    });
-  };
+  const clearRawSelectionButKeepContext =
+    () => {
+      const context =
+        hierarchyRef.current;
+
+      notifyHierarchy({
+        city:
+          context.city,
+        district:
+          context.district,
+        neighborhood:
+          context.neighborhood,
+        street: null,
+      });
+    };
 
   useEffect(() => {
-    const query = value.trim();
+    const query =
+      value.trim();
 
     if (
       suppressNextSearchRef.current
@@ -114,9 +157,13 @@ export const AddressAutocomplete: React.FC<
       return;
     }
 
-    if (query.length < 2) {
+    if (
+      query.length < 2
+    ) {
       setSuggestions([]);
-      setSuggestionKind(undefined);
+      setSuggestionKind(
+        undefined
+      );
       setOpen(false);
       setLoading(false);
       return;
@@ -134,14 +181,16 @@ export const AddressAutocomplete: React.FC<
             const context:
               AddressSearchContext = {
               city:
-                contextRef.current.city,
+                hierarchyRef.current.city,
               district:
-                contextRef.current.district,
+                hierarchyRef.current
+                  .district,
               neighborhood:
-                contextRef.current
+                hierarchyRef.current
                   .neighborhood,
               street:
-                contextRef.current.street,
+                hierarchyRef.current
+                  .street,
             };
 
             const results =
@@ -157,14 +206,17 @@ export const AddressAutocomplete: React.FC<
               return;
             }
 
-            setSuggestions(results);
+            setSuggestions(
+              results
+            );
             setSuggestionKind(
               suggestionKindOf(
                 results
               )
             );
             setOpen(
-              results.length > 0
+              results.length >
+                0
             );
           } catch (error) {
             if (
@@ -180,7 +232,9 @@ export const AddressAutocomplete: React.FC<
             );
 
             setSuggestions([]);
-            setSuggestionKind(undefined);
+            setSuggestionKind(
+              undefined
+            );
             setOpen(false);
           } finally {
             if (
@@ -209,7 +263,9 @@ export const AddressAutocomplete: React.FC<
     setDetailsLoading(true);
     setLoading(true);
     setSuggestions([]);
-    setSuggestionKind(undefined);
+    setSuggestionKind(
+      undefined
+    );
     setOpen(false);
 
     try {
@@ -226,29 +282,32 @@ export const AddressAutocomplete: React.FC<
       }
 
       const current =
-        contextRef.current;
+        hierarchyRef.current;
 
       if (
-        selected.kind === "city"
+        selected.kind ===
+        "city"
       ) {
-        const city =
-          selected;
-
-        emitHierarchy({
-          city,
+        const nextHierarchy = {
+          city: selected,
           district: null,
           neighborhood: null,
           street: null,
-        });
+        };
 
         suppressNextSearchRef.current =
           true;
 
         onChange(
-          city.formattedAddress ||
-            city.displayName
+          selected.formattedAddress ||
+            selected.displayName
         );
-        onSelect?.(city);
+        onSelect?.(
+          selected
+        );
+        notifyHierarchy(
+          nextHierarchy
+        );
 
         const districts =
           await mapService.getDistrictSuggestions();
@@ -267,38 +326,33 @@ export const AddressAutocomplete: React.FC<
           "district"
         );
         setOpen(
-          districts.length > 0
+          districts.length >
+            0
         );
         return;
       }
 
       if (
-        selected.kind === "district"
+        selected.kind ===
+        "district"
       ) {
         const city =
           selected.parentCity
-            ? {
-                displayName:
-                  selected.parentCity +
-                  ", Türkiye",
-                formattedAddress:
-                  selected.parentCity +
-                  ", Türkiye",
-                name:
-                  selected.parentCity,
-                kind: "city" as const,
-                source:
-                  selected.source ||
-                  "openstreetmap",
-              }
-            : current.city;
+            ? makeCitySuggestion(
+                selected.source
+              )
+            : current.city ||
+              makeCitySuggestion(
+                selected.source
+              );
 
-        emitHierarchy({
+        const nextHierarchy = {
           city,
           district: selected,
-          neighborhood: null,
+          neighborhood:
+            null,
           street: null,
-        });
+        };
 
         suppressNextSearchRef.current =
           true;
@@ -307,7 +361,12 @@ export const AddressAutocomplete: React.FC<
           selected.formattedAddress ||
             selected.displayName
         );
-        onSelect?.(selected);
+        onSelect?.(
+          selected
+        );
+        notifyHierarchy(
+          nextHierarchy
+        );
 
         const neighborhoods =
           await mapService.getNeighborhoodSuggestionsForDistrict(
@@ -328,7 +387,8 @@ export const AddressAutocomplete: React.FC<
           "neighborhood"
         );
         setOpen(
-          neighborhoods.length > 0
+          neighborhoods.length >
+            0
         );
         return;
       }
@@ -339,56 +399,43 @@ export const AddressAutocomplete: React.FC<
       ) {
         const district =
           selected.parentDistrict
-            ? {
-                displayName:
-                  selected.parentDistrict +
-                  ", İstanbul, Türkiye",
-                formattedAddress:
-                  selected.parentDistrict +
-                  ", İstanbul, Türkiye",
-                name:
-                  selected.parentDistrict,
-                kind: "district" as const,
-                parentCity:
-                  "İstanbul",
-                source:
-                  selected.source ||
-                  "openstreetmap",
-              }
+            ? makeDistrictSuggestion(
+                selected.parentDistrict,
+                selected.source
+              )
             : current.district;
 
-        const neighborhood =
-          selected;
+        const city =
+          current.city ||
+          makeCitySuggestion(
+            selected.source
+          );
 
-        emitHierarchy({
-          city:
-            current.city || {
-              displayName:
-                "İstanbul, Türkiye",
-              formattedAddress:
-                "İstanbul, Türkiye",
-              name: "İstanbul",
-              kind: "city",
-              source:
-                "openstreetmap",
-            },
+        const nextHierarchy = {
+          city,
           district,
-          neighborhood,
+          neighborhood:
+            selected,
           street: null,
-        });
+        };
 
         suppressNextSearchRef.current =
           true;
 
         onChange(
-          neighborhood.formattedAddress ||
-            neighborhood.displayName
+          selected.formattedAddress ||
+            selected.displayName
         );
-        onSelect?.(neighborhood);
+        onSelect?.(
+          selected
+        );
+        notifyHierarchy(
+          nextHierarchy
+        );
 
         const streets =
           await mapService.getStreetSuggestionsForNeighborhood(
-            neighborhood,
+            selected,
             district
           );
 
@@ -399,12 +446,15 @@ export const AddressAutocomplete: React.FC<
           return;
         }
 
-        setSuggestions(streets);
+        setSuggestions(
+          streets
+        );
         setSuggestionKind(
           "street"
         );
         setOpen(
-          streets.length > 0
+          streets.length >
+            0
         );
         return;
       }
@@ -413,60 +463,47 @@ export const AddressAutocomplete: React.FC<
         selected.kind ===
         "street"
       ) {
-        const nextHierarchy =
-          {
-            ...current,
-            city:
-              current.city ||
-              {
-                displayName:
-                  "İstanbul, Türkiye",
-                formattedAddress:
-                  "İstanbul, Türkiye",
-                name: "İstanbul",
-                kind: "city",
-                source:
-                  "openstreetmap",
-              },
-            district:
-              current.district ||
-              (selected.parentDistrict
-                ? {
-                    displayName:
-                      selected.parentDistrict +
-                      ", İstanbul, Türkiye",
-                    formattedAddress:
-                      selected.parentDistrict +
-                      ", İstanbul, Türkiye",
-                    name:
-                      selected.parentDistrict,
-                    kind: "district",
-                    parentCity:
-                      "İstanbul",
-                    source:
-                      selected.source ||
-                      "openstreetmap",
-                  }
-                : null),
-            neighborhood:
-              current.neighborhood ||
-              (selected.parentNeighborhood
+        const nextHierarchy = {
+          city:
+            current.city ||
+            makeCitySuggestion(
+              selected.source
+            ),
+          district:
+            current.district ||
+            (
+              selected.parentDistrict
+                ? makeDistrictSuggestion(
+                    selected.parentDistrict,
+                    selected.source
+                  )
+                : null
+            ),
+          neighborhood:
+            current.neighborhood ||
+            (
+              selected.parentNeighborhood
                 ? {
                     displayName:
                       selected.parentNeighborhood +
                       " Mahallesi, " +
-                      (selected.parentDistrict ||
-                        "") +
+                      (
+                        selected.parentDistrict ||
+                        ""
+                      ) +
                       ", İstanbul",
                     formattedAddress:
                       selected.parentNeighborhood +
                       " Mahallesi, " +
-                      (selected.parentDistrict ||
-                        "") +
+                      (
+                        selected.parentDistrict ||
+                        ""
+                      ) +
                       ", İstanbul",
                     name:
                       selected.parentNeighborhood,
-                    kind: "neighborhood",
+                    kind:
+                      "neighborhood" as const,
                     parentCity:
                       "İstanbul",
                     parentDistrict:
@@ -474,20 +511,29 @@ export const AddressAutocomplete: React.FC<
                     source:
                       selected.source ||
                       "openstreetmap",
+                    types: [
+                      "neighborhood",
+                    ],
                   }
-                : null),
-            street: selected,
-          };
+                : null
+            ),
+          street:
+            selected,
+        };
 
-        emitHierarchy(
-          nextHierarchy
-        );
+        suppressNextSearchRef.current =
+          true;
 
         onChange(
           selected.formattedAddress ||
             selected.displayName
         );
-        onSelect?.(selected);
+        onSelect?.(
+          selected
+        );
+        notifyHierarchy(
+          nextHierarchy
+        );
 
         const addresses =
           nextHierarchy.street &&
@@ -508,7 +554,8 @@ export const AddressAutocomplete: React.FC<
         }
 
         if (
-          addresses.length > 0
+          addresses.length >
+          0
         ) {
           setSuggestions(
             addresses
@@ -532,11 +579,8 @@ export const AddressAutocomplete: React.FC<
         selected.kind ===
         "address"
       ) {
-        emitHierarchy({
-          ...current,
-          street:
-            selected,
-        });
+        suppressNextSearchRef.current =
+          true;
 
         onChange(
           selected.formattedAddress ||
@@ -545,6 +589,11 @@ export const AddressAutocomplete: React.FC<
         onSelect?.(
           selected
         );
+        notifyHierarchy({
+          ...current,
+          street:
+            selected,
+        });
 
         setSuggestions([]);
         setSuggestionKind(
@@ -554,11 +603,15 @@ export const AddressAutocomplete: React.FC<
         return;
       }
 
+      suppressNextSearchRef.current =
+        true;
       onChange(
         selected.formattedAddress ||
           selected.displayName
       );
-      onSelect?.(selected);
+      onSelect?.(
+        selected
+      );
     } catch (error) {
       if (
         requestId !==
@@ -602,19 +655,28 @@ export const AddressAutocomplete: React.FC<
           value={value}
           onChange={(event) => {
             ++requestIdRef.current;
-            clearSelectedForRawInput();
+
+            /*
+             * Input ile selected value ayrıdır:
+             * önce ham metni parent'a gönder,
+             * ardından mevcut seçilmiş üst hiyerarşiyi
+             * koru ve yalnız sokak seçimini geçersiz kıl.
+             */
+            onChange(
+              event.target.value
+            );
+            clearRawSelectionButKeepContext();
+
             setSuggestions([]);
             setSuggestionKind(
               undefined
             );
             setOpen(true);
-            onChange(
-              event.target.value
-            );
           }}
           onFocus={() => {
             if (
-              suggestions.length > 0
+              suggestions.length >
+              0
             ) {
               setOpen(true);
             }
@@ -657,13 +719,13 @@ export const AddressAutocomplete: React.FC<
           <div className="absolute left-0 right-0 top-full z-[80] mt-1 max-h-[60vh] overflow-y-auto rounded-xl border border-[#3A3A42] bg-[#111116] p-1 shadow-2xl">
             {suggestions.map(
               (
-                suggestion,
+                item,
                 index
               ) => (
                 <button
                   key={
-                    (suggestion.placeId ||
-                      suggestion.displayName) +
+                    (item.placeId ||
+                      item.displayName) +
                     "-" +
                     index
                   }
@@ -675,7 +737,7 @@ export const AddressAutocomplete: React.FC<
                   }
                   onClick={() =>
                     void handleSelect(
-                      suggestion
+                      item
                     )
                   }
                   className="flex w-full items-start gap-2 rounded-lg px-3 py-2.5 text-left transition hover:bg-[#222229]"
@@ -684,25 +746,17 @@ export const AddressAutocomplete: React.FC<
                     className="mt-0.5 shrink-0 text-[#D6A84F]"
                     size={15}
                   />
+
                   <span className="min-w-0">
                     <span className="block text-xs font-semibold leading-5 text-white">
                       {
-                        suggestion.displayName
+                        item.displayName
                       }
                     </span>
 
                     {(suggestionKind ===
-                      "city" ||
-                      suggestion.kind ===
-                        "city") && (
-                      <span className="mt-0.5 block text-[10px] text-emerald-300">
-                        İL
-                      </span>
-                    )}
-
-                    {(suggestionKind ===
                       "district" ||
-                      suggestion.kind ===
+                      item.kind ===
                         "district") && (
                       <span className="mt-0.5 block text-[10px] text-emerald-300">
                         İLÇE • Gerçek OSM verisi
@@ -711,7 +765,7 @@ export const AddressAutocomplete: React.FC<
 
                     {(suggestionKind ===
                       "neighborhood" ||
-                      suggestion.kind ===
+                      item.kind ===
                         "neighborhood") && (
                       <span className="mt-0.5 block text-[10px] text-emerald-300">
                         MAHALLE • Gerçek OSM verisi
@@ -720,25 +774,25 @@ export const AddressAutocomplete: React.FC<
 
                     {(suggestionKind ===
                       "street" ||
-                      suggestion.kind ===
+                      item.kind ===
                         "street") && (
                       <span className="mt-0.5 block text-[10px] text-emerald-300">
                         CADDE / SOKAK •{" "}
-                        {suggestion.street ||
-                          suggestion.name}
+                        {item.street ||
+                          item.name}
                       </span>
                     )}
 
                     {(suggestionKind ===
                       "address" ||
-                      suggestion.kind ===
+                      item.kind ===
                         "address") && (
                       <span className="mt-0.5 block text-[10px] text-emerald-300">
                         GERÇEK BİNA NO •{" "}
-                        {suggestion.street}{" "}
+                        {item.street}{" "}
                         No:{" "}
                         {
-                          suggestion.streetNumber
+                          item.streetNumber
                         }
                       </span>
                     )}
