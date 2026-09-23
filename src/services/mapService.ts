@@ -1337,6 +1337,32 @@ class MapService {
       ];
     }
 
+    const districtResults =
+      await this.getIstanbulDistrictSuggestions();
+
+    const normalizedDistrictQuery =
+      normalizeTurkish(
+        this.normalizeQueryForHierarchy(
+          cleanQuery
+        )
+      );
+
+    const exactDistrict =
+      districtResults.find(
+        (district) =>
+          normalizeTurkish(
+            String(district.name || "")
+          ) === normalizedDistrictQuery
+      );
+
+    /*
+     * Kullanıcı yalnızca "Avcılar" yazdıysa bu,
+     * mahalle listesi değil İLÇE sonucudur.
+     */
+    if (exactDistrict) {
+      return [exactDistrict];
+    }
+
     const hierarchyResults =
       await this.searchIstanbulAddressHierarchy(
         cleanQuery
