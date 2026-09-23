@@ -2354,6 +2354,11 @@ class MapService {
           Number.isFinite(osmId)
             ? osmId
             : undefined,
+        areaId:
+          osmType === "relation" &&
+          Number.isFinite(osmId)
+            ? 3600000000 + osmId
+            : undefined,
         kind,
         parentCity:
           province ||
@@ -2845,7 +2850,7 @@ class MapService {
       ) {
         const neighborhoods =
           await this.getDistrictNeighborhoods(
-            exact.name || ""
+            exact
           );
 
         return neighborhoods;
