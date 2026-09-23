@@ -828,49 +828,105 @@ class MapService {
   }
 
   private async getDistrictNeighborhoods(
-    district: string
+    district:
+      | string
+      | AddressSuggestion
   ): Promise<AddressSuggestion[]> {
+    const districtName =
+      typeof district ===
+        "string"
+        ? district.trim()
+        : String(
+            district.name || ""
+          ).trim();
+
+    if (!districtName) {
+      return [];
+    }
+
     const cacheKey =
       "neighborhoods:" +
-      normalizeTurkish(district);
+      normalizeTurkish(
+        districtName
+      );
 
     const cached =
       this.districtNeighborhoodCache.get(
         cacheKey
+      ) ||
+      this.readPersistentAddressCache(
+        cacheKey
       );
 
-    if (cached) return cached;
+    if (
+      cached
+    ) {
+      this.districtNeighborhoodCache.set(
+        cacheKey,
+        cached
+      );
+      return cached;
+    }
+
+    const districtSuggestion =
+      typeof district ===
+        "string"
+        ? null
+        : district;
 
     const districtRelation =
-      await this.findIstanbulDistrictRelation(
-        district
-      );
+      districtSuggestion?.areaId &&
+      districtSuggestion.osmType ===
+        "relation"
+        ? {
+            osmId:
+              districtSuggestion.osmId ||
+              0,
+            areaId:
+              districtSuggestion.areaId,
+          }
+        : await this.findIstanbulDistrictRelation(
+            districtName
+          );
 
-    if (!districtRelation) {
+    if (
+      !districtRelation
+    ) {
       return [];
     }
 
     const query =
-      "[out:json][timeout:20];" +
+      "[out:json][timeout:25];" +
       "area(" +
       districtRelation.areaId +
       ")->.districtArea;" +
       "(" +
       'rel["boundary"="administrative"]["admin_level"="8"]["name"](area.districtArea);' +
-      'rel["place"~"^(neighbourhood|quarter|suburb)$"]["name"](area.districtArea);' +
-      'node["place"~"^(neighbourhood|quarter|suburb)$"]["name"](area.districtArea);' +
-      'way["place"~"^(neighbourhood|quarter|suburb)$"]["name"](area.districtArea);' +
+      'nwr["place"~"^(neighbourhood|quarter|suburb)$"]["name"](area.districtArea);' +
       ");" +
       "out tags center;";
 
-    const data =
-      await this.fetchOverpass(
-        query,
-        10000
+    let data: any;
+
+    try {
+      data =
+        await this.fetchOverpass(
+          query,
+          12000
+        );
+    } catch (error) {
+      console.warn(
+        "Mahalle Overpass sorgusu başarısız:",
+        error
       );
 
+      return [];
+    }
+
     const elements =
-      Array.isArray(data?.elements)
+      Array.isArray(
+        data?.elements
+      )
         ? data.elements
         : [];
 
@@ -881,62 +937,89 @@ class MapService {
     } as const;
 
     const unique =
-      new Map<string, {
-        suggestion: AddressSuggestion;
-        priority: number;
-      }>();
+      new Map<
+        string,
+        {
+          suggestion: AddressSuggestion;
+          priority: number;
+        }
+      >();
 
-    for (const item of elements) {
-      const name = String(
-        item?.tags?.name || ""
-      ).trim();
+    for (
+      const item of
+        elements
+    ) {
+      const name =
+        String(
+          item?.tags?.name ||
+            ""
+        ).trim();
 
       const osmType =
-        String(item?.type || "") as
+        String(
+          item?.type ||
+            ""
+        ) as
           | "node"
           | "way"
           | "relation";
 
+      const osmId =
+        Number(
+          item?.id
+        );
+
+      const lat =
+        Number(
+          item?.center?.lat ??
+            item?.lat
+        );
+
+      const lng =
+        Number(
+          item?.center?.lon ??
+            item?.lon
+        );
+
       if (
         !name ||
-        !Object.prototype.hasOwnProperty.call(
-          priority,
-          osmType
+        !(
+          osmType ===
+            "node" ||
+          osmType ===
+            "way" ||
+          osmType ===
+            "relation"
+        ) ||
+        !Number.isFinite(
+          osmId
+        ) ||
+        !Number.isFinite(
+          lat
+        ) ||
+        !Number.isFinite(
+          lng
         )
       ) {
         continue;
       }
 
-      const osmId = Number(item?.id);
-      if (!Number.isFinite(osmId)) continue;
-
-      const lat = Number(
-        item?.center?.lat ?? item?.lat
-      );
-      const lng = Number(
-        item?.center?.lon ?? item?.lon
-      );
-
-      if (
-        !Number.isFinite(lat) ||
-        !Number.isFinite(lng)
-      ) {
-        continue;
-      }
-
       const key =
-        normalizeTurkish(name);
+        normalizeTurkish(
+          name
+        );
 
-      const suggestion: AddressSuggestion = {
+      const suggestion:
+        AddressSuggestion = {
         displayName:
           name +
           " Mahallesi, " +
-          district +
+          districtName +
           ", İstanbul",
         formattedAddress:
           name +
           " Mahallesi, " +
-          district +
+          districtName +
           ", İstanbul",
         lat,
         lng,
@@ -949,8 +1032,10 @@ class MapService {
         osmType,
         osmId,
         areaId:
-          osmType === "relation"
-            ? 3600000000 + osmId
+          osmType ===
+          "relation"
+            ? 3600000000 +
+              osmId
             : undefined,
         kind:
           "neighborhood",
@@ -961,42 +1046,64 @@ class MapService {
         types: [
           "neighborhood",
           String(
-            item?.tags?.place ||
+            item?.tags
+              ?.place ||
               "administrative"
           ),
         ],
       };
 
-      const old = unique.get(key);
-      const currentPriority =
-        priority[osmType];
+      const old =
+        unique.get(
+          key
+        );
+
+      const itemPriority =
+        priority[
+          osmType
+        ];
 
       if (
         !old ||
-        currentPriority > old.priority
+        itemPriority >
+          old.priority
       ) {
-        unique.set(key, {
-          suggestion,
-          priority:
-            currentPriority,
-        });
+        unique.set(
+          key,
+          {
+            suggestion,
+            priority:
+              itemPriority,
+          }
+        );
       }
     }
 
     const results =
-      Array.from(unique.values())
-        .map((entry) => entry.suggestion)
-        .sort((a, b) =>
-          String(a.name || "").localeCompare(
-            String(b.name || ""),
-            "tr"
-          )
+      Array.from(
+        unique.values()
+      )
+        .map(
+          (entry) =>
+            entry.suggestion
+        )
+        .sort(
+          (a, b) =>
+            String(
+              a.name || ""
+            ).localeCompare(
+              String(
+                b.name || ""
+              ),
+              "tr"
+            )
         );
 
     this.districtNeighborhoodCache.set(
       cacheKey,
       results
     );
+
     this.writePersistentAddressCache(
       cacheKey,
       results
