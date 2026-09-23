@@ -1750,18 +1750,28 @@ class MapService {
       }
 
       const query =
-        "[out:json][timeout:25];" +
+        "[out:json][timeout:12];" +
         "area(" +
         areaId +
         ")->.searchArea;" +
-        'way["highway"]["name"](area.searchArea);' +
+        'way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|road)$"]["name"](area.searchArea);' +
         "out tags center;";
 
-      const data =
-        await this.fetchOverpass(
-          query,
-          12000
+      let data: any;
+
+      try {
+        data =
+          await this.fetchOverpass(
+            query,
+            7000
+          );
+      } catch (error) {
+        console.warn(
+          "Mahalle sokakları şu anda alınamadı:",
+          error
         );
+        return [];
+      }
 
       const elements =
         Array.isArray(data?.elements)
@@ -3444,52 +3454,27 @@ class MapService {
   async resolveAddressSuggestion(
     suggestion: AddressSuggestion
   ): Promise<AddressSuggestion> {
+    /*
+     * Dropdown'dan gerçek bir OSM relation seçildiğinde
+     * ikinci kez ağ çağrısı yapma. Seçim doğrudan devam eder.
+     */
     if (
-      suggestion.kind !== "neighborhood" ||
-      !suggestion.name
+      suggestion.kind === "neighborhood" &&
+      suggestion.osmType === "relation" &&
+      Number.isFinite(
+        Number(suggestion.osmId)
+      )
     ) {
-      return suggestion;
+      return {
+        ...suggestion,
+        areaId:
+          suggestion.areaId ||
+          3600000000 +
+            Number(suggestion.osmId),
+      };
     }
 
-    const parentDistrict =
-      String(
-        suggestion.parentDistrict || ""
-      ).trim();
-
-    if (!parentDistrict) {
-      return suggestion;
-    }
-
-    try {
-      const neighborhoods =
-        await this.getDistrictNeighborhoods(
-          parentDistrict
-        );
-
-      const normalizedName =
-        normalizeTurkish(
-          suggestion.name
-        );
-
-      const canonical =
-        neighborhoods.find(
-          (neighborhood) =>
-            normalizeTurkish(
-              String(
-                neighborhood.name || ""
-              )
-            ) ===
-            normalizedName
-        );
-
-      return canonical || suggestion;
-    } catch (error) {
-      console.warn(
-        "Mahalle OSM alanı eşleştirilemedi:",
-        error
-      );
-      return suggestion;
-    }
+    return suggestion;
   }
 
   getConfig(): MapServiceConfig {
