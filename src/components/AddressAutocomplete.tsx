@@ -22,6 +22,8 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const requestIdRef = useRef(0);
+  const selectedCityRef = useRef<AddressSuggestion | null>(null);
+  const selectedDistrictRef = useRef<AddressSuggestion | null>(null);
   const selectedNeighborhoodRef = useRef<AddressSuggestion | null>(null);
   const skipNextValueSearchRef = useRef(false);
 
@@ -74,6 +76,8 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   ) => {
     const requestId = ++requestIdRef.current;
     setDetailsLoading(true);
+    setSuggestions([]);
+    setOpen(false);
 
     try {
       const selected =
@@ -81,23 +85,92 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           suggestion
         );
 
-      /*
-       * Mahalle seçildiyse bu seçim nihai adres değildir.
-       * Mahalle değerini üst seviyede koruyup doğrudan
-       * yalnızca o mahalleye ait sokak/cadde listesini aç.
-       */
-      if (selected.kind === "neighborhood") {
-        selectedNeighborhoodRef.current =
-          selected;
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
 
-        skipNextValueSearchRef.current =
-          true;
+      /*
+       * İL seçildi: mevcut input'u il olarak kabul et,
+       * ilçeleri bir sonraki seviye olarak getir.
+       */
+      if (selected.kind === "city") {
+        selectedCityRef.current = selected;
+        selectedDistrictRef.current = null;
+        selectedNeighborhoodRef.current = null;
+
+        skipNextValueSearchRef.current = true;
 
         onChange(
           selected.formattedAddress ||
             selected.displayName
         );
+        onSelect?.(selected);
 
+        setLoading(true);
+
+        const districts =
+          await mapService.getDistrictSuggestions();
+
+        if (
+          requestId !== requestIdRef.current ||
+          selectedCityRef.current !== selected
+        ) {
+          return;
+        }
+
+        setSuggestions(districts);
+        setOpen(districts.length > 0);
+        return;
+      }
+
+      /*
+       * İLÇE seçildi: mahalleleri getir.
+       */
+      if (selected.kind === "district") {
+        selectedCityRef.current = null;
+        selectedDistrictRef.current = selected;
+        selectedNeighborhoodRef.current = null;
+
+        skipNextValueSearchRef.current = true;
+
+        onChange(
+          selected.formattedAddress ||
+            selected.displayName
+        );
+        onSelect?.(selected);
+
+        setLoading(true);
+
+        const neighborhoods =
+          await mapService.getNeighborhoodSuggestionsForDistrict(
+            selected
+          );
+
+        if (
+          requestId !== requestIdRef.current ||
+          selectedDistrictRef.current !== selected
+        ) {
+          return;
+        }
+
+        setSuggestions(neighborhoods);
+        setOpen(neighborhoods.length > 0);
+        return;
+      }
+
+      /*
+       * MAHALLE seçildi: önceki sokak listesini tamamen
+       * bırak ve yalnızca seçilen mahallenin sokaklarını getir.
+       */
+      if (selected.kind === "neighborhood") {
+        selectedNeighborhoodRef.current = selected;
+
+        skipNextValueSearchRef.current = true;
+
+        onChange(
+          selected.formattedAddress ||
+            selected.displayName
+        );
         onSelect?.(selected);
 
         setLoading(true);
@@ -120,11 +193,11 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       }
 
       /*
-       * Sokak/cadde veya gerçek bina adresi seçildiyse
-       * artık nihai seçimdir.
+       * SOKAK / GERÇEK ADRES seçildi: nihai seçim.
        */
-      selectedNeighborhoodRef.current =
-        null;
+      selectedCityRef.current = null;
+      selectedDistrictRef.current = null;
+      selectedNeighborhoodRef.current = null;
 
       onChange(
         selected.formattedAddress ||
@@ -139,17 +212,18 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       }
 
       console.warn(
-        "Adres detayları alınamadı:",
+        "Adres seçimi başarısız:",
         error
       );
+
+      setSuggestions([]);
+      setOpen(false);
 
       onChange(
         suggestion.formattedAddress ||
           suggestion.displayName
       );
       onSelect?.(suggestion);
-      setSuggestions([]);
-      setOpen(false);
     } finally {
       if (requestId === requestIdRef.current) {
         setDetailsLoading(false);
@@ -169,6 +243,8 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           value={value}
           onChange={(event) => {
             requestIdRef.current += 1;
+            selectedCityRef.current = null;
+            selectedDistrictRef.current = null;
             selectedNeighborhoodRef.current = null;
             skipNextValueSearchRef.current = false;
             onChange(event.target.value);
@@ -201,6 +277,16 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
                 <span className="block text-xs font-semibold leading-5 text-white">
                   {suggestion.displayName}
                 </span>
+                {suggestion.kind === "city" && (
+                  <span className="mt-0.5 block text-[10px] text-emerald-300">
+                    İL • İstanbul
+                  </span>
+                )}
+                {suggestion.kind === "district" && (
+                  <span className="mt-0.5 block text-[10px] text-emerald-300">
+                    İLÇE • Gerçek OSM adres verisi
+                  </span>
+                )}
                 {suggestion.kind === "neighborhood" && (
                   <span className="mt-0.5 block text-[10px] text-emerald-300">
                     MAHALLE • Gerçek OSM adres verisi
