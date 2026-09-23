@@ -21,12 +21,6 @@ interface AddressAutocompleteProps {
   id?: string;
 }
 
-const normalizeTurkishForComponent = (value: string) =>
-  value
-    .toLocaleLowerCase("tr-TR")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
 export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   value, onChange, onSelect, onHierarchyChange, placeholder = "Adres ara...", className = "",
   disabled = false, required = false, id,
@@ -198,32 +192,30 @@ export const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         selectedStreetRef.current = null;
 
         if (
-          selected.parentDistrict &&
-          (
-            !selectedDistrictRef.current ||
-            selectedDistrictRef.current.name !== selected.parentDistrict
-          )
+          selected.parentDistrict
         ) {
-          try {
-            const districts =
-              await mapService.getDistrictSuggestions();
-            const matchingDistrict =
-              districts.find(
-                (district) =>
-                  normalizeTurkishForComponent(
-                    district.name || ""
-                  ) ===
-                  normalizeTurkishForComponent(
-                    selected.parentDistrict || ""
-                  )
-              );
-
-            if (matchingDistrict) {
-              selectedDistrictRef.current = matchingDistrict;
-            }
-          } catch {
-            // Parent district is optional metadata; neighborhood selection can continue.
-          }
+          /*
+           * Parent ilçe bilgisi zaten gerçek OSM/Nominatim
+           * metadata'sından geldiği için burada tekrar tüm
+           * İstanbul ilçelerini sorgulama.
+           */
+          selectedDistrictRef.current = {
+            displayName:
+              selected.parentDistrict +
+              ", İstanbul, Türkiye",
+            formattedAddress:
+              selected.parentDistrict +
+              ", İstanbul, Türkiye",
+            name:
+              selected.parentDistrict,
+            source:
+              selected.source || "openstreetmap",
+            kind: "district",
+            types: [
+              "district",
+              "administrative",
+            ],
+          };
         }
 
         skipNextValueSearchRef.current = true;
