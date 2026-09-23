@@ -57,7 +57,7 @@ if (!python && process.platform === "win32") {
     "[address-index] Python 3 bulunamadı. Python 3.13 otomatik kuruluyor..."
   );
 
-  const winget = spawnSync(
+  spawnSync(
     "winget",
     [
       "install",
@@ -72,24 +72,32 @@ if (!python && process.platform === "win32") {
     { stdio: "inherit", windowsHide: true }
   );
 
-  if (winget.status === 0) {
-    const appData = process.env.LOCALAPPDATA || "";
-    const knownPaths = [
-      appData + "\\Programs\\Python\\Python313\\python.exe",
-      appData + "\\Programs\\Python\\Python313\\python3.exe",
-    ];
+  /*
+   * winget "already installed" durumunda 0 dışı kod döndürebilir.
+   * Bu durumda Python kurulmuş olsa bile hata vermemek için
+   * bilinen per-user kurulum yollarını mutlaka kontrol ediyoruz.
+   */
+  const appData = process.env.LOCALAPPDATA || "";
+  const knownPaths = [
+    appData + "\\Programs\\Python\\Python313\\python.exe",
+    appData + "\\Programs\\Python\\Python313\\python3.exe",
+    "C:\\Program Files\\Python313\\python.exe",
+    "C:\\Python313\\python.exe",
+  ];
 
-    for (const executable of knownPaths) {
-      const check = spawnSync(
-        executable,
-        ["-c", "import sys; print(sys.version)"],
-        { stdio: "pipe", encoding: "utf8", windowsHide: true }
+  for (const executable of knownPaths) {
+    const check = spawnSync(
+      executable,
+      ["-c", "import sys; print(sys.version)"],
+      { stdio: "pipe", encoding: "utf8", windowsHide: true }
+    );
+
+    if (check.status === 0) {
+      python = { command: executable, prefix: [] };
+      console.log(
+        "[address-index] Python bulundu: " + executable
       );
-
-      if (check.status === 0) {
-        python = { command: executable, prefix: [] };
-        break;
-      }
+      break;
     }
   }
 }
