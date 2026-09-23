@@ -51,29 +51,70 @@ const suggestionKindOf = (
 };
 
 const makeCitySuggestion = (
-  source?: string
-): AddressSuggestion => ({
-  displayName: "İstanbul, Türkiye",
-  formattedAddress: "İstanbul, Türkiye",
-  name: "İstanbul",
-  kind: "city",
-  parentCity: "İstanbul",
-  source: source || "openstreetmap",
-  types: ["city"],
-});
+  provinceName = "",
+  source?: string,
+  areaId?: number,
+  osmId?: number
+): AddressSuggestion => {
+  const name =
+    provinceName.trim();
+
+  return {
+    displayName:
+      name
+        ? name + ", Türkiye"
+        : "İl seçilmedi",
+    formattedAddress:
+      name
+        ? name + ", Türkiye"
+        : "",
+    name,
+    kind: "city",
+    parentCity: name,
+    source: source || "openstreetmap",
+    areaId,
+    osmId,
+    osmType:
+      osmId != null
+        ? "relation"
+        : undefined,
+    types: [
+      "city",
+      "province",
+    ],
+  };
+};
 
 const makeDistrictSuggestion = (
   name: string,
-  source?: string
+  provinceName = "",
+  source?: string,
+  areaId?: number,
+  osmId?: number
 ): AddressSuggestion => ({
   displayName:
-    name + ", İstanbul, Türkiye",
+    name +
+    (provinceName
+      ? ", " +
+        provinceName
+      : ", Türkiye"),
   formattedAddress:
-    name + ", İstanbul, Türkiye",
+    name +
+    (provinceName
+      ? ", " +
+        provinceName
+      : ", Türkiye"),
   name,
   kind: "district",
-  parentCity: "İstanbul",
+  parentCity:
+    provinceName || undefined,
   source: source || "openstreetmap",
+  areaId,
+  osmId,
+  osmType:
+    osmId != null
+      ? "relation"
+      : undefined,
   types: [
     "district",
     "administrative",
@@ -310,7 +351,9 @@ export const AddressAutocomplete: React.FC<
         );
 
         const districts =
-          await mapService.getDistrictSuggestions();
+          await mapService.getDistrictSuggestions(
+            selected
+          );
 
         if (
           requestId !==
@@ -337,14 +380,11 @@ export const AddressAutocomplete: React.FC<
         "district"
       ) {
         const city =
-          selected.parentCity
-            ? makeCitySuggestion(
-                selected.source
-              )
-            : current.city ||
-              makeCitySuggestion(
-                selected.source
-              );
+          current.city ||
+          makeCitySuggestion(
+            selected.parentCity || "",
+            selected.source
+          );
 
         const nextHierarchy = {
           city,
@@ -401,6 +441,7 @@ export const AddressAutocomplete: React.FC<
           selected.parentDistrict
             ? makeDistrictSuggestion(
                 selected.parentDistrict,
+                selected.parentCity || current.city?.name || "",
                 selected.source
               )
             : current.district;
@@ -475,6 +516,9 @@ export const AddressAutocomplete: React.FC<
               selected.parentDistrict
                 ? makeDistrictSuggestion(
                     selected.parentDistrict,
+                    selected.parentCity ||
+                      current.city?.name ||
+                      "",
                     selected.source
                   )
                 : null
@@ -491,7 +535,12 @@ export const AddressAutocomplete: React.FC<
                         selected.parentDistrict ||
                         ""
                       ) +
-                      ", İstanbul",
+                      (
+                        selected.parentCity
+                          ? ", " +
+                            selected.parentCity
+                          : ""
+                      ),
                     formattedAddress:
                       selected.parentNeighborhood +
                       " Mahallesi, " +
@@ -499,13 +548,18 @@ export const AddressAutocomplete: React.FC<
                         selected.parentDistrict ||
                         ""
                       ) +
-                      ", İstanbul",
+                      (
+                        selected.parentCity
+                          ? ", " +
+                            selected.parentCity
+                          : ""
+                      ),
                     name:
                       selected.parentNeighborhood,
                     kind:
                       "neighborhood" as const,
                     parentCity:
-                      "İstanbul",
+                      selected.parentCity,
                     parentDistrict:
                       selected.parentDistrict,
                     source:
