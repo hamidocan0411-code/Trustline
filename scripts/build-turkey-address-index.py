@@ -205,6 +205,63 @@ def prepare_boundary_tables(osm):
     ].copy()
 
     provinces = provinces[provinces["name"].notna()].copy()
+
+    # Geofabrik country extracts can include clipped neighboring
+    # administrative boundaries. Keep only province polygons whose
+    # representative point falls inside the Türkiye country boundary.
+    try:
+        country_boundaries = boundaries[
+            boundaries["admin_level"] == "2"
+        ].copy()
+
+        turkey_country = None
+        if not country_boundaries.empty:
+            normalized_country_names = (
+                country_boundaries["name"]
+                .fillna("")
+                .astype(str)
+                .str.casefold()
+                .str.replace("ü", "u", regex=False)
+            )
+            named = country_boundaries[
+                normalized_country_names.str.contains(
+                    "turkey|turkiye",
+                    regex=True,
+                )
+            ].copy()
+
+            if not named.empty:
+                turkey_country = named.geometry.unary_union
+            else:
+                # Fallback: Türkiye contains Ankara (32.8597, 39.9334).
+                from shapely.geometry import Point
+                anchor = Point(32.8597, 39.9334)
+                containing = country_boundaries[
+                    country_boundaries.geometry.notna()
+                    & country_boundaries.geometry.contains(anchor)
+                ]
+                if not containing.empty:
+                    turkey_country = containing.geometry.iloc[0]
+
+        if turkey_country is not None and not provinces.empty:
+            valid_province_rows = provinces.geometry.notna().copy()
+            province_points = provinces.loc[
+                valid_province_rows.index
+            ].geometry.representative_point()
+            province_inside = province_points.within(
+                turkey_country
+            )
+            provinces = provinces.loc[
+                valid_province_rows.index[province_inside]
+            ].copy()
+        else:
+            log(
+                "Türkiye ülke sınırı bulunamadı; il adayları isim/çevre filtresiyle devam edecek."
+            )
+    except Exception as exc:
+        log(
+            f"Türkiye ülke sınırı filtresi uygulanamadı, mevcut sınır verisi kullanılacak: {exc}"
+        )
     districts = districts[districts["name"].notna()].copy()
     neighborhoods = neighborhoods[neighborhoods["name"].notna()].copy()
 
