@@ -367,6 +367,7 @@ class MapService {
       ")->.districtArea;" +
       "(" +
       'relation["boundary"="administrative"]["admin_level"="10"]["name"](area.districtArea);' +
+      'relation["place"~"^(neighbourhood|quarter|suburb)$"]["name"](area.districtArea);' +
       'node["place"~"^(neighbourhood|quarter|suburb)$"]["name"](area.districtArea);' +
       'way["place"~"^(neighbourhood|quarter|suburb)$"]["name"](area.districtArea);' +
       ");" +
