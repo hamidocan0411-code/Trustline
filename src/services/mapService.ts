@@ -2857,7 +2857,11 @@ class MapService {
 
     try {
       districts =
-        await this.getIstanbulDistrictSuggestions();
+        oneWordQuery
+          ? await this.getDistrictSuggestions(
+              cleanQuery
+            )
+          : await this.getIstanbulDistrictSuggestions();
     } catch (error) {
       console.warn(
         "İlçe havuzu alınamadı:",
@@ -2911,11 +2915,38 @@ class MapService {
      * 6. "Avcılar Cihangir" gibi bileşik yazımı yalnız ilgili
      * ilçe içindeki mahalle havuzuna bağla.
      */
+    const parentDistrictName =
+      nominatimResults.find(
+        (item) =>
+          item.parentDistrict
+      )?.parentDistrict;
+
     const districtMatch =
-      this.findDistrictInQuery(
-        cleanQuery,
-        districts
-      );
+      parentDistrictName
+        ? {
+            displayName:
+              parentDistrictName +
+              ", İstanbul, Türkiye",
+            formattedAddress:
+              parentDistrictName +
+              ", İstanbul, Türkiye",
+            name:
+              parentDistrictName,
+            source:
+              "openstreetmap-nominatim",
+            kind:
+              "district" as const,
+            parentCity:
+              "İstanbul",
+            types: [
+              "district",
+              "administrative",
+            ],
+          }
+        : this.findDistrictInQuery(
+            cleanQuery,
+            districts
+          );
 
     if (
       districtMatch
