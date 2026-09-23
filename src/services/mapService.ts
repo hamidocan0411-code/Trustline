@@ -377,10 +377,9 @@ class MapService {
     }
 
     const query =
-      "[out:json][timeout:30];" +
-      'relation["boundary"="administrative"]' +
-      '["admin_level"~"^(6|7)$"]' +
-      '["name"](40.80,28.40,41.35,29.55);' +
+      "[out:json][timeout:20];" +
+      'relation["boundary"="administrative"]["admin_level"="6"]["name"]' +
+      "(40.80,28.40,41.35,29.55);" +
       "out tags center;";
 
     const data =
@@ -850,18 +849,13 @@ class MapService {
   }
 
   private async searchIstanbulAddressHierarchy(
-    cleanQuery: string
+    cleanQuery: string,
+    districtHint?: AddressSuggestion | null
   ): Promise<AddressSuggestion[] | null> {
-    const districts =
-      await this.getIstanbulDistrictSuggestions();
-
     const district =
-      this.findDistrictInQuery(
-        cleanQuery,
-        districts
-      );
+      districtHint || null;
 
-    if (!district) {
+    if (!district?.name) {
       return null;
     }
 
@@ -1375,68 +1369,123 @@ class MapService {
         )
       );
 
-    const districtResults =
-      await this.getIstanbulDistrictSuggestions();
+    /*
+     * Her tuş vuruşunda tüm İstanbul ilçe sınırlarını Overpass'tan
+     * çekmek yerine önce mevcut Nominatim sınıflandırmasını kullan.
+     */
+    let nominatimResults: AddressSuggestion[] = [];
 
-    const normalizedDistrictQuery =
-      normalizeTurkish(
-        this.normalizeQueryForHierarchy(
+    try {
+      nominatimResults =
+        await this.searchNominatimSuggestions(
           cleanQuery
-        )
+        );
+    } catch (error) {
+      console.warn(
+        "Nominatim adres araması başarısız, hiyerarşi/Photon fallback uygulanacak:",
+        error
       );
-
-    const exactDistrict =
-      districtResults.find(
-        (district) =>
-          normalizeTurkish(
-            String(district.name || "")
-          ) === normalizedDistrictQuery
-      );
+    }
 
     /*
-     * Kullanıcı yalnızca "Avcılar" yazdıysa bu,
-     * mahalle listesi değil İLÇE sonucudur.
+     * İstanbul gibi tek başına yazılan il sorgusunda yalnızca gerçek
+     * Nominatim şehir/il sonucunu döndür.
      */
+    const exactCity =
+      nominatimResults.find(
+        (result) =>
+          result.kind === "city" &&
+          normalizeTurkish(
+            String(result.name || "")
+          ) === normalizedQuery
+      );
+
+    if (exactCity) {
+      return [exactCity];
+    }
+
+    /*
+     * Yalnızca gerçek Nominatim ilçe sonucu tam eşleşiyorsa ilçe kabul et.
+     */
+    const exactDistrict =
+      nominatimResults.find(
+        (result) =>
+          result.kind === "district" &&
+          normalizeTurkish(
+            String(result.name || "")
+          ) === normalizedQuery
+      );
+
     if (exactDistrict) {
       return [exactDistrict];
     }
 
-    const hierarchyResults =
-      await this.searchIstanbulAddressHierarchy(
-        cleanQuery
+    /*
+     * Adres sonucu içinde gerçek OSM district/county metadata'sı varsa
+     * bunu hiyerarşinin district context'i olarak kullan.
+     */
+    const addressDistrictResult =
+      nominatimResults.find(
+        (result) =>
+          Boolean(result.parentDistrict)
       );
 
-    if (hierarchyResults) {
-      return hierarchyResults;
+    let districtHint:
+      | AddressSuggestion
+      | null =
+        exactDistrict || null;
+
+    if (
+      !districtHint &&
+      addressDistrictResult?.parentDistrict
+    ) {
+      districtHint = {
+        displayName:
+          addressDistrictResult.parentDistrict +
+          ", İstanbul, Türkiye",
+        formattedAddress:
+          addressDistrictResult.parentDistrict +
+          ", İstanbul, Türkiye",
+        name:
+          addressDistrictResult.parentDistrict,
+        source:
+          "openstreetmap-nominatim",
+        kind: "district",
+        types: [
+          "district",
+          "administrative",
+        ],
+      };
     }
 
     /*
-     * Hiyerarşi bağlamı olmadan yazılan bir mahalle/adres için
-     * önce mevcut Nominatim sonucunu kullan.
-     * kind + addressdetails gerçek OSM sınıflandırmasından gelir;
-     * input metni tek başına mahalle state'ine zorlanmaz.
+     * Avcılar Cihangir gibi gerçek OSM sonuçlarında ilçe bağlamı
+     * bulunduğunda mevcut mahalle -> sokak Overpass zincirini kullan.
      */
-    try {
-      const nominatimResults =
-        await this.searchNominatimSuggestions(
-          cleanQuery
+    if (districtHint) {
+      const hierarchyResults =
+        await this.searchIstanbulAddressHierarchy(
+          cleanQuery,
+          districtHint
         );
 
-      if (nominatimResults.length > 0) {
-        return nominatimResults;
+      if (hierarchyResults) {
+        return hierarchyResults;
       }
-    } catch (error) {
-      console.warn(
-        "Nominatim adres araması başarısız, Photon deneniyor:",
-        error
-      );
+    }
+
+    /*
+     * Tek başına gerçek mahalle/adres sonucu geldiyse OSM sonucunu döndür.
+     * Input metni kendi başına mahalle state'i olarak kabul edilmez.
+     */
+    if (nominatimResults.length > 0) {
+      return nominatimResults;
     }
 
     return this.searchPhotonSuggestions(
       cleanQuery
     );
   }
-
 
   private async searchAddressSuggestionsWithCache(
     cleanQuery: string
