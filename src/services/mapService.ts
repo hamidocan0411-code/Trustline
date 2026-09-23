@@ -13,7 +13,7 @@ export interface AddressSuggestion {
   osmType?: "node" | "way" | "relation";
   osmId?: number;
   areaId?: number;
-  kind?: "district" | "neighborhood" | "street" | "address";
+  kind?: "city" | "district" | "neighborhood" | "street" | "address";
   parentDistrict?: string;
   street?: string;
   streetNumber?: string;
@@ -29,21 +29,13 @@ export interface MapServiceConfig {
 }
 
 const OVERPASS_URLS = [
-  "https://overpass-api.de/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
+  "https://overpass-api.de/api/interpreter",
 ];
 
 const ISTANBUL_BBOX = "40.80,28.40,41.35,29.55";
 
-const ISTANBUL_DISTRICTS = [
-  "Adalar", "Arnavutköy", "Ataşehir", "Avcılar", "Bağcılar", "Bahçelievler",
-  "Bakırköy", "Başakşehir", "Bayrampaşa", "Beşiktaş", "Beykoz", "Beylikdüzü",
-  "Beyoğlu", "Büyükçekmece", "Çatalca", "Çekmeköy", "Esenler", "Esenyurt",
-  "Eyüpsultan", "Fatih", "Gaziosmanpaşa", "Güngören", "Kadıköy", "Kağıthane",
-  "Kartal", "Küçükçekmece", "Maltepe", "Pendik", "Sancaktepe", "Sarıyer",
-  "Silivri", "Sultanbeyli", "Sultangazi", "Şile", "Şişli", "Tuzla", "Ümraniye",
-  "Üsküdar", "Zeytinburnu",
-];
+
 
 const MAP_CONFIG: MapServiceConfig = {
   defaultCenter: [39.0, 35.0],
@@ -206,12 +198,25 @@ class MapService {
     for (const endpoint of OVERPASS_URLS) {
       try {
         const response = await fetch(
-          endpoint + "?data=" + encodeURIComponent(query),
-          { headers: { Accept: "application/json" } }
+          endpoint,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/x-www-form-urlencoded;charset=UTF-8",
+              Accept: "application/json",
+            },
+            body:
+              "data=" +
+              encodeURIComponent(query),
+          }
         );
 
         if (!response.ok) {
-          lastError = new Error("Overpass HTTP " + response.status);
+          lastError = new Error(
+            "Overpass HTTP " +
+              response.status
+          );
           continue;
         }
 
@@ -223,7 +228,9 @@ class MapService {
 
     throw lastError instanceof Error
       ? lastError
-      : new Error("Overpass servisine ulaşılamadı.");
+      : new Error(
+          "Overpass servisine ulaşılamadı."
+        );
   }
 
   private normalizeQueryForHierarchy(value: string): string {
@@ -233,23 +240,43 @@ class MapService {
       .trim();
   }
 
-  private getIstanbulDistrictFromQuery(query: string): string | null {
-    const normalized = this.normalizeQueryForHierarchy(query);
+  private findDistrictInQuery(
+    query: string,
+    districts: AddressSuggestion[]
+  ): AddressSuggestion | null {
+    const normalized =
+      this.normalizeQueryForHierarchy(
+        query
+      );
 
-    const candidates = [...ISTANBUL_DISTRICTS].sort(
-      (a, b) =>
-        normalizeTurkish(b).length -
-        normalizeTurkish(a).length
-    );
+    const candidates =
+      [...districts].sort(
+        (a, b) =>
+          normalizeTurkish(
+            String(b.name || "")
+          ).length -
+          normalizeTurkish(
+            String(a.name || "")
+          ).length
+      );
 
     for (const district of candidates) {
-      const districtNormalized = normalizeTurkish(district);
-      const matcher = new RegExp(
-        "(^|\\s)" +
-          districtNormalized +
-          "(?=$|\\s)",
-        "i"
-      );
+      const name =
+        normalizeTurkish(
+          String(
+            district.name || ""
+          )
+        );
+
+      if (!name) continue;
+
+      const matcher =
+        new RegExp(
+          "(^|\\s)" +
+            name +
+            "(?=$|\\s)",
+          "i"
+        );
 
       if (matcher.test(normalized)) {
         return district;
@@ -336,6 +363,135 @@ class MapService {
       osmId,
       areaId: 3600000000 + osmId,
     };
+  }
+
+  private async getIstanbulDistrictSuggestions(): Promise<AddressSuggestion[]> {
+    const cacheKey = "istanbul:districts";
+    const cached =
+      this.districtNeighborhoodCache.get(
+        cacheKey
+      );
+
+    if (cached) {
+      return cached;
+    }
+
+    const query =
+      "[out:json][timeout:30];" +
+      'relation["boundary"="administrative"]' +
+      '["admin_level"~"^(6|7)$"]' +
+      '["name"](40.80,28.40,41.35,29.55);' +
+      "out tags center;";
+
+    const data =
+      await this.fetchOverpass(query);
+
+    const elements = Array.isArray(
+      data?.elements
+    )
+      ? data.elements
+      : [];
+
+    const unique =
+      new Map<string, AddressSuggestion>();
+
+    for (const item of elements) {
+      const name = String(
+        item?.tags?.name || ""
+      ).trim();
+
+      if (!name) continue;
+
+      const osmId = Number(item?.id);
+      const lat = Number(
+        item?.center?.lat
+      );
+      const lng = Number(
+        item?.center?.lon
+      );
+
+      if (
+        !Number.isFinite(osmId) ||
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng)
+      ) {
+        continue;
+      }
+
+      const key =
+        normalizeTurkish(name);
+
+      if (unique.has(key)) continue;
+
+      unique.set(
+        key,
+        {
+          displayName:
+            name +
+            ", İstanbul, Türkiye",
+          formattedAddress:
+            name +
+            ", İstanbul, Türkiye",
+          lat,
+          lng,
+          name,
+          source:
+            "openstreetmap-overpass",
+          placeId:
+            "R" + osmId,
+          osmType: "relation",
+          osmId,
+          areaId:
+            3600000000 + osmId,
+          kind: "district",
+          types: [
+            "administrative",
+            "district",
+          ],
+        }
+      );
+    }
+
+    const results =
+      Array.from(unique.values()).sort(
+        (a, b) =>
+          String(a.name || "").localeCompare(
+            String(b.name || ""),
+            "tr"
+          )
+      );
+
+    this.districtNeighborhoodCache.set(
+      cacheKey,
+      results
+    );
+
+    return results;
+  }
+
+  async getDistrictSuggestions(): Promise<AddressSuggestion[]> {
+    try {
+      return await this.getIstanbulDistrictSuggestions();
+    } catch (error) {
+      console.warn(
+        "İstanbul ilçe listesi alınamadı:",
+        error
+      );
+      return [];
+    }
+  }
+
+  async getNeighborhoodSuggestionsForDistrict(
+    district: AddressSuggestion
+  ): Promise<AddressSuggestion[]> {
+    const districtName =
+      String(district.name || "").trim();
+
+    if (!districtName) return [];
+
+    return this.getDistrictNeighborhoods(
+      districtName
+    );
   }
 
   private async getDistrictNeighborhoods(
@@ -696,40 +852,41 @@ class MapService {
   private async searchIstanbulAddressHierarchy(
     cleanQuery: string
   ): Promise<AddressSuggestion[] | null> {
+    const districts =
+      await this.getIstanbulDistrictSuggestions();
+
     const district =
-      this.getIstanbulDistrictFromQuery(
-        cleanQuery
+      this.findDistrictInQuery(
+        cleanQuery,
+        districts
       );
 
-    if (!district) return null;
+    if (!district) {
+      return null;
+    }
+
+    const districtName =
+      String(district.name || "").trim();
 
     const remainder =
       this.removeHierarchyLabels(
         cleanQuery,
-        district
+        districtName
       );
 
-    let neighborhoods: AddressSuggestion[];
-
-    try {
-      neighborhoods =
-        await this.getDistrictNeighborhoods(
-          district
-        );
-    } catch (error) {
-      console.warn(
-        "İstanbul mahalle/sokak verisi alınamadı:",
-        error
+    const neighborhoods =
+      await this.getDistrictNeighborhoods(
+        districtName
       );
-      return null;
-    }
 
     if (!remainder) {
       return neighborhoods;
     }
 
     const normalizedRemainder =
-      normalizeTurkish(remainder);
+      normalizeTurkish(
+        remainder
+      );
 
     const ranked =
       neighborhoods
@@ -757,11 +914,14 @@ class MapService {
 
     const bestName =
       normalizeTurkish(
-        String(best.name || "")
+        String(
+          best.name || ""
+        )
       );
 
     if (
-      normalizedRemainder === bestName ||
+      normalizedRemainder ===
+        bestName ||
       (
         bestName.startsWith(
           normalizedRemainder
@@ -778,7 +938,7 @@ class MapService {
       const streets =
         await this.getNeighborhoodStreets(
           best,
-          district
+          districtName
         );
 
       if (streets.length > 0) {
@@ -794,40 +954,6 @@ class MapService {
       );
   }
 
-  async getStreetSuggestionsForNeighborhood(
-    neighborhood: AddressSuggestion
-  ): Promise<AddressSuggestion[]> {
-    if (neighborhood.kind !== "neighborhood") {
-      return [];
-    }
-
-    const district =
-      neighborhood.parentDistrict ||
-      String(
-        neighborhood.displayName
-          .split(",")[1] ||
-          ""
-      )
-        .trim()
-        .replace(/\\s*Mahallesi\\s*/gi, "");
-
-    if (!district) {
-      return [];
-    }
-
-    try {
-      return await this.getNeighborhoodStreets(
-        neighborhood,
-        district
-      );
-    } catch (error) {
-      console.warn(
-        "Seçilen mahallenin sokakları alınamadı:",
-        error
-      );
-      return [];
-    }
-  }
 
   private async searchPhotonSuggestions(
     cleanQuery: string
@@ -1048,25 +1174,167 @@ class MapService {
         )
       );
 
+    /*
+     * İstanbul tek başına yalnızca İL seviyesidir.
+     * İlçeleri aynı dropdown'a doldurmak yerine
+     * gerçek OSM il sonucu döndürülür.
+     */
     if (normalizedQuery === "istanbul") {
-      return ISTANBUL_DISTRICTS.map(
-        (district) => ({
-          displayName:
-            district +
-            ", İstanbul, Türkiye",
-          formattedAddress:
-            district +
-            ", İstanbul, Türkiye",
-          name: district,
-          source:
-            "openstreetmap-overpass",
-          kind: "district",
-          types: [
-            "administrative",
-            "district",
-          ],
-        })
+      const params =
+        new URLSearchParams();
+
+      params.set(
+        "q",
+        "İstanbul, Türkiye"
       );
+      params.set(
+        "format",
+        "jsonv2"
+      );
+      params.set(
+        "addressdetails",
+        "1"
+      );
+      params.set(
+        "limit",
+        "5"
+      );
+      params.set(
+        "countrycodes",
+        "tr"
+      );
+
+      const response =
+        await fetch(
+          MAP_CONFIG.searchUrl +
+            "?" +
+            params.toString(),
+          {
+            headers: {
+              Accept:
+                "application/json",
+            },
+          }
+        );
+
+      if (response.ok) {
+        const data =
+          await response.json();
+
+        const cityResult =
+          Array.isArray(data)
+            ? data.find(
+                (item: any) => {
+                  const type =
+                    normalizeTurkish(
+                      String(
+                        item?.type ||
+                          item?.addresstype ||
+                          ""
+                      )
+                    );
+
+                  const name =
+                    normalizeTurkish(
+                      String(
+                        item?.name ||
+                          ""
+                      )
+                    );
+
+                  return (
+                    name === "istanbul" &&
+                    (
+                      type === "city" ||
+                      type === "province" ||
+                      type ===
+                        "administrative"
+                    )
+                  );
+                }
+              )
+            : null;
+
+        const lat = Number(
+          cityResult?.lat
+        );
+        const lng = Number(
+          cityResult?.lon
+        );
+
+        if (
+          cityResult &&
+          Number.isFinite(lat) &&
+          Number.isFinite(lng)
+        ) {
+          const placeId =
+            cityResult?.osm_type &&
+            cityResult?.osm_id
+              ? String(
+                  cityResult.osm_type
+                ).charAt(0).toUpperCase() +
+                String(
+                  cityResult.osm_id
+                )
+              : String(
+                  cityResult?.place_id ||
+                    ""
+                );
+
+          return [
+            {
+              displayName:
+                "İstanbul, Türkiye",
+              formattedAddress:
+                "İstanbul, Türkiye",
+              name: "İstanbul",
+              source:
+                "openstreetmap-nominatim",
+              placeId,
+              osmType:
+                String(
+                  cityResult?.osm_type ||
+                    ""
+                ) as
+                  | "node"
+                  | "way"
+                  | "relation",
+              osmId: Number(
+                cityResult?.osm_id
+              ),
+              lat,
+              lng,
+              kind: "city",
+              types: [
+                String(
+                  cityResult?.type ||
+                    ""
+                ),
+                String(
+                  cityResult?.addresstype ||
+                    ""
+                ),
+              ].filter(Boolean),
+            },
+          ];
+        }
+      }
+
+      return [
+        {
+          displayName:
+            "İstanbul, Türkiye",
+          formattedAddress:
+            "İstanbul, Türkiye",
+          name: "İstanbul",
+          source:
+            "openstreetmap",
+          kind: "city",
+          types: [
+            "city",
+          ],
+        },
+      ];
     }
 
     const hierarchyResults =
@@ -1082,6 +1350,7 @@ class MapService {
       cleanQuery
     );
   }
+
 
   private async searchAddressSuggestionsWithCache(
     cleanQuery: string
