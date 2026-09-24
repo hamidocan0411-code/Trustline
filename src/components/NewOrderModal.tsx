@@ -499,6 +499,18 @@ export const NewOrderModal: React.FC<Props> = ({
     setErrorMsg("");
 
     try {
+      if (
+        !isAutoCalculated ||
+        !Number.isFinite(calculatedDistanceKm) ||
+        calculatedDistanceKm <= 0 ||
+        !pickupCoords ||
+        !deliveryCoords
+      ) {
+        throw new Error(
+          "Adresler için geçerli rota mesafesi otomatik hesaplanmadan sipariş oluşturulamaz."
+        );
+      }
+
       const verifiedPrice =
         calculateOrderPrice(
           calculatedDistanceKm,
@@ -599,7 +611,7 @@ export const NewOrderModal: React.FC<Props> = ({
 
           urgency,
 
-          distanceKm,
+          distanceKm: calculatedDistanceKm,
 
           price: verifiedPrice,
 
@@ -784,6 +796,8 @@ export const NewOrderModal: React.FC<Props> = ({
     setDeliveryHierarchy(
       EMPTY_ADDRESS_HIERARCHY
     );
+
+    setDistanceKm(0);
 
     setPickupCoords(
       null
@@ -1216,6 +1230,7 @@ export const NewOrderModal: React.FC<Props> = ({
                       setPickupPlaceId("");
                       setPickupStreet("");
                       setPickupStreetNumber("");
+                      setDistanceKm(0);
                       setPickupCoords(null);
                       setDeliveryCoords(null);
                       setRoutePoints([]);
@@ -1293,6 +1308,7 @@ export const NewOrderModal: React.FC<Props> = ({
                       setDeliveryPlaceId("");
                       setDeliveryStreet("");
                       setDeliveryStreetNumber("");
+                      setDistanceKm(0);
                       setPickupCoords(null);
                       setDeliveryCoords(null);
                       setRoutePoints([]);
