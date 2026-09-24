@@ -1237,7 +1237,7 @@ def main():
     compact_json(
         DATA_ROOT / "hierarchy.json",
         {
-            "version": 1,
+            "version": 2,
             "source": "OpenStreetMap / Geofabrik Turkey",
             "sourceUrl": DATA_URL,
             "generatedAt": __import__("datetime").datetime.utcnow().isoformat() + "Z",
@@ -1298,7 +1298,7 @@ def main():
     compact_json(
         MANIFEST_PATH,
         {
-            "version": 1,
+            "version": 2,
             "generatedAt": __import__("datetime").datetime.utcnow().isoformat() + "Z",
             "source": "OpenStreetMap / Geofabrik Turkey",
             "sourceUrl": DATA_URL,
