@@ -720,8 +720,7 @@ export const AddressAutocomplete: React.FC<
       suppressNextSearchRef.current =
         true;
       onChange(
-        selected.formattedAddress ||
-          selected.displayName
+        suggestionLabel(selected)
       );
       onSelect?.(
         selected
