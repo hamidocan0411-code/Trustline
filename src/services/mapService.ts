@@ -428,12 +428,30 @@ class MapService {
           { cache: "no-store" }
         );
 
-        if (!response.ok) {
+        if (response.ok) {
+          const manifest = await response.json();
+          this.staticDataCache.set("manifest", manifest);
+          return true;
+        }
+
+        /*
+         * Manifest üretimi yarıda kalsa bile hierarchy.json mevcutsa
+         * il / ilçe / mahalle autocomplete tamamen boş kalmamalı.
+         */
+        const hierarchyResponse = await fetch(
+          "/address-data/hierarchy.json",
+          { cache: "force-cache" }
+        );
+
+        if (!hierarchyResponse.ok) {
           return false;
         }
 
-        const manifest = await response.json();
-        this.staticDataCache.set("manifest", manifest);
+        const hierarchy = await hierarchyResponse.json();
+        this.staticDataCache.set(
+          "hierarchy.json",
+          hierarchy
+        );
         return true;
       } catch {
         return false;
@@ -4108,26 +4126,14 @@ class MapService {
   ): Promise<AddressSuggestion[]> {
     const cleanQuery = query.trim();
 
-    if (cleanQuery.length < 3) {
+    if (cleanQuery.length < 2) {
       return [];
     }
 
-    const now = Date.now();
-    const elapsed =
-      now - this.lastAddressSearchAt;
-
-    if (elapsed < 1100) {
-      await new Promise<void>((resolve) =>
-        setTimeout(
-          resolve,
-          1100 - elapsed
-        )
-      );
-    }
-
-    this.lastAddressSearchAt =
-      Date.now();
-
+    /*
+     * Autocomplete artık tamamen statik OSM indeksinden çalışıyor.
+     * Bu nedenle eski Overpass/Nominatim rate-limit beklemesi yok.
+     */
     try {
       return await this.searchAddressSuggestionsWithCache(
         cleanQuery,
