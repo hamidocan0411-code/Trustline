@@ -71,6 +71,87 @@ function normalizeTurkish(value: string): string {
     .replace(/ı/g, "i");
 }
 
+export function getAddressSuggestionLabel(
+  item: AddressSuggestion | null | undefined
+): string {
+  if (!item) return "";
+
+  const displayName =
+    typeof item.displayName === "string"
+      ? item.displayName.trim()
+      : "";
+
+  if (displayName) return displayName;
+
+  const formattedAddress =
+    typeof item.formattedAddress === "string"
+      ? item.formattedAddress.trim()
+      : "";
+
+  if (formattedAddress) return formattedAddress;
+
+  if (item.kind === "address" || item.streetNumber) {
+    const base = [
+      item.street || item.name || "",
+      item.streetNumber
+        ? "No: " + item.streetNumber
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return [
+      base,
+      item.parentNeighborhood,
+      item.parentDistrict,
+      item.parentCity,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (item.kind === "street" || item.street) {
+    return [
+      item.street || item.name || "",
+      item.parentNeighborhood,
+      item.parentDistrict,
+      item.parentCity,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (item.kind === "neighborhood" || item.neighborhoodId) {
+    return [
+      item.name || "",
+      "Mahallesi",
+      item.parentDistrict,
+      item.parentCity,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (item.kind === "district" || item.districtId) {
+    return [
+      item.name || "",
+      item.parentCity,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return [
+    item.name || "",
+    item.parentCity &&
+    item.parentCity !== item.name
+      ? item.parentCity
+      : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
 function isValidCoordinate(
   coordinate?: GeoCoordinate | null
 ): coordinate is GeoCoordinate {
