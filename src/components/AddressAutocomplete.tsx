@@ -35,17 +35,69 @@ const EMPTY_HIERARCHY: SelectedAddressHierarchy = {
   street: null,
 };
 
+const getSuggestionKind = (
+  item: AddressSuggestion | null | undefined
+): AddressSuggestion["kind"] => {
+  if (!item) return undefined;
+  if (item.kind) return item.kind;
+
+  if (item.streetNumber) return "address";
+  if (item.street) return "street";
+  if (item.neighborhoodId) return "neighborhood";
+  if (item.districtId) return "district";
+
+  const types = Array.isArray(item.types)
+    ? item.types.map((type) =>
+        String(type).toLocaleLowerCase("tr-TR")
+      )
+    : [];
+
+  if (
+    types.includes("province") ||
+    types.includes("city")
+  ) {
+    return "city";
+  }
+
+  if (types.includes("district")) {
+    return "district";
+  }
+
+  if (
+    types.includes("neighborhood") ||
+    types.includes("quarter") ||
+    types.includes("suburb")
+  ) {
+    return "neighborhood";
+  }
+
+  if (
+    types.includes("street") ||
+    types.includes("road")
+  ) {
+    return "street";
+  }
+
+  if (item.placeId) {
+    return undefined;
+  }
+
+  return undefined;
+};
+
 const suggestionKindOf = (
   suggestions: AddressSuggestion[]
 ): AddressSuggestion["kind"] => {
   const kinds = new Set(
     suggestions
-      .map((suggestion) => suggestion.kind)
+      .map((suggestion) =>
+        getSuggestionKind(suggestion)
+      )
       .filter(Boolean)
   );
 
   if (kinds.size === 1) {
-    return suggestions[0]?.kind;
+    return Array.from(kinds)[0] as AddressSuggestion["kind"];
   }
 
   return undefined;
@@ -340,8 +392,7 @@ export const AddressAutocomplete: React.FC<
         hierarchyRef.current;
 
       if (
-        selected.kind ===
-        "city"
+        getSuggestionKind(selected) === "city"
       ) {
         const nextHierarchy = {
           city: selected,
@@ -389,8 +440,7 @@ export const AddressAutocomplete: React.FC<
       }
 
       if (
-        selected.kind ===
-        "district"
+        getSuggestionKind(selected) === "district"
       ) {
         const city =
           current.city ||
@@ -446,8 +496,7 @@ export const AddressAutocomplete: React.FC<
       }
 
       if (
-        selected.kind ===
-        "neighborhood"
+        getSuggestionKind(selected) === "neighborhood"
       ) {
         const district =
           selected.parentDistrict
@@ -513,8 +562,7 @@ export const AddressAutocomplete: React.FC<
       }
 
       if (
-        selected.kind ===
-        "street"
+        getSuggestionKind(selected) === "street"
       ) {
         const nextHierarchy = {
           city:
