@@ -512,9 +512,56 @@ class MapService {
     districts: AddressSuggestion[];
     neighborhoods: AddressSuggestion[];
   } | null> {
-    return this.loadStaticAddressData(
+    const cached = this.staticDataCache.get(
       "hierarchy.json"
-    );
+    ) as {
+      version?: number;
+      generatedAt?: string;
+      provinces?: AddressSuggestion[];
+      districts?: AddressSuggestion[];
+      neighborhoods?: AddressSuggestion[];
+    } | undefined;
+
+    if (cached) {
+      return {
+        ...cached,
+        provinces: Array.isArray(cached.provinces)
+          ? cached.provinces
+          : [],
+        districts: Array.isArray(cached.districts)
+          ? cached.districts
+          : [],
+        neighborhoods: Array.isArray(cached.neighborhoods)
+          ? cached.neighborhoods
+          : [],
+      };
+    }
+
+    const loaded =
+      await this.loadStaticAddressData<{
+        version?: number;
+        generatedAt?: string;
+        provinces?: AddressSuggestion[];
+        districts?: AddressSuggestion[];
+        neighborhoods?: AddressSuggestion[];
+      }>("hierarchy.json");
+
+    if (!loaded) {
+      return null;
+    }
+
+    return {
+      ...loaded,
+      provinces: Array.isArray(loaded.provinces)
+        ? loaded.provinces
+        : [],
+      districts: Array.isArray(loaded.districts)
+        ? loaded.districts
+        : [],
+      neighborhoods: Array.isArray(loaded.neighborhoods)
+        ? loaded.neighborhoods
+        : [],
+    };
   }
 
   private filterStaticEntries(
