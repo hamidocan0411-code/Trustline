@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Loader2, MapPin } from "lucide-react";
 import {
+  getAddressSuggestionLabel,
   mapService,
   type AddressSearchContext,
   type AddressSuggestion,
@@ -50,89 +51,7 @@ const suggestionKindOf = (
   return undefined;
 };
 
-const suggestionLabel = (
-  item: AddressSuggestion | null | undefined
-): string => {
-  if (!item) return "";
-
-  const displayName =
-    typeof item.displayName === "string"
-      ? item.displayName.trim()
-      : "";
-
-  if (displayName) {
-    return displayName;
-  }
-
-  const formattedAddress =
-    typeof item.formattedAddress === "string"
-      ? item.formattedAddress.trim()
-      : "";
-
-  if (formattedAddress) {
-    return formattedAddress;
-  }
-
-  if (item.kind === "address") {
-    const addressBase = [
-      item.street || item.name || "",
-      item.streetNumber
-        ? "No: " + item.streetNumber
-        : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
-
-    return [
-      addressBase,
-      item.parentNeighborhood,
-      item.parentDistrict,
-      item.parentCity,
-    ]
-      .filter(Boolean)
-      .join(", ");
-  }
-
-  if (item.kind === "street") {
-    return [
-      item.street || item.name || "",
-      item.parentNeighborhood,
-      item.parentDistrict,
-      item.parentCity,
-    ]
-      .filter(Boolean)
-      .join(", ");
-  }
-
-  if (item.kind === "neighborhood") {
-    return [
-      item.name || "",
-      "Mahallesi",
-      item.parentDistrict,
-      item.parentCity,
-    ]
-      .filter(Boolean)
-      .join(", ");
-  }
-
-  if (item.kind === "district") {
-    return [
-      item.name || "",
-      item.parentCity,
-    ]
-      .filter(Boolean)
-      .join(", ");
-  }
-
-  return [
-    item.name || "",
-    item.parentCity && item.parentCity !== item.name
-      ? item.parentCity
-      : "",
-  ]
-    .filter(Boolean)
-    .join(", ");
-};
+const suggestionLabel = getAddressSuggestionLabel;
 
 const makeCitySuggestion = (
   provinceName = "",
