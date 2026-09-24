@@ -696,6 +696,23 @@ def process_province(osm_path, province_row, districts, neighborhoods):
             "id": neighborhood_pid,
             "osmId": int(row_value(nrow, "id")),
             "name": str(row_value(nrow, "name", "")).strip(),
+            "kind": "neighborhood",
+            "displayName": (
+                str(row_value(nrow, "name", "")).strip()
+                + " Mahallesi, "
+                + str(district_payloads[district_raw]["name"])
+                + ", "
+                + province_name
+                + ", Türkiye"
+            ),
+            "formattedAddress": (
+                str(row_value(nrow, "name", "")).strip()
+                + " Mahallesi, "
+                + str(district_payloads[district_raw]["name"])
+                + ", "
+                + province_name
+                + ", Türkiye"
+            ),
             "districtId": id_to_district_pid[district_raw],
             "districtName": str(
                 district_payloads[district_raw]["name"]
@@ -1104,6 +1121,14 @@ def main():
                 "name": str(row_value(prow, "name", "")).strip(),
                 "placeId": pid,
                 "kind": "city",
+                "displayName": (
+                    str(row_value(prow, "name", "")).strip()
+                    + ", Türkiye"
+                ),
+                "formattedAddress": (
+                    str(row_value(prow, "name", "")).strip()
+                    + ", Türkiye"
+                ),
                 "parentCity": str(row_value(prow, "name", "")).strip(),
                 "source": "openstreetmap-static",
                 "areaId": (
@@ -1144,6 +1169,18 @@ def main():
                 "name": str(row_value(drow, "name", "")).strip(),
                 "placeId": dpid,
                 "kind": "district",
+                "displayName": (
+                    str(row_value(drow, "name", "")).strip()
+                    + ", "
+                    + province_name
+                    + ", Türkiye"
+                ),
+                "formattedAddress": (
+                    str(row_value(drow, "name", "")).strip()
+                    + ", "
+                    + province_name
+                    + ", Türkiye"
+                ),
                 "parentCity": province_name,
                 "provinceId": relation_place_id(
                     province_row.iloc[0]
@@ -1207,6 +1244,22 @@ def main():
                 "name": str(row_value(nrow, "name", "")).strip(),
                 "placeId": npid,
                 "kind": "neighborhood",
+                "displayName": (
+                    str(row_value(nrow, "name", "")).strip()
+                    + " Mahallesi, "
+                    + district_name
+                    + ", "
+                    + province_name
+                    + ", Türkiye"
+                ),
+                "formattedAddress": (
+                    str(row_value(nrow, "name", "")).strip()
+                    + " Mahallesi, "
+                    + district_name
+                    + ", "
+                    + province_name
+                    + ", Türkiye"
+                ),
                 "parentCity": province_name,
                 "parentDistrict": district_name,
                 "districtId": relation_place_id(
@@ -1237,7 +1290,7 @@ def main():
     compact_json(
         DATA_ROOT / "hierarchy.json",
         {
-            "version": 2,
+            "version": 3,
             "source": "OpenStreetMap / Geofabrik Turkey",
             "sourceUrl": DATA_URL,
             "generatedAt": __import__("datetime").datetime.utcnow().isoformat() + "Z",
@@ -1298,7 +1351,7 @@ def main():
     compact_json(
         MANIFEST_PATH,
         {
-            "version": 2,
+            "version": 3,
             "generatedAt": __import__("datetime").datetime.utcnow().isoformat() + "Z",
             "source": "OpenStreetMap / Geofabrik Turkey",
             "sourceUrl": DATA_URL,
