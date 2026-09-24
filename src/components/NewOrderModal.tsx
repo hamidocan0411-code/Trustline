@@ -32,6 +32,7 @@ import {
 import { storage } from "../services/storage";
 
 import {
+  getAddressSuggestionLabel,
   type GeoCoordinate,
   mapService,
   type AddressSuggestion,
@@ -1231,7 +1232,9 @@ export const NewOrderModal: React.FC<Props> = ({
                       });
                     }}
                     onSelect={(suggestion: AddressSuggestion) => {
-                      setPickupAddress(safeAddressText(suggestion.formattedAddress || suggestion.displayName));
+                      setPickupAddress(
+        getAddressSuggestionLabel(suggestion)
+      );
 
                       if (
                         suggestion.kind === "city" ||
@@ -1255,7 +1258,7 @@ export const NewOrderModal: React.FC<Props> = ({
                       setPickupStreetNumber(suggestion.streetNumber || "");
                       setPickupCoords(
                         suggestion.lat != null && suggestion.lng != null
-                          ? { lat: suggestion.lat, lng: suggestion.lng, name: safeAddressText(suggestion.formattedAddress || suggestion.displayName) }
+                          ? { lat: suggestion.lat, lng: suggestion.lng, name: getAddressSuggestionLabel(suggestion) }
                           : null
                       );
                       setDeliveryCoords(null);
@@ -1306,7 +1309,9 @@ export const NewOrderModal: React.FC<Props> = ({
                       });
                     }}
                     onSelect={(suggestion: AddressSuggestion) => {
-                      setDeliveryAddress(safeAddressText(suggestion.formattedAddress || suggestion.displayName));
+                      setDeliveryAddress(
+        getAddressSuggestionLabel(suggestion)
+      );
 
                       if (
                         suggestion.kind === "city" ||
