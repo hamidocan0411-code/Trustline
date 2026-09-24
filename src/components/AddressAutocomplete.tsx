@@ -51,14 +51,26 @@ const suggestionKindOf = (
 };
 
 const suggestionLabel = (
-  item: AddressSuggestion
+  item: AddressSuggestion | null | undefined
 ): string => {
-  if (item.displayName?.trim()) {
-    return item.displayName.trim();
+  if (!item) return "";
+
+  const displayName =
+    typeof item.displayName === "string"
+      ? item.displayName.trim()
+      : "";
+
+  if (displayName) {
+    return displayName;
   }
 
-  if (item.formattedAddress?.trim()) {
-    return item.formattedAddress.trim();
+  const formattedAddress =
+    typeof item.formattedAddress === "string"
+      ? item.formattedAddress.trim()
+      : "";
+
+  if (formattedAddress) {
+    return formattedAddress;
   }
 
   if (item.kind === "address") {
@@ -129,7 +141,7 @@ const makeCitySuggestion = (
   osmId?: number
 ): AddressSuggestion => {
   const name =
-    provinceName.trim();
+    String(provinceName ?? "").trim();
 
   return {
     displayName:
@@ -259,8 +271,13 @@ export const AddressAutocomplete: React.FC<
     };
 
   useEffect(() => {
+    const safeValue =
+      typeof value === "string"
+        ? value
+        : String(value ?? "");
+
     const query =
-      value.trim();
+      safeValue.trim();
 
     if (
       suppressNextSearchRef.current
@@ -412,8 +429,7 @@ export const AddressAutocomplete: React.FC<
           true;
 
         onChange(
-          selected.formattedAddress ||
-            selected.displayName
+          suggestionLabel(selected)
         );
         onSelect?.(
           selected
@@ -781,7 +797,11 @@ export const AddressAutocomplete: React.FC<
             disabled ||
             detailsLoading
           }
-          value={value}
+          value={
+            typeof value === "string"
+              ? value
+              : String(value ?? "")
+          }
           onChange={(event) => {
             ++requestIdRef.current;
 
