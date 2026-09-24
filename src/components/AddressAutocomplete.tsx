@@ -486,8 +486,7 @@ export const AddressAutocomplete: React.FC<
           true;
 
         onChange(
-          selected.formattedAddress ||
-            selected.displayName
+          suggestionLabel(selected)
         );
         onSelect?.(
           selected
@@ -553,8 +552,7 @@ export const AddressAutocomplete: React.FC<
           true;
 
         onChange(
-          selected.formattedAddress ||
-            selected.displayName
+          suggestionLabel(selected)
         );
         onSelect?.(
           selected
@@ -670,8 +668,7 @@ export const AddressAutocomplete: React.FC<
           true;
 
         onChange(
-          selected.formattedAddress ||
-            selected.displayName
+          suggestionLabel(selected)
         );
         onSelect?.(
           selected
@@ -728,8 +725,7 @@ export const AddressAutocomplete: React.FC<
           true;
 
         onChange(
-          selected.formattedAddress ||
-            selected.displayName
+          suggestionLabel(selected)
         );
         onSelect?.(
           selected
