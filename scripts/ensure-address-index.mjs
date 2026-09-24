@@ -14,14 +14,41 @@ const force = process.argv.includes(
   "--force"
 );
 
+const REQUIRED_INDEX_VERSION = 2;
+
 if (
   existsSync(manifest) &&
   !force
 ) {
-  console.log(
-    "[address-index] Static Turkey address index already exists."
-  );
-  process.exit(0);
+  try {
+    const rawManifest =
+      await import("node:fs/promises");
+    const manifestText =
+      await rawManifest.readFile(
+        manifest,
+        "utf8"
+      );
+    const manifestData =
+      JSON.parse(manifestText);
+
+    if (
+      Number(manifestData?.version) >=
+      REQUIRED_INDEX_VERSION
+    ) {
+      console.log(
+        "[address-index] Static Turkey address index already exists."
+      );
+      process.exit(0);
+    }
+
+    console.log(
+      "[address-index] Eski adres indeksi bulundu; yeni sürüm otomatik yeniden oluşturuluyor..."
+    );
+  } catch {
+    console.log(
+      "[address-index] Adres indeks manifesti okunamadı; yeniden oluşturuluyor..."
+    );
+  }
 }
 
 const candidates =
