@@ -336,16 +336,22 @@ export const AddressAutocomplete: React.FC<
               return;
             }
 
+            const renderableResults =
+              results.filter(
+                (item) =>
+                  suggestionLabel(item).trim().length > 0
+              );
+
             setSuggestions(
-              results
+              renderableResults
             );
             setSuggestionKind(
               suggestionKindOf(
-                results
+                renderableResults
               )
             );
             setOpen(
-              results.length >
+              renderableResults.length >
                 0
             );
           } catch (error) {
