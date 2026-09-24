@@ -118,7 +118,7 @@ export const NewOrderModal: React.FC<Props> = ({
     useState<UrgencyLevel>("Normal");
 
   const [distanceKm, setDistanceKm] =
-    useState<number>(10);
+    useState<number>(0);
 
   const [note, setNote] =
     useState("");
@@ -239,16 +239,6 @@ export const NewOrderModal: React.FC<Props> = ({
       );
     }
 
-    if (
-      typeof prefillData?.distanceKm ===
-      "number" &&
-      prefillData.distanceKm > 0
-    ) {
-      setDistanceKm(
-        prefillData.distanceKm
-      );
-    }
-
     if (prefillData?.note) {
       setNote(
         prefillData.note
@@ -281,6 +271,7 @@ export const NewOrderModal: React.FC<Props> = ({
       pickup.length < 3 ||
       delivery.length < 3
     ) {
+      setDistanceKm(0);
       setIsCalculatingDistance(false);
       setIsAutoCalculated(false);
       setApproximateDistanceText("");
@@ -372,6 +363,7 @@ export const NewOrderModal: React.FC<Props> = ({
                 roundedKm
               );
             } else {
+              setDistanceKm(0);
               setIsAutoCalculated(
                 false
               );
@@ -399,6 +391,7 @@ export const NewOrderModal: React.FC<Props> = ({
               error
             );
 
+            setDistanceKm(0);
             setIsAutoCalculated(
               false
             );
@@ -470,7 +463,17 @@ export const NewOrderModal: React.FC<Props> = ({
 
   /*
    * PRICE
+   *
+   * distanceKm yalnızca mevcut rota/mesafe hesaplaması başarılı olduğunda
+   * fiyatlandırmaya dahil edilir. Manuel/pre-filled bir değer kullanılmaz.
    */
+  const calculatedDistanceKm =
+    isAutoCalculated &&
+    Number.isFinite(distanceKm) &&
+    distanceKm > 0
+      ? distanceKm
+      : 0;
+
   const {
     finalPrice,
     multiplier,
@@ -478,7 +481,7 @@ export const NewOrderModal: React.FC<Props> = ({
     packageSizeFee,
   } =
     calculateOrderPrice(
-      distanceKm,
+      calculatedDistanceKm,
       courierType,
       pricing,
       packageSize
@@ -498,7 +501,7 @@ export const NewOrderModal: React.FC<Props> = ({
     try {
       const verifiedPrice =
         calculateOrderPrice(
-          distanceKm,
+          calculatedDistanceKm,
           courierType,
           pricing,
           packageSize
@@ -731,13 +734,14 @@ export const NewOrderModal: React.FC<Props> = ({
     }
 
     if (
+      !isAutoCalculated ||
       !Number.isFinite(
-        distanceKm
+        calculatedDistanceKm
       ) ||
-      distanceKm <= 0
+      calculatedDistanceKm <= 0
     ) {
       setErrorMsg(
-        "Lütfen geçerli bir mesafe belirtiniz."
+        "Adresler için geçerli rota mesafesi otomatik hesaplanmadan sipariş oluşturulamaz."
       );
 
       return;
@@ -1389,7 +1393,7 @@ export const NewOrderModal: React.FC<Props> = ({
                     </p>
 
                     <p className="text-[10px] mt-1">
-                      KM alanından manuel değer girebilirsiniz.
+                      Adresler değiştiğinde mesafe otomatik olarak yeniden hesaplanır.
                     </p>
                   </div>
                 </div>
@@ -1410,31 +1414,23 @@ export const NewOrderModal: React.FC<Props> = ({
 
                 <div className="relative">
                   <input
-                    type="number"
-                    min="0.1"
-                    step="0.1"
+                    type="text"
+                    readOnly
+                    aria-readonly="true"
+                    inputMode="none"
+                    tabIndex={0}
                     value={
-                      distanceKm
+                      isAutoCalculated &&
+                      calculatedDistanceKm > 0
+                        ? String(calculatedDistanceKm)
+                        : ""
                     }
-                    onChange={(e) => {
-                      const value =
-                        Number(
-                          e.target.value
-                        );
-
-                      setDistanceKm(
-                        Number.isFinite(
-                          value
-                        )
-                          ? value
-                          : 0
-                      );
-
-                      setIsAutoCalculated(
-                        false
-                      );
-                    }}
-                    className="w-full bg-[#222229] border border-[#303036] focus:border-[#D6A84F] rounded-xl px-3.5 py-2.5 pr-12 text-sm text-white focus:outline-none"
+                    placeholder={
+                      isCalculatingDistance
+                        ? "Hesaplanıyor..."
+                        : "Rota mesafesi bekleniyor"
+                    }
+                    className="w-full cursor-default bg-[#19191E] border border-[#303036] rounded-xl px-3.5 py-2.5 pr-12 text-sm text-white/90 focus:outline-none focus:border-[#D6A84F]"
                   />
 
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-[#777777] font-bold">
