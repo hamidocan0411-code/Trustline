@@ -4036,6 +4036,44 @@ class MapService {
       return exactNeighborhoods;
     }
 
+    /*
+     * Kullanıcı üst hiyerarşiyi henüz seçmediyse,
+     * il adı ilçe adlarının önünde gösterilir.
+     * Örn. "is" yazıldığında İstanbul / Isparta önce gelir.
+     */
+    const provinceMatches =
+      this.filterStaticEntries(
+        provinces,
+        cleanQuery
+      );
+
+    const normalizedQuery =
+      normalizeTurkish(
+        this.normalizeQueryForHierarchy(
+          cleanQuery
+        )
+      );
+
+    const provincePriorityMatches =
+      provinceMatches.filter(
+        (item) =>
+          normalizeTurkish(
+            String(item.name || "")
+          ) === normalizedQuery ||
+          normalizeTurkish(
+            String(item.name || "")
+          ).startsWith(normalizedQuery)
+      );
+
+    if (
+      provincePriorityMatches.length > 0
+    ) {
+      return provincePriorityMatches.slice(
+        0,
+        20
+      );
+    }
+
     const districtMatches =
       this.filterStaticEntries(
         districts,
@@ -4050,12 +4088,6 @@ class MapService {
         20
       );
     }
-
-    const provinceMatches =
-      this.filterStaticEntries(
-        provinces,
-        cleanQuery
-      );
 
     if (
       provinceMatches.length > 0
