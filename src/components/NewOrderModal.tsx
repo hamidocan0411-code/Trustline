@@ -7,6 +7,7 @@ import React, {
 import {
   AlertCircle,
   Check,
+  Info,
   Loader2,
   MapPin,
   Navigation,
@@ -1205,6 +1206,38 @@ export const NewOrderModal: React.FC<Props> = ({
               </div>
 
               <div className="space-y-3">
+                <div className="rounded-xl border border-[#D6A84F]/30 bg-[#D6A84F]/[0.06] px-3.5 py-3 sm:px-4 sm:py-3.5">
+                  <div className="flex items-start gap-2.5">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#D6A84F]" />
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#D6A84F] sm:text-[11px]">
+                        Adres girişi
+                      </p>
+
+                      <p className="mt-1 text-[11px] leading-5 text-white/90 sm:text-xs">
+                        Doğru adres ve KM hesaplaması için adresinizi il →
+                        ilçe → mahalle → sokak/cadde → bina numarası
+                        şeklinde eksiksiz seçiniz.
+                      </p>
+
+                      <div className="mt-2 rounded-lg border border-white/10 bg-black/10 px-2.5 py-2">
+                        <p className="text-[9px] font-semibold uppercase tracking-wide text-white/45">
+                          Örnek adres
+                        </p>
+                        <p className="mt-0.5 break-words text-[10px] leading-4 text-white/75 sm:text-[11px]">
+                          İstanbul, Avcılar, Cihangir Mahallesi, Cenk Sokak, No: 16
+                        </p>
+                      </div>
+
+                      <p className="mt-2 text-[9px] leading-4 text-white/50 sm:text-[10px]">
+                        Adres bilgilerini ne kadar eksiksiz seçerseniz,
+                        rota ve KM hesabının doğru yapılmasına o kadar
+                        yardımcı olur.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[10px] text-[#D6A84F] uppercase font-bold flex items-center gap-1.5">
