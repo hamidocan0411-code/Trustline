@@ -1263,12 +1263,36 @@ def main():
         },
     )
 
+    processed_provinces = []
+    failed_provinces = []
+
     for _, prow in provinces.iterrows():
-        process_province(
-            str(PBF_PATH),
-            prow,
-            districts,
-            neighborhoods,
+        province_name = str(
+            row_value(prow, "name", "")
+        ).strip()
+
+        try:
+            process_province(
+                str(PBF_PATH),
+                prow,
+                districts,
+                neighborhoods,
+            )
+            processed_provinces.append(province_name)
+        except Exception as exc:
+            failed_provinces.append(
+                {
+                    "name": province_name,
+                    "error": str(exc),
+                }
+            )
+            log(
+                f"{province_name}: il indeksleme hatası nedeniyle atlandı: {exc}"
+            )
+
+    if not processed_provinces:
+        raise RuntimeError(
+            "Hiçbir Türkiye ili adres indeksine işlenemedi."
         )
 
     compact_json(
@@ -1281,10 +1305,22 @@ def main():
             "hierarchy": "hierarchy.json",
             "districtPath": "districts/{provinceId}/{districtId}.json",
             "addressPath": "addresses/{districtId}/{neighborhoodId}.json",
+            "processedProvinceCount": len(processed_provinces),
+            "processedProvinces": sorted(processed_provinces),
+            "failedProvinceCount": len(failed_provinces),
+            "failedProvinces": failed_provinces,
+            "complete": len(failed_provinces) == 0,
         },
     )
 
-    log("Türkiye statik adres indeksi başarıyla üretildi.")
+    if failed_provinces:
+        log(
+            f"Türkiye statik adres indeksi üretildi; "
+            f"{len(processed_provinces)} il işlendi, "
+            f"{len(failed_provinces)} il atlandı."
+        )
+    else:
+        log("Türkiye statik adres indeksi başarıyla üretildi.")
 
 
 if __name__ == "__main__":
