@@ -1225,7 +1225,7 @@ export const NewOrderModal: React.FC<Props> = ({
                           Örnek adres
                         </p>
                         <p className="mt-0.5 break-words text-[10px] leading-4 text-white/75 sm:text-[11px]">
-                          İstanbul, Avcılar, Cihangir Mahallesi, Cenk Sokak, No: 16
+                          İstanbul, Avcılar, Cihangir Mahallesi, Cenk Sokak, 16
                         </p>
                       </div>
 
