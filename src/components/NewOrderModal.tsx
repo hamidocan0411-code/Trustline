@@ -40,6 +40,16 @@ import {
 import { AddressAutocomplete } from "./AddressAutocomplete";
 import { RouteMap } from "./RouteMap";
 
+const safeAddressText = (
+  value: unknown
+): string => {
+  return typeof value === "string"
+    ? value
+    : value == null
+      ? ""
+      : String(value);
+};
+
 interface AddressHierarchyState {
   city: string;
   district: string;
@@ -261,10 +271,10 @@ export const NewOrderModal: React.FC<Props> = ({
    */
   useEffect(() => {
     const pickup =
-      pickupAddress.trim();
+      safeAddressText(pickupAddress).trim();
 
     const delivery =
-      deliveryAddress.trim();
+      safeAddressText(deliveryAddress).trim();
 
     if (
       pickup.length < 3 ||
@@ -518,7 +528,7 @@ export const NewOrderModal: React.FC<Props> = ({
       const customerPhone =
         typeof currentUser.phone ===
         "string"
-          ? currentUser.phone.trim()
+          ? safeAddressText(currentUser.phone).trim()
           : "";
 
       const newOrder =
@@ -550,7 +560,7 @@ export const NewOrderModal: React.FC<Props> = ({
           courierId: null,
 
           pickupAddress:
-            pickupAddress.trim(),
+            safeAddressText(pickupAddress).trim(),
 
           ...(pickupPlaceId ? {
             pickupPlaceId,
@@ -563,7 +573,7 @@ export const NewOrderModal: React.FC<Props> = ({
           } : {}),
 
           deliveryAddress:
-            deliveryAddress.trim(),
+            safeAddressText(deliveryAddress).trim(),
 
           ...(deliveryPlaceId ? {
             deliveryPlaceId,
@@ -593,7 +603,7 @@ export const NewOrderModal: React.FC<Props> = ({
             "Kurye Bekleniyor",
 
           note:
-            note.trim(),
+            safeAddressText(note).trim(),
 
           estimatedDeliveryMinutes:
             courierType ===
@@ -700,7 +710,7 @@ export const NewOrderModal: React.FC<Props> = ({
     }
 
     if (
-      !pickupAddress.trim()
+      !safeAddressText(pickupAddress).trim()
     ) {
       setErrorMsg(
         "Lütfen paketin alınacağı adresi giriniz."
@@ -710,7 +720,7 @@ export const NewOrderModal: React.FC<Props> = ({
     }
 
     if (
-      !deliveryAddress.trim()
+      !safeAddressText(deliveryAddress).trim()
     ) {
       setErrorMsg(
         "Lütfen paketin teslim edileceği adresi giriniz."
@@ -1221,7 +1231,7 @@ export const NewOrderModal: React.FC<Props> = ({
                       });
                     }}
                     onSelect={(suggestion: AddressSuggestion) => {
-                      setPickupAddress(suggestion.formattedAddress || suggestion.displayName);
+                      setPickupAddress(safeAddressText(suggestion.formattedAddress || suggestion.displayName));
 
                       if (
                         suggestion.kind === "city" ||
@@ -1245,7 +1255,7 @@ export const NewOrderModal: React.FC<Props> = ({
                       setPickupStreetNumber(suggestion.streetNumber || "");
                       setPickupCoords(
                         suggestion.lat != null && suggestion.lng != null
-                          ? { lat: suggestion.lat, lng: suggestion.lng, name: suggestion.formattedAddress || suggestion.displayName }
+                          ? { lat: suggestion.lat, lng: suggestion.lng, name: safeAddressText(suggestion.formattedAddress || suggestion.displayName) }
                           : null
                       );
                       setDeliveryCoords(null);
@@ -1296,7 +1306,7 @@ export const NewOrderModal: React.FC<Props> = ({
                       });
                     }}
                     onSelect={(suggestion: AddressSuggestion) => {
-                      setDeliveryAddress(suggestion.formattedAddress || suggestion.displayName);
+                      setDeliveryAddress(safeAddressText(suggestion.formattedAddress || suggestion.displayName));
 
                       if (
                         suggestion.kind === "city" ||
