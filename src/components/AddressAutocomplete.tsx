@@ -50,6 +50,78 @@ const suggestionKindOf = (
   return undefined;
 };
 
+const suggestionLabel = (
+  item: AddressSuggestion
+): string => {
+  if (item.displayName?.trim()) {
+    return item.displayName.trim();
+  }
+
+  if (item.formattedAddress?.trim()) {
+    return item.formattedAddress.trim();
+  }
+
+  if (item.kind === "address") {
+    const addressBase = [
+      item.street || item.name || "",
+      item.streetNumber
+        ? "No: " + item.streetNumber
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return [
+      addressBase,
+      item.parentNeighborhood,
+      item.parentDistrict,
+      item.parentCity,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (item.kind === "street") {
+    return [
+      item.street || item.name || "",
+      item.parentNeighborhood,
+      item.parentDistrict,
+      item.parentCity,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (item.kind === "neighborhood") {
+    return [
+      item.name || "",
+      "Mahallesi",
+      item.parentDistrict,
+      item.parentCity,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (item.kind === "district") {
+    return [
+      item.name || "",
+      item.parentCity,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return [
+    item.name || "",
+    item.parentCity && item.parentCity !== item.name
+      ? item.parentCity
+      : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+};
+
 const makeCitySuggestion = (
   provinceName = "",
   source?: string,
@@ -806,9 +878,7 @@ export const AddressAutocomplete: React.FC<
 
                   <span className="min-w-0">
                     <span className="block text-xs font-semibold leading-5 text-white">
-                      {
-                        item.displayName
-                      }
+                      {suggestionLabel(item)}
                     </span>
 
                     {(suggestionKind ===
