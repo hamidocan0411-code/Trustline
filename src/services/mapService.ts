@@ -477,11 +477,12 @@ class MapService {
       return cached as T;
     }
 
-    if (!(await this.ensureStaticAddressData())) {
-      return null;
-    }
-
     try {
+      /*
+       * Static dosyaların çalışması için manifest zorunlu değil.
+       * Böylece hierarchy.json mevcut olduğu sürece autocomplete,
+       * manifest gecikmesi/önbelleği yüzünden boş kalmaz.
+       */
       const response = await fetch(
         "/address-data/" +
           normalizedPath,
