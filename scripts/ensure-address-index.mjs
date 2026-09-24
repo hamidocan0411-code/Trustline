@@ -14,7 +14,7 @@ const force = process.argv.includes(
   "--force"
 );
 
-const REQUIRED_INDEX_VERSION = 2;
+const REQUIRED_INDEX_VERSION = 3;
 
 if (
   existsSync(manifest) &&
