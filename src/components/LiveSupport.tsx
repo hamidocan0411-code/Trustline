@@ -228,7 +228,7 @@ function ChatWindow({
                 )}
               </div>
 
-              <div className="flex gap-2 overflow-x-auto pb-1 overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex gap-2 overflow-x-auto pb-1 overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-x-visible sm:pb-0">
                 {(showAllQuickReplies ? supportQuickReplies : supportQuickReplies.slice(0, 8)).map((reply) => (
                   <button
                     key={reply.id}
