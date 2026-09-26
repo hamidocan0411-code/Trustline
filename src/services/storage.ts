@@ -107,6 +107,8 @@ class StorageService {
     | string
     | null = null;
 
+  private adminOrderListenerInitialized = false;
+
   /* ==========================================================
      INIT
   ========================================================== */
@@ -530,6 +532,8 @@ class StorageService {
           )
         );
 
+      this.adminOrderListenerInitialized = false;
+
       console.log(
         "👑 ADMIN tüm siparişleri dinliyor."
       );
@@ -599,6 +603,41 @@ class StorageService {
                   id: item.id,
                 })
               );
+
+            if (role === "admin") {
+              const addedOrders = snapshot
+                .docChanges()
+                .filter((change) => change.type === "added")
+                .map(
+                  (change) =>
+                    ({
+                      ...(change.doc.data() as Order),
+                      id: change.doc.id,
+                    }) as Order
+                );
+
+              if (this.adminOrderListenerInitialized) {
+                for (const order of addedOrders) {
+                  void this.createNotification({
+                    id: `order-${order.id}-admin-new`.replace(/[^a-zA-Z0-9_-]/g, "-"),
+                    userId: uid,
+                    orderId: order.id,
+                    title: "Yeni Sipariş",
+                    message: `#${order.id} numaralı yeni sipariş oluşturuldu.`,
+                    type: "info",
+                    read: false,
+                    createdAt: order.createdAt || new Date().toISOString(),
+                  }).catch((error) => {
+                    console.error(
+                      "❌ Admin yeni sipariş bildirimi oluşturulamadı:",
+                      error
+                    );
+                  });
+                }
+              }
+
+              this.adminOrderListenerInitialized = true;
+            }
 
             console.log(
               "🏁“¦ Siparişler güncellendi:",
@@ -937,6 +976,7 @@ class StorageService {
     this.orders = [];
     this.notifications = [];
     this.courierLocations = [];
+    this.adminOrderListenerInitialized = false;
 
     this.pricing = {
       ...DEFAULT_PRICING,
@@ -2103,6 +2143,9 @@ class StorageService {
         orderId
       );
 
+    const statusChanged =
+      current?.status !== status;
+
     if (
       status ===
       "Teslim Edildi"
@@ -2171,6 +2214,29 @@ class StorageService {
 
       this.emit();
 
+      if (
+        statusChanged &&
+        current?.customerId &&
+        this.currentUser?.role !== "customer" &&
+        this.currentUser?.role !== "corporate"
+      ) {
+        void this.createNotification({
+          id: `order-${orderId}-status-teslim-edildi`.replace(/[^a-zA-Z0-9_-]/g, "-"),
+          userId: current.customerId,
+          orderId,
+          title: "Sipariş Durumu Güncellendi",
+          message: `#${orderId} numaralı siparişinizin durumu: Teslim Edildi.`,
+          type: "order_status",
+          read: false,
+          createdAt: deliveredAt,
+        }).catch((error) => {
+          console.error(
+            "❌ Teslim edildi bildirimi oluşturulamadı:",
+            error
+          );
+        });
+      }
+
       console.log(
         "✅ Sipariş teslim edildi:",
         {
@@ -2182,12 +2248,40 @@ class StorageService {
       return updatedOrder;
     }
 
-    return this.updateOrder(
+    const updatedOrder = await this.updateOrder(
       orderId,
       {
         status,
       }
     );
+
+    if (
+      statusChanged &&
+      current?.customerId &&
+      this.currentUser?.role !== "customer" &&
+      this.currentUser?.role !== "corporate"
+    ) {
+      const safeStatusId =
+        status.replace(/[^a-zA-Z0-9_-]/g, "-");
+
+      void this.createNotification({
+        id: `order-${orderId}-status-${safeStatusId}`,
+        userId: current.customerId,
+        orderId,
+        title: "Sipariş Durumu Güncellendi",
+        message: `#${orderId} numaralı siparişinizin durumu: ${status}.`,
+        type: "order_status",
+        read: false,
+        createdAt: updatedOrder.updatedAt || new Date().toISOString(),
+      }).catch((error) => {
+        console.error(
+          "❌ Sipariş durum bildirimi oluşturulamadı:",
+          error
+        );
+      });
+    }
+
+    return updatedOrder;
   }
 
   async assignCourier(
@@ -2214,21 +2308,67 @@ class StorageService {
       );
     }
 
-    return this.updateOrder(
-      orderId,
-      {
-        courierId,
+    const currentOrder =
+      this.getOrderById(orderId);
 
-        courierName:
-          courier.name || "",
+    const updatedOrder =
+      await this.updateOrder(
+        orderId,
+        {
+          courierId,
 
-        courierPhone:
-          courier.phone || "",
+          courierName:
+            courier.name || "",
 
-        status:
-          "Kurye Atandı",
-      }
-    );
+          courierPhone:
+            courier.phone || "",
+
+          status:
+            "Kurye Atandı",
+        }
+      );
+
+    const assignmentChanged =
+      currentOrder?.courierId !== courierId ||
+      currentOrder?.status !== "Kurye Atandı";
+
+    if (assignmentChanged) {
+      const now = new Date().toISOString();
+
+      await Promise.all([
+        this.createNotification({
+          id: `order-${orderId}-assignment-courier-${courierId}`.replace(/[^a-zA-Z0-9_-]/g, "-"),
+          userId: courierId,
+          orderId,
+          title: "Yeni Sipariş Atandı",
+          message: `#${orderId} numaralı sipariş size atandı.`,
+          type: "assignment",
+          read: false,
+          createdAt: now,
+        }),
+        ...(updatedOrder.customerId
+          ? [
+              this.createNotification({
+                id: `order-${orderId}-assignment-customer-${courierId}`.replace(/[^a-zA-Z0-9_-]/g, "-"),
+                userId: updatedOrder.customerId,
+                orderId,
+                title: "Kurye Atandı",
+                message: `#${orderId} numaralı siparişinize kurye atandı.`,
+                type: "assignment",
+                read: false,
+                createdAt: now,
+              }),
+            ]
+          : []),
+      ]).catch((error) => {
+        console.error(
+          "❌ Kurye atama bildirimleri oluşturulamadı:",
+          error
+        );
+      });
+    }
+
+    return updatedOrder;
   }
 
   async deleteOrder(
