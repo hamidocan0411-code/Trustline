@@ -39,6 +39,7 @@ import {
   supportService,
   type SupportTicket,
 } from "../services/support";
+import { formatPaymentMethod } from "../utils/payment";
 
 import { DeliveryProofCard } from "./DeliveryProofCard";
 import { LiveSupport } from "./LiveSupport";
@@ -175,6 +176,9 @@ export const AdminPanel: React.FC<Props> = ({
 
   const [customerTypeFilter, setCustomerTypeFilter] =
     useState<"Tümü" | "Bireysel" | "Kurumsal">("Tümü");
+
+  const [paymentMethodFilter, setPaymentMethodFilter] =
+    useState<"Tümü" | "NAKİT" | "İBAN">("Tümü");
 
   const [selectedOrder, setSelectedOrder] =
     useState<Order | null>(null);
@@ -669,7 +673,19 @@ export const AdminPanel: React.FC<Props> = ({
               ? order.customerType === "corporate"
               : order.customerType !== "corporate");
 
-          return matchesSearch && matchesStatus && matchesCustomerType;
+          const matchesPaymentMethod =
+            paymentMethodFilter === "Tümü" ||
+            formatPaymentMethod(
+              order.paymentMethod,
+              order.pharmacyPaymentMethod
+            ) === paymentMethodFilter;
+
+          return (
+            matchesSearch &&
+            matchesStatus &&
+            matchesCustomerType &&
+            matchesPaymentMethod
+          );
         })
         .sort(
           (a, b) =>
@@ -685,6 +701,7 @@ export const AdminPanel: React.FC<Props> = ({
       searchTerm,
       statusFilter,
       customerTypeFilter,
+      paymentMethodFilter,
     ]);
 
   const formatMoney = (
