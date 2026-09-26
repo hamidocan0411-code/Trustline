@@ -11,6 +11,8 @@ import {
   RefreshCw,
   Search,
   X,
+  WalletCards,
+  Landmark,
 } from "lucide-react";
 import type {
   CourierType,
@@ -22,6 +24,11 @@ import type {
 import { calculateOrderPrice, type PackageSize } from "../utils/pricing";
 import { storage } from "../services/storage";
 import { mapService } from "../services/mapService";
+import {
+  DEFAULT_PAYMENT_METHOD,
+  formatPaymentMethod,
+  type PaymentMethod,
+} from "../utils/payment";
 import {
   pharmacyService,
   type NearbyPharmacy,
@@ -65,6 +72,10 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [paymentAccepted, setPaymentAccepted] = useState(false);
+  const [paymentMethod, setPaymentMethod] =
+    useState<PaymentMethod>(
+      DEFAULT_PAYMENT_METHOD
+    );
   const [successOrder, setSuccessOrder] = useState<Order | null>(null);
   const calculationRef = useRef(0);
 
@@ -152,6 +163,9 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
       setSuccessOrder(null);
       setErrorMsg("");
       setPaymentAccepted(false);
+      setPaymentMethod(
+        DEFAULT_PAYMENT_METHOD
+      );
       return;
     }
 
@@ -323,7 +337,7 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
         pharmacyRecipientName: receiverName.trim(),
         pharmacyRecipientPhone: safeReceiverPhone,
         pharmacyDeliveryType: deliveryType,
-        pharmacyPaymentMethod: "Nakit",
+        paymentMethod,
         createdAt: now,
         updatedAt: now,
       };
@@ -413,7 +427,7 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
             </div>
 
             <div className="rounded-2xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-4 text-sm text-[#D0D0D5]">
-              Ödeme yöntemi: <span className="font-black text-[#D6A84F]">Nakit</span>
+              Ödeme yöntemi: <span className="font-black text-[#D6A84F]">{formatPaymentMethod(successOrder.paymentMethod, successOrder.pharmacyPaymentMethod)}</span>
             </div>
 
             <button
@@ -807,22 +821,65 @@ export const PharmacyOrderPanel: React.FC<Props> = ({
           </div>
 
           <div className="rounded-2xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-4 text-sm text-[#CFCFD5] space-y-3">
-  <div>
-    Bu sürümde ödeme yöntemi <span className="font-black text-[#D6A84F]">nakit</span> olarak uygulanmaktadır.
-  </div>
+            <div>
+              Ödeme yönteminizi aşağıdaki seçeneklerden tercih edebilirsiniz.
+            </div>
 
-  <label className="flex items-start gap-3 cursor-pointer">
-    <input
-      type="checkbox"
-      checked={paymentAccepted}
-      onChange={(event) => setPaymentAccepted(event.target.checked)}
-      className="mt-1 h-4 w-4 accent-[#D6A84F]"
-    />
-    <span>
-      Nakit ödeme yapılacağını okudum ve kabul ediyorum.
-    </span>
-  </label>
-</div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentMethod("cash");
+                  setPaymentAccepted(false);
+                }}
+                className={
+                  paymentMethod === "cash"
+                    ? "flex min-h-[50px] items-center justify-center gap-2 rounded-xl border border-[#D6A84F] bg-[#D6A84F]/10 px-3 py-3 text-xs font-black text-[#D6A84F]"
+                    : "flex min-h-[50px] items-center justify-center gap-2 rounded-xl border border-[#303036] bg-[#101014] px-3 py-3 text-xs font-black text-[#999999]"
+                }
+              >
+                <WalletCards size={15} />
+                NAKİT
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentMethod("iban");
+                  setPaymentAccepted(false);
+                }}
+                className={
+                  paymentMethod === "iban"
+                    ? "flex min-h-[50px] items-center justify-center gap-2 rounded-xl border border-[#D6A84F] bg-[#D6A84F]/10 px-3 py-3 text-xs font-black text-[#D6A84F]"
+                    : "flex min-h-[50px] items-center justify-center gap-2 rounded-xl border border-[#303036] bg-[#101014] px-3 py-3 text-xs font-black text-[#999999]"
+                }
+              >
+                <Landmark size={15} />
+                HAVALE / IBAN
+              </button>
+            </div>
+
+            {paymentMethod === "iban" && (
+              <div className="rounded-xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-3 text-[10px] leading-4 text-[#CFCFD5]">
+                Uygulama yapılandırmasında tanımlı bir IBAN bilgisi bulunmuyor.
+                Ödeme bilgilerini Trustline Express'ten teyit etmeden transfer yapmayın.
+              </div>
+            )}
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={paymentAccepted}
+                onChange={(event) => setPaymentAccepted(event.target.checked)}
+                className="mt-1 h-4 w-4 accent-[#D6A84F]"
+              />
+              <span>
+                {paymentMethod === "cash"
+                  ? "Nakit ödeme yapılacağını okudum ve kabul ediyorum."
+                  : "Havale / IBAN ile ödeme yapılacağını okudum ve kabul ediyorum."}
+              </span>
+            </label>
+          </div>
 
           {errorMsg && (
             <div className="flex gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
