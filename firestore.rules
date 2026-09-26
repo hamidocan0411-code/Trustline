@@ -143,6 +143,7 @@ service cloud.firestore {
         && request.resource.data.status == 'Kurye Bekleniyor'
         && request.resource.data.courierId == null
         && request.resource.data.orderType in ['standard', 'pharmacy']
+        && request.resource.data.paymentMethod in ['cash', 'iban', 'bank_transfer']
         && request.resource.data.distanceKm is number
         && request.resource.data.distanceKm > 0
         && request.resource.data.distanceKm <= 1000
