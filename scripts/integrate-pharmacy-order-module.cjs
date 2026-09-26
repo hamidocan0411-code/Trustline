@@ -39,7 +39,7 @@ patch(
 patch(
   'src/types.ts',
   "  estimatedDeliveryMinutes?: number;\n\n  deliveryProof?: DeliveryProof;",
-  "  estimatedDeliveryMinutes?: number;\n\n  pharmacyName?: string;\n  pharmacyAddress?: string;\n  pharmacyProduct?: string;\n  pharmacyProductDescription?: string;\n  pharmacyQuantity?: number;\n  pharmacyRecipientName?: string;\n  pharmacyRecipientPhone?: string;\n  pharmacyDeliveryType?: 'Standart Teslimat' | 'Acil Teslimat';\n  pharmacyPaymentMethod?: 'Nakit';\n  pharmacyPrescriptionPath?: string;\n  pharmacyPrescriptionFileName?: string;\n\n  deliveryProof?: DeliveryProof;",
+  "  estimatedDeliveryMinutes?: number;\n\n  paymentMethod?: \"cash\" | \"iban\" | \"bank_transfer\";\n\n  pharmacyName?: string;\n  pharmacyAddress?: string;\n  pharmacyProduct?: string;\n  pharmacyProductDescription?: string;\n  pharmacyQuantity?: number;\n  pharmacyRecipientName?: string;\n  pharmacyRecipientPhone?: string;\n  pharmacyDeliveryType?: 'Standart Teslimat' | 'Acil Teslimat';\n  pharmacyPaymentMethod?: 'Nakit';\n  pharmacyPrescriptionPath?: string;\n  pharmacyPrescriptionFileName?: string;\n\n  deliveryProof?: DeliveryProof;",
   'pharmacy fields'
 );
 
