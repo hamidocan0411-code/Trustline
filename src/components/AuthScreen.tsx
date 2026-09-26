@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { loginWithGoogle } from "../services/auth";
 import { Footer } from "./Footer";
+import { CorporateOfferModal } from "./CorporateOfferModal";
 
 import type { UserProfile } from "../types";
 
@@ -139,6 +140,7 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState<ServiceDetail["id"] | null>(null);
+  const [isCorporateOfferOpen, setIsCorporateOfferOpen] = useState(false);
   const [selectedBrandIndex, setSelectedBrandIndex] = useState(0);
   const selectedService = selectedServiceId ? SERVICE_DETAILS.find((service) => service.id === selectedServiceId) ?? null : null;
 
@@ -295,9 +297,13 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
             <p className="text-xs font-black uppercase tracking-[0.34em] text-orange-300/90">Daha fazla hareket · daha güçlü yarınlar</p>
             <h1 className="mt-5 text-5xl font-black leading-[0.98] tracking-tight text-white sm:text-6xl lg:text-7xl">Hızlı.<br />Güvenilir.<br /><span className="text-orange-500">Profesyonel.</span></h1>
             <p className="mt-7 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">İstanbul'un her noktasında gönderileriniz için güvenilir teslimat çözümü.</p>
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <a href="#why" className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-500 px-6 py-3.5 text-sm font-black text-white shadow-[0_14px_40px_rgba(249,115,22,0.30)] transition hover:-translate-y-0.5 hover:bg-orange-400">Keşfet <span aria-hidden="true">↓</span></a>
               <a href="#login" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-6 py-3.5 text-sm font-black text-white transition hover:border-orange-300/50 hover:bg-orange-400/10">Google ile Giriş Yap <span aria-hidden="true">→</span></a>
+              <button type="button" onClick={() => setIsCorporateOfferOpen(true)} className="group inline-flex items-center justify-center gap-2 rounded-full border border-orange-300/35 bg-orange-400/[0.07] px-6 py-3.5 text-sm font-black text-orange-100 shadow-[0_12px_35px_rgba(249,115,22,0.10)] transition hover:-translate-y-0.5 hover:border-orange-200/60 hover:bg-orange-400/[0.13] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300/70">
+                <span className="text-orange-300 transition group-hover:scale-110">◆</span>
+                KURUMSAL TEKLİF ALIN
+              </button>
             </div>
             <div className="mt-10 grid max-w-2xl grid-cols-3 gap-3">
               {[["01", "Hızlı Teslimat"], ["02", "Güvenli Taşıma"], ["03", "Takip Edilebilir Süreç"]].map(([num, label]) => <div key={num} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-300">{num}</p><p className="mt-2 text-xs font-bold leading-5 text-slate-200">{label}</p></div>)}
@@ -448,7 +454,13 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
 
         <section id="corporate" className="scroll-mt-20 mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24"><div className="rounded-[34px] border border-white/10 bg-gradient-to-br from-white/[0.045] via-white/[0.02] to-orange-500/[0.06] p-6 sm:p-8 lg:p-10"><div className="grid gap-10 lg:grid-cols-[1fr_1.2fr] lg:items-center"><div><p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Kurumsal avantajlar</p><h2 className="mt-4 text-4xl font-black tracking-tight text-white">Güven, teslimatla büyür.</h2><p className="mt-4 max-w-xl text-sm leading-6 text-slate-400">İşletmelerin düzenli teslimat ihtiyaçlarını daha kontrollü ve izlenebilir bir operasyon deneyimiyle yönetmesine yardımcı olan bir yapı.</p></div><div className="grid gap-3 sm:grid-cols-2">{[["01", "Operasyon odaklı", "Teslimat akışını tek noktadan yönetmeye yardımcı olur."], ["02", "Takip edilebilir", "Süreç boyunca gönderi durumunun izlenmesini destekler."], ["03", "Eczane 7/24", "Eczane ürünleri için günün her saatinde teslimat hizmeti."], ["04", "Mobil uyumlu", "Farklı ekranlarda erişilebilir ve sade kullanım."]].map(([num, title, body]) => <div key={num} className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-[10px] font-black tracking-[0.2em] text-orange-300">{num}</p><p className="mt-2 text-sm font-black text-white">{title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{body}</p></div>)}</div></div></div></section>
 
+        <button type="button" onClick={() => setIsCorporateOfferOpen(true)} className="mt-5 mx-auto flex min-h-11 items-center justify-center gap-2 rounded-full border border-orange-300/25 bg-orange-400/[0.06] px-5 py-3 text-xs font-black text-orange-200 transition hover:border-orange-300/50 hover:bg-orange-400/[0.10] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300/60">
+          Kurumsal Çözümleri Detaylı İncele <span aria-hidden="true">→</span>
+        </button>
+
         <section id="contact" className="scroll-mt-20 border-t border-white/[0.06] bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.14),transparent_48%)]"><div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 py-20 text-center sm:px-6 lg:px-8 lg:py-28"><p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Trustline Express</p><h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-6xl">Gönderiniz hazır mı?</h2><p className="mt-5 max-w-2xl text-base leading-7 text-slate-400">Trustline Express ile güvenli ve hızlı teslimat deneyimine devam edin.</p><div className="mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row"><a href="#login" className="inline-flex items-center justify-center rounded-full bg-orange-500 px-7 py-3.5 text-sm font-black text-white shadow-[0_18px_45px_rgba(249,115,22,0.28)] transition hover:-translate-y-0.5 hover:bg-orange-400">Google ile Giriş Yap →</a><a href="#services" className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/[0.03] px-7 py-3.5 text-sm font-black text-white transition hover:border-orange-300/40 hover:bg-orange-400/10">Hizmetlerimizi Keşfet</a></div></div></section>
+
+      {isCorporateOfferOpen && <CorporateOfferModal onClose={() => setIsCorporateOfferOpen(false)} />}
 
       {selectedService && (
         <div
