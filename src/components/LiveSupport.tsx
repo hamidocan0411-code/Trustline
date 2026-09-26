@@ -75,7 +75,7 @@ function ChatWindow({
   };
 
   return (
-    <div className="flex h-[520px] w-full flex-col overflow-hidden rounded-3xl border border-[#303036] bg-[#19191E] shadow-2xl">
+    <div className="flex h-[520px] max-h-[calc(100dvh-1.5rem)] min-h-0 w-full flex-col overflow-hidden rounded-3xl border border-[#303036] bg-[#19191E] shadow-2xl">
       <div className="flex shrink-0 items-center justify-between border-b border-[#303036] bg-[#222229] px-4 py-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#D6A84F]/15">
@@ -113,7 +113,7 @@ function ChatWindow({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-center">
             <div>
@@ -208,7 +208,7 @@ function ChatWindow({
       </div>
 
       {ticket.status === "aktif" && (
-        <div className="shrink-0 border-t border-[#303036] p-3">
+        <div className="shrink-0 border-t border-[#303036] px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -218,7 +218,7 @@ function ChatWindow({
               }
               onKeyDown={handleKeyDown}
               placeholder="Mesajınızı yazın..."
-              className="min-w-0 flex-1 rounded-2xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 text-xs text-white outline-none placeholder:text-[#55555D] focus:border-[#D6A84F]/60"
+              className="min-w-0 flex-1 rounded-2xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 text-sm text-white outline-none placeholder:text-[#55555D] focus:border-[#D6A84F]/60 sm:text-xs"
             />
 
             <button
@@ -756,7 +756,7 @@ export function LiveSupport({
       <>
         {customerOpen &&
           (customerLoading || customerTicket) && (
-          <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center sm:p-5">
+          <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 px-3 pb-[calc(4rem+env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-sm sm:items-center sm:p-5">
             <div className="w-full max-w-[430px]">
             {customerLoading ? (
               <div className="flex h-[300px] items-center justify-center rounded-3xl border border-[#303036] bg-[#19191E] shadow-2xl">
