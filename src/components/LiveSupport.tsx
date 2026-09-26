@@ -20,6 +20,7 @@ import {
 } from "../services/support";
 
 import { auth } from "../services/firebase";
+import { supportQuickReplies } from "../data/supportQuickReplies";
 
 interface LiveSupportProps {
   isAdmin?: boolean;
@@ -44,6 +45,7 @@ function ChatWindow({
   onFinish,
 }: ChatWindowProps) {
   const [text, setText] = useState("");
+  const [showAllQuickReplies, setShowAllQuickReplies] = useState(false);
 
   const messagesEndRef =
     useRef<HTMLDivElement | null>(null);
@@ -209,6 +211,39 @@ function ChatWindow({
 
       {ticket.status === "aktif" && (
         <div className="shrink-0 border-t border-[#303036] px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
+          {isAdmin && (
+            <div className="mb-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-[9px] font-black uppercase tracking-[0.12em] text-[#777777]">
+                  Hızlı Yanıtlar
+                </span>
+                {supportQuickReplies.length > 8 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllQuickReplies((current) => !current)}
+                    className="text-[9px] font-bold text-[#D6A84F] transition hover:text-[#E2B866]"
+                  >
+                    {showAllQuickReplies ? "Daha Az" : "Daha Fazla"}
+                  </button>
+                )}
+              </div>
+
+              <div className="flex gap-2 overflow-x-auto pb-1 overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {(showAllQuickReplies ? supportQuickReplies : supportQuickReplies.slice(0, 8)).map((reply) => (
+                  <button
+                    key={reply.id}
+                    type="button"
+                    onClick={() => setText(reply.message)}
+                    className="shrink-0 rounded-xl border border-[#303036] bg-[#222229] px-3 py-2 text-[10px] font-bold text-[#B8B8C0] transition hover:border-[#D6A84F]/50 hover:bg-[#D6A84F]/10 hover:text-[#D6A84F] active:bg-[#D6A84F]/15"
+                    title={reply.message}
+                  >
+                    {reply.icon} {reply.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <input
               type="text"
