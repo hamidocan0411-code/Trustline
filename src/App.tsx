@@ -5,6 +5,66 @@ import { auth } from "./services/firebase";
 import { signOut } from "firebase/auth";
 import type { NotificationItem, Order, PricingConfig, UserProfile } from "./types";
 
+const playNotificationSound = () => {
+  try {
+    const AudioContext =
+      window.AudioContext ||
+      (
+        window as unknown as {
+          webkitAudioContext?: typeof AudioContext;
+        }
+      ).webkitAudioContext;
+
+    if (!AudioContext) return;
+
+    const context = new AudioContext();
+
+    if (context.state === "suspended") {
+      void context.resume();
+    }
+
+    const playTone = (
+      frequency: number,
+      start: number,
+      duration: number
+    ) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+
+      oscillator.type = "sine";
+      oscillator.frequency.value = frequency;
+
+      gain.gain.setValueAtTime(
+        0.0001,
+        context.currentTime + start
+      );
+      gain.gain.exponentialRampToValueAtTime(
+        0.3,
+        context.currentTime + start + 0.02
+      );
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        context.currentTime + start + duration
+      );
+
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+
+      oscillator.start(context.currentTime + start);
+      oscillator.stop(context.currentTime + start + duration);
+    };
+
+    playTone(880, 0, 0.3);
+    playTone(1174.66, 0.18, 0.35);
+
+    window.setTimeout(() => {
+      context.close().catch(() => {});
+    }, 1200);
+  } catch (error) {
+    console.warn("Bildirim sesi çalınamadı:", error);
+  }
+};
+
 const Navbar = lazy(() => import("./components/Navbar").then((m) => ({ default: m.Navbar })));
 const BottomNavigation = lazy(() => import("./components/BottomNavigation").then((m) => ({ default: m.BottomNavigation })));
 const CustomerHome = lazy(() => import("./components/CustomerHome").then((m) => ({ default: m.CustomerHome })));
@@ -53,6 +113,9 @@ export function App() {
   const authStateResolved = useRef(false);
   const redirectCheckFinished = useRef(false);
   const mountedRef = useRef(true);
+  const notificationInitializedRef = useRef(false);
+  const previousNotificationIdsRef = useRef<Set<string>>(new Set());
+  const audioUnlockedRef = useRef(false);
 
   const applyUserProfile = async (profile: UserProfile) => {
     if (!mountedRef.current) return;
@@ -104,6 +167,58 @@ export function App() {
     void initializeRedirect();
     return () => { mountedRef.current = false; try { unsubscribe?.(); } catch (error) { console.warn("Auth listener kapatılamadı:", error); } };
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setOrders([]);
+      setNotifications([]);
+      notificationInitializedRef.current = false;
+      previousNotificationIdsRef.current = new Set();
+      return;
+    }
+
+    const markAudioUnlocked = () => {
+      audioUnlockedRef.current = true;
+    };
+
+    window.addEventListener("pointerdown", markAudioUnlocked);
+    window.addEventListener("keydown", markAudioUnlocked);
+
+    return () => {
+      window.removeEventListener("pointerdown", markAudioUnlocked);
+      window.removeEventListener("keydown", markAudioUnlocked);
+    };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const currentIds = new Set(
+      notifications.map((notification) => notification.id)
+    );
+
+    if (!notificationInitializedRef.current) {
+      previousNotificationIdsRef.current = currentIds;
+      notificationInitializedRef.current = true;
+      return;
+    }
+
+    const hasNewUnreadNotification = notifications.some(
+      (notification) =>
+        !notification.read &&
+        !previousNotificationIdsRef.current.has(notification.id)
+    );
+
+    previousNotificationIdsRef.current = currentIds;
+
+    if (
+      hasNewUnreadNotification &&
+      ["admin", "customer", "corporate"].includes(currentUser.role) &&
+      audioUnlockedRef.current
+    ) {
+      playNotificationSound();
+    }
+  }, [notifications, currentUser?.id, currentUser?.role]);
 
   useEffect(() => {
     if (!currentUser) {
