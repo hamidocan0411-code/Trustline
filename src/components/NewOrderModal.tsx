@@ -8,6 +8,8 @@ import {
   AlertCircle,
   Check,
   Info,
+  WalletCards,
+  Landmark,
   Loader2,
   MapPin,
   Navigation,
@@ -38,6 +40,11 @@ import {
   mapService,
   type AddressSuggestion,
 } from "../services/mapService";
+import {
+  DEFAULT_PAYMENT_METHOD,
+  formatPaymentMethod,
+  type PaymentMethod,
+} from "../utils/payment";
 
 import { AddressAutocomplete } from "./AddressAutocomplete";
 import { RouteMap } from "./RouteMap";
@@ -131,6 +138,11 @@ export const NewOrderModal: React.FC<Props> = ({
     showPaymentNotice,
     setShowPaymentNotice,
   ] = useState(false);
+
+  const [paymentMethod, setPaymentMethod] =
+    useState<PaymentMethod>(
+      DEFAULT_PAYMENT_METHOD
+    );
 
   const [errorMsg, setErrorMsg] =
     useState("");
@@ -253,6 +265,9 @@ export const NewOrderModal: React.FC<Props> = ({
   useEffect(() => {
     if (!isOpen) {
       setShowPaymentNotice(false);
+      setPaymentMethod(
+        DEFAULT_PAYMENT_METHOD
+      );
       setSuccessOrder(null);
       setErrorMsg("");
     }
@@ -614,6 +629,8 @@ export const NewOrderModal: React.FC<Props> = ({
 
           distanceKm: calculatedDistanceKm,
 
+          paymentMethod,
+
           price: verifiedPrice,
 
           status:
@@ -939,7 +956,7 @@ export const NewOrderModal: React.FC<Props> = ({
                 </span>
 
                 <span className="font-semibold text-white text-xs">
-                  Nakit
+                  {formatPaymentMethod(successOrder.paymentMethod)}
                 </span>
               </div>
 
@@ -1034,38 +1051,25 @@ export const NewOrderModal: React.FC<Props> = ({
 
                 <p>
                   <strong className="text-white">
-                    Şu anda siparişlerde nakit ödeme seçeneği aktiftir.
+                    Ödeme yönteminizi aşağıdaki seçeneklerden tercih edebilirsiniz.
                   </strong>
                 </p>
 
                 <p>
-                  Yakın zamanda yapılacak geliştirmelerle birlikte{" "}
+                  Siparişiniz için{" "}
                   <strong className="text-white">
-                    kredi kartı ve banka kartı ile ödeme seçeneklerinin de
+                    nakit
                   </strong>{" "}
-                  kullanıma sunulması planlanmaktadır.
-                </p>
-
-                <p>
-                  Bu geliştirme tamamlandığında siparişinizi oluştururken{" "}
+                  veya{" "}
                   <strong className="text-white">
-                    nakit veya kart ile ödeme
+                    havale / IBAN
                   </strong>{" "}
-                  seçeneklerinden size uygun olanı tercih edebileceksiniz.
-                </p>
-
-                <p>
-                  Amacımız, ödeme sürecini sizin için{" "}
-                  <strong className="text-white">
-                    kolay, hızlı ve güvenli
-                  </strong>{" "}
-                  hale getirmektir.
+                  yöntemlerinden birini seçebilirsiniz.
                 </p>
 
                 <div className="border-t border-[#303036] pt-3 text-[#D6A84F]">
                   <strong>Not:</strong>{" "}
-                  Kart ile ödeme özelliği şu anda aktif değildir.
-                  Kullanıma sunulduğunda ayrıca bilgilendirme yapılacaktır.
+                  Kredi/banka kartı ile ödeme seçeneği şu anda aktif değildir.
                 </div>
               </div>
 
@@ -1086,7 +1090,7 @@ export const NewOrderModal: React.FC<Props> = ({
                   </span>
 
                   <span className="text-xs font-bold text-white">
-                    Nakit
+                    {formatPaymentMethod(paymentMethod)}
                   </span>
                 </div>
               </div>
@@ -1108,7 +1112,7 @@ export const NewOrderModal: React.FC<Props> = ({
                   ) : (
                     <>
                       <Check className="w-4 h-4" />
-                      Okudum, Onaylıyorum — Nakit Ödeme
+                      Okudum, Onaylıyorum — {paymentMethod === "cash" ? "Nakit Ödeme" : "Havale / IBAN"}
                     </>
                   )}
                 </button>
