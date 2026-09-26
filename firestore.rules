@@ -254,6 +254,16 @@ service cloud.firestore {
         || (
           signedIn()
           && request.resource.data.userId == request.auth.uid
+        )
+        || (
+          signedIn()
+          && request.resource.data.orderId is string
+          && isOrderCourier(request.resource.data.orderId)
+          && request.resource.data.userId ==
+            get(
+              /databases/$(database)/documents/orders/$(request.resource.data.orderId)
+            ).data.customerId
+          && request.resource.data.type in ['assignment', 'order_status']
         );
 
       allow update: if isAdmin()
