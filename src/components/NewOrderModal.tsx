@@ -1073,6 +1073,47 @@ export const NewOrderModal: React.FC<Props> = ({
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-[#999999]">
+                  Ödeme Yöntemi
+                </p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("cash")}
+                    className={
+                      paymentMethod === "cash"
+                        ? "flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-[#D6A84F] bg-[#D6A84F]/10 px-3 py-3 text-xs font-black text-[#D6A84F] transition"
+                        : "flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-[#303036] bg-[#19191E] px-3 py-3 text-xs font-black text-[#999999] transition hover:border-[#55555C] hover:text-white"
+                    }
+                  >
+                    <WalletCards className="h-4 w-4" />
+                    NAKİT
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("iban")}
+                    className={
+                      paymentMethod === "iban"
+                        ? "flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-[#D6A84F] bg-[#D6A84F]/10 px-3 py-3 text-xs font-black text-[#D6A84F] transition"
+                        : "flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-[#303036] bg-[#19191E] px-3 py-3 text-xs font-black text-[#999999] transition hover:border-[#55555C] hover:text-white"
+                    }
+                  >
+                    <Landmark className="h-4 w-4" />
+                    HAVALE / IBAN
+                  </button>
+                </div>
+
+                {paymentMethod === "iban" && (
+                  <div className="rounded-xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-3 text-[10px] leading-4 text-[#CFCFD5]">
+                    Uygulama yapılandırmasında tanımlı bir IBAN bilgisi bulunmuyor.
+                    Ödeme bilgilerini Trustline Express'ten teyit etmeden transfer yapmayın.
+                  </div>
+                )}
+              </div>
+
               <div className="bg-[#D6A84F]/10 border border-[#D6A84F]/30 rounded-xl p-3">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-xs text-[#999999]">
