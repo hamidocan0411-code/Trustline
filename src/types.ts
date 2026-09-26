@@ -128,6 +128,8 @@ export interface Order {
   distanceKm: number;
   packageCount?: number;
 
+  paymentMethod?: "cash" | "iban" | "bank_transfer";
+
   price: number;
   status: OrderStatus;
   note: string;
