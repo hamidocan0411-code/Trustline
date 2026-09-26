@@ -1691,7 +1691,24 @@ export const AdminPanel: React.FC<Props> = ({
                 <option>Kurumsal</option>
               </select>
 
-              <select
+                            <select
+                value={paymentMethodFilter}
+                onChange={(event) =>
+                  setPaymentMethodFilter(
+                    event.target.value as
+                      | "Tümü"
+                      | "NAKİT"
+                      | "İBAN"
+                  )
+                }
+                className="rounded-xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm outline-none"
+              >
+                <option value="Tümü">Tümü</option>
+                <option value="NAKİT">NAKİT</option>
+                <option value="İBAN">İBAN</option>
+              </select>
+
+<select
                 value={
                   statusFilter
                 }
@@ -1762,6 +1779,12 @@ export const AdminPanel: React.FC<Props> = ({
                               order.status
                             }
                           />
+                          <span className="rounded-full bg-white/[0.04] px-2 py-1 text-[9px] font-black text-[#999999]">
+                            {formatPaymentMethod(
+                              order.paymentMethod,
+                              order.pharmacyPaymentMethod
+                            )}
+                          </span>
                         </div>
 
                         <p className="mt-2 text-sm text-slate-300">
@@ -3203,6 +3226,14 @@ export const AdminPanel: React.FC<Props> = ({
                   />
 
                   <InfoItem
+                    label="Ödeme Yöntemi"
+                    value={formatPaymentMethod(
+                      selectedOrder.paymentMethod,
+                      selectedOrder.pharmacyPaymentMethod
+                    )}
+                  />
+
+                  <InfoItem
                     label="Kurye Tipi"
                     value={
                       selectedOrder.courierType
@@ -4025,6 +4056,12 @@ const OrderRow: React.FC<{
             order.status
           }
         />
+        <span className="rounded-full bg-white/[0.04] px-2 py-1 text-[9px] font-black text-[#999999]">
+          {formatPaymentMethod(
+            order.paymentMethod,
+            order.pharmacyPaymentMethod
+          )}
+        </span>
       </div>
 
       <p className="mt-1 truncate text-xs text-[#999999]">
