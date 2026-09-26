@@ -27,6 +27,8 @@ import type {
   OrderStatus,
 } from "../types";
 
+import { formatPaymentMethod } from "../utils/payment";
+
 import { storage } from "../services/storage";
 
 import {
@@ -957,6 +959,13 @@ export const CustomerOrders: React.FC<Props> = ({
                       <span>
                         {order.distanceKm} KM
                       </span>
+
+                      <span className="rounded bg-[#222229] px-2 py-1 text-[#999999]">
+                        {formatPaymentMethod(
+                          order.paymentMethod,
+                          order.pharmacyPaymentMethod
+                        )}
+                      </span>
                     </div>
 
                     <span className="shrink-0 font-mono text-sm font-extrabold text-white">
@@ -1144,6 +1153,13 @@ export const CustomerOrders: React.FC<Props> = ({
                         </span>
                         <span className="mt-1 block text-[10px] text-[#777780]">
                           {order.distanceKm} km • {formatDate(order.createdAt)}
+                        </span>
+
+                        <span className="mt-1 block text-[10px] font-bold text-[#D6A84F]">
+                          Ödeme: {formatPaymentMethod(
+                            order.paymentMethod,
+                            order.pharmacyPaymentMethod
+                          )}
                         </span>
                       </div>
                     </div>
