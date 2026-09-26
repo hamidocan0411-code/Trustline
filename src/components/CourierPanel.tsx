@@ -35,6 +35,7 @@ import type {
 } from "../types";
 
 import { storage } from "../services/storage";
+import { formatPaymentMethod } from "../utils/payment";
 import {
   subscribeToCourierRatingSummary,
   type CourierRatingSummary,
@@ -1916,9 +1917,9 @@ const [courierStatus, setCourierStatus] =
                   </div>
 
                   {/* DETAILS */}
-                  <div className="grid grid-cols-3 gap-2 px-4 sm:px-5">
+                  <div className="grid grid-cols-2 gap-2 px-4 sm:grid-cols-4 sm:px-5">
                     <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3 text-center"><span className="block text-[7px] font-black uppercase tracking-wider text-[#5F5F68]">Paket</span><b className="mt-1 block truncate text-[10px] text-white">{order.packageType}</b></div>
-                    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3 text-center"><span className="block text-[7px] font-black uppercase tracking-wider text-[#5F5F68]">Mesafe</span><b className="mt-1 block text-[10px] text-white">{order.distanceKm} KM</b></div>
+                    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3 text-center"><span className="block text-[7px] font-black uppercase tracking-wider text-[#5F5F68]">Mesafe</span><b className="mt-1 block text-[10px] text-white">{order.distanceKm} KM</b></div><div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3 text-center"><span className="block text-[7px] font-black uppercase tracking-wider text-[#5F5F68]">Ödeme</span><b className="mt-1 block truncate text-[10px] text-white">{formatPaymentMethod(order.paymentMethod, order.pharmacyPaymentMethod)}</b></div>
                     <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3 text-center"><span className="block text-[7px] font-black uppercase tracking-wider text-[#5F5F68]">Öncelik</span><b className={`mt-1 block truncate text-[10px] ${urgencyStyle.text}`}>{order.urgency}</b></div>
                   </div>
 
