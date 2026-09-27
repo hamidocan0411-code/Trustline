@@ -186,12 +186,6 @@ async function findPendingNotifications(accessToken) {
               value: { stringValue: "pending" },
             },
           },
-          orderBy: [
-            {
-              field: { fieldPath: "createdAt" },
-              direction: "ASCENDING",
-            },
-          ],
           limit: MAX_PENDING,
         },
       }),
