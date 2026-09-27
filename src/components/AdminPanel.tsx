@@ -2504,20 +2504,20 @@ export const AdminPanel: React.FC<Props> = ({
                           <FinanceCard
                             title="Bu Ay"
                             value={formatMoney(
-                              monthCompleted.reduce((sum, order) => {
-                                const price = getValidOrderPrice(order);
-                                return price === null ? sum : sum + price;
-                              }, 0)
+                              monthCompleted.reduce(
+                                (sum, record) => sum + Number(record.amount || 0),
+                                0
+                              )
                             )}
                             detail={`${monthCompleted.length} tamamlanan sipariş`}
                           />
                           <FinanceCard
                             title="Bugün"
                             value={formatMoney(
-                              todayCompleted.reduce((sum, order) => {
-                                const price = getValidOrderPrice(order);
-                                return price === null ? sum : sum + price;
-                              }, 0)
+                              todayCompleted.reduce(
+                                (sum, record) => sum + Number(record.amount || 0),
+                                0
+                              )
                             )}
                             detail={`${todayCompleted.length} tamamlanan sipariş`}
                           />
