@@ -1305,16 +1305,8 @@ export const CustomerOrders: React.FC<Props> = ({
       {cancelTarget && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4">
           <div className="w-full max-w-lg rounded-3xl border border-[#303036] bg-[#111116] p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">Sipariş İptali</p>
-                <h3 className="mt-1 text-xl font-black text-white">Siparişi İptal Et</h3>
-                <p className="mt-2 text-sm leading-6 text-[#999999]">Bu siparişi neden iptal ettiğinizi belirtin.</p>
-              </div>
-              <button type="button" onClick={() => setCancelTarget(null)} className="rounded-xl border border-[#303036] bg-[#19191E] p-2 text-[#999999]">
-                <XCircle size={18} />
-              </button>
-            </div>
+            <h3 className="text-xl font-black text-white">Siparişi İptal Et</h3>
+            <p className="mt-2 text-sm leading-6 text-[#999999]">Bu siparişi neden iptal ettiğinizi belirtin.</p>
             <label className="mt-5 block">
               <span className="mb-2 block text-xs font-bold text-white">İptal Nedeni</span>
               <textarea
