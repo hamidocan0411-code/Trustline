@@ -47,6 +47,10 @@ export function getPushPermission(): NotificationPermission | "unsupported" {
 }
 
 export async function isPushSupported(): Promise<boolean> {
+  if (!FCM_VAPID_KEY) {
+    return false;
+  }
+
   try {
     return !!(await getMessagingIfSupported());
   } catch {
