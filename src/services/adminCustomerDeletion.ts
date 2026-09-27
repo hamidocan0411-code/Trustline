@@ -1,7 +1,7 @@
 import { auth } from "./firebase";
 
 const CUSTOMER_ADMIN_ENDPOINT =
-  "https://trustline-fcm-push.hamidocan0411.workers.dev/admin/delete-customer";
+  "https://trustline-fcm-push.hamidocan0411.workers.dev/admin/customer-profile";
 
 export async function deleteCustomerAccount(
   customerId: string,
