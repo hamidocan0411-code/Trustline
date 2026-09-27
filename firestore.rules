@@ -115,7 +115,8 @@ service cloud.firestore {
           ])
         );
 
-      allow delete: if isAdmin();
+      // User profile deletion is performed only by the authenticated admin server route.
+      allow delete: if false;
     }
 
     match /orders/{orderId} {
