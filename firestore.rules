@@ -184,7 +184,8 @@ service cloud.firestore {
           && request.resource.data.cancellationReason.size() > 0
           && request.resource.data.cancelledAt is string
           && request.resource.data.cancelledBy == request.auth.uid
-          && request.resource.data.cancelledByRole == 'customer'
+          && request.resource.data.cancelledByRole in ['customer', 'corporate']
+          && request.resource.data.cancelledByRole == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
         )
         || (
           signedIn()
