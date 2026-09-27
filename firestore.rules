@@ -107,7 +107,9 @@ service cloud.firestore {
             'vehicle',
             'plate',
             'courierStatus',
-            'updatedAt'
+            'updatedAt',
+            'pushTokens',
+            'pushTokensUpdatedAt'
           ])
         );
 
