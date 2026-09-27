@@ -78,6 +78,103 @@ const CancellationReasonModal: React.FC<{
   );
 };
 
+const ARCHIVE_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+
+const getArchiveTimestamp = (order: Order): string | null => {
+  if (order.status === "Teslim Edildi") return order.deliveredAt || null;
+  if (order.status === "İptal Edildi") return order.cancelledAt || null;
+  return null;
+};
+
+const getArchiveCountdown = (order: Order, now: number) => {
+  const timestamp = getArchiveTimestamp(order);
+  if (!timestamp) return null;
+
+  const start = new Date(timestamp).getTime();
+  if (!Number.isFinite(start)) return null;
+
+  const remainingMs = start + ARCHIVE_DURATION_MS - now;
+  if (remainingMs <= 0) return null;
+
+  return {
+    remainingDays: Math.ceil(remainingMs / (24 * 60 * 60 * 1000)),
+  };
+};
+
+const OrderArchiveNotice: React.FC<{
+  order?: Order;
+  compact?: boolean;
+}> = ({ order, compact = false }) => {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!order) return;
+
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now());
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [order?.id, order?.status, order?.deliveredAt, order?.cancelledAt]);
+
+  const completedOrCancelled =
+    order?.status === "Teslim Edildi" ||
+    order?.status === "İptal Edildi";
+
+  if (compact && !completedOrCancelled) return null;
+
+  const countdown = order ? getArchiveCountdown(order, now) : null;
+
+  return (
+    <div
+      className={
+        compact
+          ? "rounded-xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-3"
+          : "rounded-2xl border border-[#D6A84F]/20 bg-[#D6A84F]/5 p-4 sm:p-5"
+      }
+    >
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D6A84F]/25 bg-[#D6A84F]/10">
+          <Info size={16} className="text-[#D6A84F]" />
+        </div>
+
+        <div className="min-w-0">
+          <h3 className={compact ? "text-xs font-black text-white" : "text-sm font-black text-white"}>
+            ⓘ Sipariş Arşiv Bilgilendirmesi
+          </h3>
+
+          {compact ? (
+            <>
+              <p className="mt-1 text-[11px] leading-5 text-[#B4B4BC]">
+                Bu sipariş 7 günlük arşivleme süresi içerisindedir.
+              </p>
+              {countdown && (
+                <p className="mt-2 text-xs font-black text-[#D6A84F]">
+                  Arşivleme: {countdown.remainingDays} gün sonra
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-xs leading-5 text-[#B4B4BC]">
+                Teslim edilmiş ve iptal edilmiş siparişleriniz, operasyonel sistemin düzenli ve hızlı çalışmasını sağlamak amacıyla 7 gün boyunca sipariş geçmişinizde görüntülenir. 7 günlük sürenin sonunda ilgili sipariş operasyonel sipariş listenizden otomatik olarak arşivlenir.
+              </p>
+
+              <p className="mt-2 text-xs leading-5 text-[#B4B4BC]">
+                Aktif siparişleriniz bu uygulamadan etkilenmez. Bekleyen, devam eden veya henüz tamamlanmamış siparişleriniz arşivlenmez.
+              </p>
+
+              <p className="mt-2 text-[11px] leading-5 text-[#777780]">
+                Not: Tamamlanmış siparişlerin finansal kayıtları ve ciro hesaplamaları operasyonel arşivleme işleminden etkilenmez.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 interface Props {
   orders: Order[];
   onOpenNewOrder: () => void;
@@ -738,6 +835,8 @@ export const CustomerOrders: React.FC<Props> = ({
         </div>
       </div>
 
+      <OrderArchiveNotice />
+
       {/* Search & Filters */}
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
@@ -1209,6 +1308,8 @@ export const CustomerOrders: React.FC<Props> = ({
                         </div>
                       </div>
                     )}
+
+                    <OrderArchiveNotice order={order} compact />
 
                     {/* Order Information */}
                     <div className="grid gap-2 sm:grid-cols-2">
