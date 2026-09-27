@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { storage } from "./services/storage";
 import { subscribeToAuth, handleGoogleRedirectResult, ensureUserProfile } from "./services/auth";
 import { auth } from "./services/firebase";
+import { registerPushIfAlreadyGranted, subscribeToForegroundPush } from "./services/pushNotifications";
 import { signOut } from "firebase/auth";
 import type { NotificationItem, Order, PricingConfig, UserProfile } from "./types";
 
@@ -81,6 +82,7 @@ const LiveSupport = lazy(() => import("./components/LiveSupport").then((m) => ({
 const CorporatePanel = lazy(() => import("./components/CorporatePanel").then((m) => ({ default: m.CorporatePanel })));
 const Footer = lazy(() => import("./components/Footer").then((m) => ({ default: m.Footer })));
 const PublicInfoPage = lazy(() => import("./components/PublicInfoPage").then((m) => ({ default: m.PublicInfoPage })));
+const PushNotificationPrompt = lazy(() => import("./components/PushNotificationPrompt").then((m) => ({ default: m.PushNotificationPrompt })));
 
 const PUBLIC_INFO_PAGES = {
   "/biz-kimiz": "about",
@@ -227,9 +229,62 @@ export function App() {
       return;
     }
 
-    let mounted = true; let unsubscribe: (() => void) | undefined;
+    let mounted = true;
+    let unsubscribe: (() => void) | undefined;
+
+    void registerPushIfAlreadyGranted(currentUser.id);
+
+    void subscribeToForegroundPush((payload) => {
+      if (!mounted) return;
+
+      // Foreground bildirim UI'si mevcut Firestore notification listener
+      // tarafından gösterilir. Burada ikinci bir OS bildirimi üretmiyoruz.
+      if (import.meta.env.DEV) {
+        console.debug("[FCM] Foreground message alındı:", payload.messageId);
+      }
+    }).then((cleanup) => {
+      if (mounted) {
+        unsubscribe = cleanup;
+      } else {
+        cleanup();
+      }
+    }).catch((error) => {
+      if (import.meta.env.DEV) {
+        console.debug("[FCM] Foreground listener kurulamadı:", error);
+      }
+    });
     try { unsubscribe = storage.subscribe(() => { if (!mounted) return; try { const nextOrders = storage.getOrders(); setOrders(Array.isArray(nextOrders) ? nextOrders : []); } catch (error) { console.error("Orders listener hatası:", error); } try { const nextPricing = storage.getPricing(); if (nextPricing) setPricing(nextPricing); } catch (error) { console.error("Pricing listener hatası:", error); } try { const nextNotifications = storage.getNotifications(currentUser.id); setNotifications(Array.isArray(nextNotifications) ? nextNotifications : []); } catch (error) { console.error("Notification listener hatası:", error); setNotifications([]); } }); } catch (error) { console.error("Storage listener başlatılamadı:", error); }
     return () => { mounted = false; try { unsubscribe?.(); } catch (error) { console.warn("Storage listener kapatılamadı:", error); } };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get("orderId");
+    if (!orderId) return;
+
+    const targetRole = params.get("notificationRole") || currentUser.role;
+
+    if (targetRole === "admin" && currentUser.role === "admin") {
+      setActiveTab("admin_panel");
+      setSelectedOrderId(orderId);
+    } else if (targetRole === "courier" && currentUser.role === "courier") {
+      setActiveTab("courier_panel");
+      setSelectedOrderId(orderId);
+    } else if (targetRole === "corporate" && currentUser.role === "corporate") {
+      setActiveTab("corporate_orders");
+      setSelectedOrderId(orderId);
+    } else if (targetRole === "customer" && currentUser.role === "customer") {
+      setActiveTab("orders");
+      setSelectedOrderId(orderId);
+    }
+
+    window.history.replaceState(
+      {},
+      document.title,
+      window.location.pathname
+    );
   }, [currentUser?.id]);
 
   const handleOpenNewOrder = (prefill?: Partial<Order>) => { setNewOrderPrefill(prefill); setIsNewOrderOpen(true); };
@@ -334,6 +389,6 @@ export function App() {
   )}
   {activeTab === "ai" && <TrustlineAI onTransferToOrder={handleTransferFromAI} orders={myOrders} pricing={pricing} />}
   {activeTab === "profile" && <ProfileView currentUser={currentUser} onProfileUpdated={setCurrentUser} />}
-</>}{currentUser.role === "customer" && <>{activeTab === "home" && <><CustomerHome onOpenNewOrder={handleOpenNewOrder} onOpenPharmacyOrder={handleOpenPharmacyOrder} onOpenAI={() => setActiveTab("ai")} onGoToOrders={() => setActiveTab("orders")} activeOrders={activeOrders} pricing={pricing} /><div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-3 right-3 z-30 lg:static lg:z-auto lg:left-auto lg:right-auto lg:bottom-auto"><LiveSupport embedded /></div><Footer compact /></>}{activeTab === "orders" && <CustomerOrders orders={myOrders} onOpenNewOrder={handleOpenNewOrder} selectedOrderId={selectedOrderId} />}{activeTab === "ai" && <TrustlineAI onTransferToOrder={handleTransferFromAI} orders={myOrders} pricing={pricing} />}{activeTab === "profile" && <ProfileView currentUser={currentUser} onProfileUpdated={setCurrentUser} />}</>}{currentUser.role === "courier" && <>{activeTab === "courier_panel" && <CourierPanel currentCourier={currentUser} orders={safeOrders} />}{activeTab === "profile" && <ProfileView currentUser={currentUser} onProfileUpdated={setCurrentUser} />}</>}{currentUser.role === "admin" && <>{activeTab === "admin_panel" && <AdminPanel orders={safeOrders} pricing={pricing} />}{activeTab === "profile" && <ProfileView currentUser={currentUser} onProfileUpdated={setCurrentUser} />}</>}</main><BottomNavigation role={currentUser.role} activeTab={activeTab} onTabChange={(tab) => { setActiveTab(tab); setSelectedOrderId(null); }} onOpenNewOrder={() => handleOpenNewOrder()} activeOrdersCount={activeOrders.length} isIPhoneMode={isIPhoneMode} /></div><NewOrderModal isOpen={isNewOrderOpen} onClose={() => { setIsNewOrderOpen(false); setNewOrderPrefill(undefined); }} currentUser={currentUser} pricing={pricing} prefillData={newOrderPrefill} onOrderCreated={(order) => { setActiveTab(currentUser.role === "corporate" ? "corporate_orders" : "orders"); setSelectedOrderId(order.id); }} /><PharmacyOrderPanel isOpen={isPharmacyOrderOpen} onClose={() => setIsPharmacyOrderOpen(false)} currentUser={currentUser} pricing={pricing} onOrderCreated={(order) => { setActiveTab("orders"); setSelectedOrderId(order.id); }} /><NotificationDrawer isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} notifications={notifications} userId={currentUser.id} onSelectOrder={(orderId) => { setSelectedOrderId(orderId); setActiveTab(currentUser.role === "courier" ? "courier_panel" : currentUser.role === "corporate" ? "corporate_orders" : "orders"); }} /></div></Suspense>;
+</>}{currentUser.role === "customer" && <>{activeTab === "home" && <><CustomerHome onOpenNewOrder={handleOpenNewOrder} onOpenPharmacyOrder={handleOpenPharmacyOrder} onOpenAI={() => setActiveTab("ai")} onGoToOrders={() => setActiveTab("orders")} activeOrders={activeOrders} pricing={pricing} /><div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-3 right-3 z-30 lg:static lg:z-auto lg:left-auto lg:right-auto lg:bottom-auto"><LiveSupport embedded /></div><Footer compact /></>}{activeTab === "orders" && <CustomerOrders orders={myOrders} onOpenNewOrder={handleOpenNewOrder} selectedOrderId={selectedOrderId} />}{activeTab === "ai" && <TrustlineAI onTransferToOrder={handleTransferFromAI} orders={myOrders} pricing={pricing} />}{activeTab === "profile" && <ProfileView currentUser={currentUser} onProfileUpdated={setCurrentUser} />}</>}{currentUser.role === "courier" && <>{activeTab === "courier_panel" && <CourierPanel currentCourier={currentUser} orders={safeOrders} />}{activeTab === "profile" && <ProfileView currentUser={currentUser} onProfileUpdated={setCurrentUser} />}</>}{currentUser.role === "admin" && <>{activeTab === "admin_panel" && <AdminPanel orders={safeOrders} pricing={pricing} />}{activeTab === "profile" && <ProfileView currentUser={currentUser} onProfileUpdated={setCurrentUser} />}</>}</main><BottomNavigation role={currentUser.role} activeTab={activeTab} onTabChange={(tab) => { setActiveTab(tab); setSelectedOrderId(null); }} onOpenNewOrder={() => handleOpenNewOrder()} activeOrdersCount={activeOrders.length} isIPhoneMode={isIPhoneMode} /><PushNotificationPrompt userId={currentUser.id} /></div><NewOrderModal isOpen={isNewOrderOpen} onClose={() => { setIsNewOrderOpen(false); setNewOrderPrefill(undefined); }} currentUser={currentUser} pricing={pricing} prefillData={newOrderPrefill} onOrderCreated={(order) => { setActiveTab(currentUser.role === "corporate" ? "corporate_orders" : "orders"); setSelectedOrderId(order.id); }} /><PharmacyOrderPanel isOpen={isPharmacyOrderOpen} onClose={() => setIsPharmacyOrderOpen(false)} currentUser={currentUser} pricing={pricing} onOrderCreated={(order) => { setActiveTab("orders"); setSelectedOrderId(order.id); }} /><NotificationDrawer isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} notifications={notifications} userId={currentUser.id} onSelectOrder={(orderId) => { setSelectedOrderId(orderId); setActiveTab(currentUser.role === "courier" ? "courier_panel" : currentUser.role === "corporate" ? "corporate_orders" : "orders"); }} /></div></Suspense>;
 }
 export default App;
