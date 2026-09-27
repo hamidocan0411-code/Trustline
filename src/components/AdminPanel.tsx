@@ -228,6 +228,13 @@ export const AdminPanel: React.FC<Props> = ({
   const [saving, setSaving] =
     useState(false);
 
+  const [cancellationModalOpen, setCancellationModalOpen] =
+    useState(false);
+  const [cancellationReason, setCancellationReason] =
+    useState("");
+  const [cancellationError, setCancellationError] =
+    useState("");
+
   const [pricingSaving, setPricingSaving] =
     useState(false);
 
@@ -837,6 +844,41 @@ export const AdminPanel: React.FC<Props> = ({
     setEditPrice("");
   };
 
+  const openCancellationModal = () => {
+    setCancellationReason("");
+    setCancellationError("");
+    setCancellationModalOpen(true);
+  };
+
+  const confirmAdminCancellation = async () => {
+    if (!selectedOrder) return;
+
+    const reason = cancellationReason.trim();
+    if (!reason) {
+      setCancellationError("Sipariş iptal nedeni girilmelidir.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await storage.updateOrderStatus(selectedOrder.id, "İptal Edildi", reason);
+      const updatedOrder = storage.getOrderById(selectedOrder.id);
+      if (updatedOrder) setSelectedOrder(updatedOrder);
+      setSelectedStatus("İptal Edildi");
+      setCancellationModalOpen(false);
+      setCancellationReason("");
+      setCancellationError("");
+      refresh();
+    } catch (error) {
+      console.error("Admin sipariş iptal hatası:", error);
+      setCancellationError(
+        error instanceof Error ? error.message : "Sipariş iptal edilemedi."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   /*
    * SİPARİŞ GÜNCELLEME
    *
@@ -881,6 +923,15 @@ export const AdminPanel: React.FC<Props> = ({
             storage.getOrderById(
               selectedOrder.id
             ) || currentOrder;
+        }
+
+        if (
+          selectedStatus !== currentOrder.status &&
+          selectedStatus === "İptal Edildi"
+        ) {
+          setSaving(false);
+          openCancellationModal();
+          return;
         }
 
         if (
@@ -3173,6 +3224,51 @@ export const AdminPanel: React.FC<Props> = ({
         )}
       </main>
 
+      {cancellationModalOpen && selectedOrder && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4">
+          <div className="w-full max-w-lg rounded-3xl border border-[#303036] bg-[#111116] p-5 shadow-2xl">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">Sipariş İptali</p>
+            <h3 className="mt-1 text-xl font-black text-white">Siparişi İptal Et</h3>
+            <p className="mt-2 text-sm leading-6 text-[#999999]">Bu siparişi neden iptal ettiğinizi belirtin.</p>
+            <label className="mt-5 block">
+              <span className="mb-2 block text-xs font-bold text-white">İptal Nedeni</span>
+              <textarea
+                value={cancellationReason}
+                onChange={(event) => {
+                  setCancellationReason(event.target.value);
+                  if (event.target.value.trim()) setCancellationError("");
+                }}
+                placeholder="Örneğin: Müşteri teslimat adresini değiştirdiği için sipariş iptal edildi."
+                rows={5}
+                className="w-full resize-none rounded-2xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm text-white outline-none placeholder:text-[#666666] focus:border-red-400/50"
+              />
+            </label>
+            {cancellationError && <p className="mt-2 text-xs font-bold text-red-400">{cancellationError}</p>}
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setCancellationModalOpen(false);
+                  setCancellationReason("");
+                  setCancellationError("");
+                  setSelectedStatus(selectedOrder.status);
+                }}
+                className="rounded-xl border border-[#303036] bg-[#19191E] px-5 py-3 text-sm font-bold text-white"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmAdminCancellation()}
+                className="rounded-xl bg-red-500 px-5 py-3 text-sm font-black text-white"
+              >
+                İptali Onayla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4">
           <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-[#303036] bg-[#111116] p-5 sm:rounded-3xl">
@@ -3253,6 +3349,24 @@ export const AdminPanel: React.FC<Props> = ({
                   />
                 </div>
               </div>
+
+              {selectedOrder.status === "İptal Edildi" && (
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-400">İptal Bilgileri</p>
+                  <div className="mt-3 space-y-3">
+                    <InfoItem
+                      label="İptal Nedeni"
+                      value={selectedOrder.cancellationReason || "İptal nedeni belirtilmemiş"}
+                    />
+                    {selectedOrder.cancelledAt && (
+                      <InfoItem
+                        label="İptal Tarihi"
+                        value={new Date(selectedOrder.cancelledAt).toLocaleString("tr-TR")}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
