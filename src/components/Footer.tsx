@@ -8,8 +8,9 @@ interface FooterProps { compact?: boolean; }
 export function Footer({ compact = false }: FooterProps) {
   const year = new Date().getFullYear();
   return (
-    <footer className="border-t border-white/[0.06] bg-[#070708]">
-      <div className={`mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 ${compact ? "py-8" : "py-10 lg:py-12"}`}>
+    <footer className="relative overflow-hidden border-t border-white/[0.04] bg-gradient-to-b from-[#0B0B0D] via-[#0B0B0D] to-[#070708]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/[0.015] to-transparent" aria-hidden="true" />
+      <div className={`relative mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 ${compact ? "py-8" : "py-10 lg:py-12"}`}>
         <div className="grid gap-8 lg:grid-cols-[1.35fr_1fr_1fr_1.15fr]">
           <div>
             <a href="/#top" aria-label="Trustline Express ana sayfa" className="inline-flex">
