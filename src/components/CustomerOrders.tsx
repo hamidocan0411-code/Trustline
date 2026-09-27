@@ -1316,9 +1316,8 @@ export const CustomerOrders: React.FC<Props> = ({
           })}
         </div>
       )}
-    </div>
 
-  );
+
   <CancellationReasonModal
     open={!!cancelTarget}
     reason={cancellationReason}
@@ -1332,4 +1331,7 @@ export const CustomerOrders: React.FC<Props> = ({
     onConfirm={() => void confirmCancelOrder()}
   />
 
+    </div>
+
+  );
 };
