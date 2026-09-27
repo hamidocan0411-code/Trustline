@@ -852,6 +852,103 @@ async function handleCustomerAdminAction(request, env) {
     );
   }
 
+    const customerOrders = await findDocumentsByField(
+      accessToken,
+      "orders",
+      "customerId",
+      targetUserId,
+      500
+    );
+
+    const activeOrder = customerOrders.find((order) =>
+      ACTIVE_ORDER_STATUSES.has(String(order.fields.status || ""))
+    );
+
+    if (activeOrder) {
+      return jsonResponse(
+        request,
+        {
+          error:
+            "Bu müşterinin aktif siparişi bulunduğu için profil şu anda silinemez.",
+          code: "ACTIVE_ORDERS",
+        },
+        409
+      );
+    }
+
+    const supportTickets = await findDocumentsByField(
+      accessToken,
+      "supportTickets",
+      "customerId",
+      targetUserId,
+      100
+    );
+
+    const activeSupport = supportTickets.find((ticket) =>
+      ACTIVE_SUPPORT_STATUSES.has(String(ticket.fields.status || ""))
+    );
+
+    if (activeSupport) {
+      return jsonResponse(
+        request,
+        {
+          error:
+            "Bu müşterinin aktif canlı destek görüşmesi bulunduğu için profil şu anda silinemez.",
+          code: "ACTIVE_SUPPORT",
+        },
+        409
+      );
+    }
+
+    const originalFields = targetDocument.fields || {};
+    let profileDeleted = false;
+
+    try {
+      await deleteDocument(accessToken, "users", targetUserId);
+      profileDeleted = true;
+      await deleteAuthAccount(accessToken, targetUserId);
+    } catch (error) {
+      if (profileDeleted) {
+        try {
+          await restoreDocument(
+            accessToken,
+            "users",
+            targetUserId,
+            originalFields
+          );
+        } catch (restoreError) {
+          console.error("CRITICAL customer profile restore failure", {
+            targetUserId,
+            restoreError: String(restoreError),
+          });
+        }
+      }
+
+      console.error("Customer account removal failed", {
+        targetUserId,
+        error: String(error),
+      });
+
+      return jsonResponse(
+        request,
+        { error: "Müşteri profili silinemedi. Lütfen tekrar deneyin." },
+        500
+      );
+    }
+
+    console.log("Admin customer account removed", {
+      targetUserId,
+      adminUserId: caller.localId,
+      timestamp: new Date().toISOString(),
+    });
+
+    return jsonResponse(request, {
+      ok: true,
+      userId: targetUserId,
+    });
+  }
+
+
 export default {
   async scheduled(_controller, env) {
     try {
