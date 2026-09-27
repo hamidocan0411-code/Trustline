@@ -2134,68 +2134,67 @@ class StorageService {
     cancellationReason?: string
   ): Promise<Order> {
     if (status === "İptal Edildi") {
-      const reason = String(cancellationReason || "").trim();
-      if (!reason) {
-        throw new Error("Sipariş iptal nedeni girilmelidir.");
-      }
-
-      const current = this.getOrderById(orderId);
-      if (!current) throw new Error("Sipariş bulunamadı.");
-      if (current.status === "İptal Edildi") return current;
-      if (current.status === "Teslim Edildi") {
-        throw new Error("Teslim edilmiş sipariş iptal edilemez.");
-      }
-
-      const now = new Date().toISOString();
-      const cancelledBy = this.currentUser?.id || "";
-      const cancelledByRole = this.currentUser?.role || "";
-
-      const updateData: Record<string, unknown> = {
-        status: "İptal Edildi",
-        cancellationReason: reason,
-        cancelledAt: now,
-        updatedAt: now,
-      };
-
-      if (cancelledBy) updateData.cancelledBy = cancelledBy;
-      if (cancelledByRole) updateData.cancelledByRole = cancelledByRole;
-
-      await updateDoc(doc(db, "orders", orderId), updateData);
-
-      const updatedOrder = {
-        ...current,
-        ...updateData,
-        id: orderId,
-      } as Order;
-
-      this.orders = this.orders.some((order) => order.id === orderId)
-        ? this.orders.map((order) => order.id === orderId ? updatedOrder : order)
-        : [...this.orders, updatedOrder];
-
-      this.emit();
-
-      if (current.customerId && this.currentUser?.id !== current.customerId) {
-        void this.createNotification({
-          id: `order-${orderId}-status-iptal-edildi`.replace(/[^a-zA-Z0-9_-]/g, "-"),
-          userId: current.customerId,
-          orderId,
-          title: "Sipariş İptal Edildi",
-          message: `#${orderId} numaralı siparişiniz iptal edildi.`,
-          type: "order_status",
-          read: false,
-          createdAt: now,
-        }).catch((error) => {
-          console.error("❌ İptal bildirimi oluşturulamadı:", error);
-        });
-      }
-
-      return updatedOrder;
+          if (status === "İptal Edildi") {
+            const reason = String(cancellationReason || "").trim();
+            if (!reason) {
+              throw new Error("Sipariş iptal nedeni girilmelidir.");
+            }
+      
+            const current = this.getOrderById(orderId);
+            if (!current) throw new Error("Sipariş bulunamadı.");
+            if (current.status === "İptal Edildi") return current;
+            if (current.status === "Teslim Edildi") {
+              throw new Error("Teslim edilmiş sipariş iptal edilemez.");
+            }
+      
+            const now = new Date().toISOString();
+            const cancelledBy = this.currentUser?.id || "";
+            const cancelledByRole = this.currentUser?.role || "";
+      
+            const updateData: Record<string, unknown> = {
+              status: "İptal Edildi",
+              cancellationReason: reason,
+              cancelledAt: now,
+              updatedAt: now,
+            };
+      
+            if (cancelledBy) updateData.cancelledBy = cancelledBy;
+            if (cancelledByRole) updateData.cancelledByRole = cancelledByRole;
+      
+            await updateDoc(doc(db, "orders", orderId), updateData);
+      
+            const updatedOrder = {
+              ...current,
+              ...updateData,
+              id: orderId,
+            } as Order;
+      
+            this.orders = this.orders.some((order) => order.id === orderId)
+              ? this.orders.map((order) => order.id === orderId ? updatedOrder : order)
+              : [...this.orders, updatedOrder];
+      
+            this.emit();
+      
+            if (current.customerId && this.currentUser?.id !== current.customerId) {
+              void this.createNotification({
+                id: `order-${orderId}-status-iptal-edildi`.replace(/[^a-zA-Z0-9_-]/g, "-"),
+                userId: current.customerId,
+                orderId,
+                title: "Sipariş İptal Edildi",
+                message: `#${orderId} numaralı siparişiniz iptal edildi.`,
+                type: "order_status",
+                read: false,
+                createdAt: now,
+              }).catch((error) => {
+                console.error("❌ İptal bildirimi oluşturulamadı:", error);
+              });
+            }
+      
+            return updatedOrder;
+          }
     }
 
-  async updateOrderStatus(
-    orderId: string,
-    status: OrderStatus
-  ): Promise<Order> {
+
     if (!orderId) {
       throw new Error(
         "Sipariş ID gerekli."
