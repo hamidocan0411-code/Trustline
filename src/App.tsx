@@ -80,7 +80,6 @@ const NotificationDrawer = lazy(() => import("./components/NotificationDrawer").
 const AuthScreen = lazy(() => import("./components/AuthScreen").then((m) => ({ default: m.AuthScreen })));
 const LiveSupport = lazy(() => import("./components/LiveSupport").then((m) => ({ default: m.LiveSupport })));
 const CorporatePanel = lazy(() => import("./components/CorporatePanel").then((m) => ({ default: m.CorporatePanel })));
-const Footer = lazy(() => import("./components/Footer").then((m) => ({ default: m.Footer })));
 const PublicInfoPage = lazy(() => import("./components/PublicInfoPage").then((m) => ({ default: m.PublicInfoPage })));
 const PushNotificationPrompt = lazy(() => import("./components/PushNotificationPrompt").then((m) => ({ default: m.PushNotificationPrompt })));
 
