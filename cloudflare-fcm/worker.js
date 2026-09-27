@@ -680,7 +680,19 @@ async function processPending(env) {
     const user = await getUser(
       accessToken,
       String(notification.fields.userId)
-    );
+    ).catch((error) => {
+      if (String(error).includes("404")) return null;
+      throw error;
+    });
+
+    if (!user) {
+      await updateNotification(accessToken, notification.name, {
+        pushStatus: "orphaned",
+        pushProcessedAt: new Date().toISOString(),
+      });
+      processed++;
+      continue;
+    }
 
     const tokens = Array.isArray(user.pushTokens)
       ? [...new Set(
@@ -962,8 +974,12 @@ export default {
     }
   },
 
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (url.pathname === CUSTOMER_ADMIN_PATH) {
+      return handleCustomerAdminAction(request, env);
+    }
 
     if (url.pathname === "/health") {
       return Response.json({
