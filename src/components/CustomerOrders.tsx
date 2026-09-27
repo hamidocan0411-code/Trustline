@@ -39,6 +39,36 @@ import {
 import { RouteMap } from "./RouteMap";
 import { DeliveryProofCard } from "./DeliveryProofCard";
 
+
+
+const CancellationReasonModal: React.FC<{
+  open: boolean;
+  reason: string;
+  error: string;
+  onReasonChange: (value: string) => void;
+  onClose: () => void;
+  onConfirm: () => void;
+}> = ({ open, reason, error, onReasonChange, onClose, onConfirm }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4">
+      <div className="w-full max-w-lg rounded-3xl border border-[#303036] bg-[#111116] p-5 shadow-2xl">
+        <h3 className="text-xl font-black text-white">Siparişi İptal Et</h3>
+        <p className="mt-2 text-sm leading-6 text-[#999999]">Bu siparişi neden iptal ettiğinizi belirtin.</p>
+        <label className="mt-5 block">
+          <span className="mb-2 block text-xs font-bold text-white">İptal Nedeni</span>
+          <textarea value={reason} onChange={(event) => onReasonChange(event.target.value)} placeholder="Örneğin: Müşteri teslimat adresini değiştirdiği için sipariş iptal edildi." rows={5} className="w-full resize-none rounded-2xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm text-white outline-none placeholder:text-[#666666] focus:border-red-400/50" />
+        </label>
+        {error && <p className="mt-2 text-xs font-bold text-red-400">{error}</p>}
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} className="rounded-xl border border-[#303036] bg-[#19191E] px-5 py-3 text-sm font-bold text-white">Vazgeç</button>
+          <button type="button" onClick={onConfirm} className="rounded-xl bg-red-500 px-5 py-3 text-sm font-black text-white">İptali Onayla</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 interface Props {
   orders: Order[];
   onOpenNewOrder: () => void;
@@ -1289,4 +1319,17 @@ export const CustomerOrders: React.FC<Props> = ({
     </div>
 
   );
+  <CancellationReasonModal
+    open={!!cancelTarget}
+    reason={cancellationReason}
+    error={cancellationError}
+    onReasonChange={setCancellationReason}
+    onClose={() => {
+      setCancelTarget(null);
+      setCancellationReason("");
+      setCancellationError("");
+    }}
+    onConfirm={() => void confirmCancelOrder()}
+  />
+
 };
