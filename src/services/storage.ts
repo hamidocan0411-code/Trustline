@@ -2189,10 +2189,8 @@ class StorageService {
               });
             }
       
-            return updatedOrder;
-          }
+      return updatedOrder;
     }
-
 
     if (!orderId) {
       throw new Error(
