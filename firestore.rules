@@ -284,6 +284,11 @@ service cloud.firestore {
         || (signedIn() && resource.data.userId == request.auth.uid);
     }
 
+    match /financialRecords/{recordId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
     match /courierLocations/{courierId} {
       allow get: if isAdmin()
         || (signedIn() && request.auth.uid == courierId)
