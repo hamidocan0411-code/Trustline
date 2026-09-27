@@ -596,17 +596,14 @@ async function sendPushForNotification(
 
   const response = await messaging.sendEachForMulticast({
     tokens: tokens.slice(0, 500),
-    notification: {
+    data: {
+      ...data,
       title,
       body,
     },
-    data,
     webpush: {
       headers: {
         TTL: "86400",
-      },
-      fcmOptions: {
-        link: clickUrl,
       },
     },
   });
