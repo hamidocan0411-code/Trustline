@@ -393,20 +393,6 @@ export const CustomerOrders: React.FC<Props> = ({
   initialFilter = "all",
 }) => {
   const isCorporate = variant === "corporate";
-  const [searchTerm, setSearchTerm] =
-    useState("");
-
-  const [filter, setFilter] =
-    useState<
-      "all" | "active" | "completed" | "cancelled"
-    >(initialFilter);
-
-  const [sortOrder, setSortOrder] =
-    useState<"newest" | "oldest">("newest");
-
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
   const [cancellationError, setCancellationError] = useState("");
 
