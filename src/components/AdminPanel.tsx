@@ -44,6 +44,7 @@ import { formatPaymentMethod } from "../utils/payment";
 import { DeliveryProofCard } from "./DeliveryProofCard";
 import { LiveSupport } from "./LiveSupport";
 import { subscribeToAllCourierRatings } from "../services/courierRatings";
+import { subscribeToFinancialRecords, type FinancialRecord } from "../services/financialRecords";
 
 interface Props {
   orders: Order[];
@@ -272,6 +273,9 @@ export const AdminPanel: React.FC<Props> = ({
   const [courierRatingStats, setCourierRatingStats] =
     useState<Record<string, { average: number; count: number }>>({});
 
+  const [financialRecords, setFinancialRecords] =
+    useState<FinancialRecord[]>([]);
+
   const safeOrders = Array.isArray(orders)
     ? orders
     : [];
@@ -293,6 +297,25 @@ export const AdminPanel: React.FC<Props> = ({
       pricing?.vipMultiplier ?? 1.6
     );
   }, [pricing]);
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+
+    try {
+      unsubscribe = subscribeToFinancialRecords((records) => {
+        if (active) setFinancialRecords(Array.isArray(records) ? records : []);
+      });
+    } catch (error) {
+      console.error("Admin finansal kayıt listener hatası:", error);
+      setFinancialRecords([]);
+    }
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -584,21 +607,10 @@ export const AdminPanel: React.FC<Props> = ({
         "Teslimatta"
     ).length;
 
-  const totalRevenue =
-    safeOrders
-      .filter(
-        (order) =>
-          order.status !==
-          "İptal Edildi"
-      )
-      .reduce(
-        (sum, order) =>
-          sum +
-          Number(
-            order.price || 0
-          ),
-        0
-      );
+  const totalRevenue = financialRecords.reduce(
+    (sum, record) => sum + Number(record.amount || 0),
+    0
+  );
 
   const availableCouriers =
     activeCouriers.filter(
