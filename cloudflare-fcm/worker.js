@@ -750,6 +750,108 @@ async function processPending(env) {
   return { processed };
 }
 
+async function handleCustomerAdminAction(request, env) {
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: getCorsHeaders(request),
+    });
+  }
+
+  if (request.method !== "POST") {
+    return jsonResponse(request, { error: "Method Not Allowed" }, 405);
+  }
+
+  const authorization = request.headers.get("Authorization") || "";
+  const tokenMatch = authorization.match(/^Bearer\\s+(.+)$/i);
+
+  if (!tokenMatch?.[1]) {
+    return jsonResponse(request, { error: "Admin doğrulaması gerekli." }, 401);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse(request, { error: "Geçersiz istek." }, 400);
+  }
+
+  const targetUserId =
+    typeof body?.userId === "string" ? body.userId.trim() : "";
+  const confirmationEmail =
+    typeof body?.confirmationEmail === "string"
+      ? body.confirmationEmail.trim().toLowerCase()
+      : "";
+
+  if (!targetUserId || !confirmationEmail) {
+    return jsonResponse(request, { error: "Müşteri bilgileri eksik." }, 400);
+  }
+
+  if (!env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    return jsonResponse(
+      request,
+      { error: "Sunucu hesabı yapılandırılmamış." },
+      500
+    );
+  }
+
+  const caller = await lookupFirebaseIdToken(tokenMatch[1]);
+  if (!caller?.localId) {
+    return jsonResponse(request, { error: "Admin doğrulaması başarısız." }, 401);
+  }
+
+  const accessToken = await createGoogleAccessToken(
+    env.FIREBASE_SERVICE_ACCOUNT_JSON
+  );
+
+  const callerDocument = await getDocument(
+    accessToken,
+    "users",
+    caller.localId
+  );
+
+  const callerFields = fieldsToJs(callerDocument?.fields || {});
+  const callerRole = String(callerFields.role || "");
+  const callerEmail = String(callerFields.email || caller.email || "");
+
+  if (callerRole !== "admin" && callerEmail.toLowerCase() !== ADMIN_EMAIL) {
+    return jsonResponse(
+      request,
+      { error: "Bu işlem sadece admin tarafından yapılabilir." },
+      403
+    );
+  }
+
+  const targetDocument = await getDocument(
+    accessToken,
+    "users",
+    targetUserId
+  );
+
+  if (!targetDocument) {
+    return jsonResponse(request, { error: "Müşteri profili bulunamadı." }, 404);
+  }
+
+  const targetFields = fieldsToJs(targetDocument.fields || {});
+  const targetRole = String(targetFields.role || "");
+  const targetEmail = String(targetFields.email || "").trim().toLowerCase();
+
+  if (targetRole !== "customer") {
+    return jsonResponse(
+      request,
+      { error: "Bu hesap türü bu işlemle silinemez." },
+      403
+    );
+  }
+
+  if (!targetEmail || targetEmail !== confirmationEmail) {
+    return jsonResponse(
+      request,
+      { error: "Silmek istediğiniz müşterinin e-posta adresini doğru girin." },
+      400
+    );
+  }
+
 export default {
   async scheduled(_controller, env) {
     try {
