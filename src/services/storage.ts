@@ -2134,8 +2134,7 @@ class StorageService {
     cancellationReason?: string
   ): Promise<Order> {
     if (status === "İptal Edildi") {
-          if (status === "İptal Edildi") {
-            const reason = String(cancellationReason || "").trim();
+      const reason = String(cancellationReason || "").trim();
             if (!reason) {
               throw new Error("Sipariş iptal nedeni girilmelidir.");
             }
