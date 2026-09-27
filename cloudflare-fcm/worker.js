@@ -12,6 +12,7 @@ const MAX_WEB_PUSH_SUBSCRIPTIONS = 5;
 const MAX_CLEANUP_ORDERS = 500;
 const CLEANUP_DAYS = 7;
 const FINANCIAL_COLLECTION = "financialRecords";
+const CUSTOMER_ADMIN_PATH = "/admin/customer-profile";
 
 function b64url(input) {
   const bytes =
