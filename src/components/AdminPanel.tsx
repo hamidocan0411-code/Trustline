@@ -2500,7 +2500,7 @@ export const AdminPanel: React.FC<Props> = ({
                     ) : (
                       <>
                         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                          <FinanceCard title="Toplam Ciro" value={formatMoney(totalRevenue)} detail={`${completed.length} tamamlanan sipariş`} accent />
+                          <FinanceCard title="Toplam Ciro" value={formatMoney(totalRevenue)} detail={`${companyFinancialRecords.length} tamamlanan sipariş`} accent />
                           <FinanceCard
                             title="Bu Ay"
                             value={formatMoney(
