@@ -57,12 +57,16 @@ messaging.onBackgroundMessage((payload) => {
   const title =
     typeof notification.title === "string"
       ? notification.title
-      : "TrustLine Express";
+      : typeof data.title === "string"
+        ? data.title
+        : "TrustLine Express";
 
   const body =
     typeof notification.body === "string"
       ? notification.body
-      : "Yeni bir bildiriminiz var.";
+      : typeof data.body === "string"
+        ? data.body
+        : "Yeni bir bildiriminiz var.";
 
   const clickUrl =
     typeof data.clickUrl === "string" && data.clickUrl
