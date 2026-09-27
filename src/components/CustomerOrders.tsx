@@ -1245,7 +1245,9 @@ export const CustomerOrders: React.FC<Props> = ({
                     </div>
 
                     {/* Courier */}
-                    {order.courierName ? (
+                    {order.status !== "İptal Edildi" && (
+                      <>
+                    
                       <div className="flex items-center justify-between gap-3 rounded-xl border border-[#303036] bg-[#19191E] p-3">
                         <div className="flex items-center gap-3">
                           <div className="relative flex h-10 w-10 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/20 text-emerald-400">
@@ -1302,6 +1304,8 @@ export const CustomerOrders: React.FC<Props> = ({
                           bekleniyor.
                         </span>
                       </div>
+                    )}
+                      </>
                     )}
 
                     {/* Live Tracking */}
