@@ -396,6 +396,101 @@ async function lookupFirebaseIdToken(idToken) {
     : null;
 }
 
+async function getDocument(accessToken, collection, documentId) {
+  const response = await fetch(
+    `${FIRESTORE_BASE}/${encodeURIComponent(collection)}/${encodeURIComponent(documentId)}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`Firestore document read failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function findDocumentsByField(accessToken, collectionId, fieldPath, value, limit = 500) {
+  const response = await firestoreRequest(
+    `${FIRESTORE_BASE}:runQuery`,
+    accessToken,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath },
+              op: "EQUAL",
+              value: jsToFirestoreValue(value),
+            },
+          },
+          limit,
+        },
+      }),
+    }
+  );
+
+  const rows = await response.json();
+  return rows
+    .filter((row) => row.document)
+    .map((row) => ({
+      id: row.document.name.split("/").pop(),
+      fields: fieldsToJs(row.document.fields || {}),
+    }));
+}
+
+async function deleteDocument(accessToken, collection, documentId) {
+  const response = await fetch(
+    `${FIRESTORE_BASE}/${encodeURIComponent(collection)}/${encodeURIComponent(documentId)}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
+
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Firestore document delete failed: ${response.status}`);
+  }
+}
+
+async function restoreDocument(accessToken, collection, documentId, fields) {
+  await firestoreRequest(
+    `${FIRESTORE_BASE}/${encodeURIComponent(collection)}/${encodeURIComponent(documentId)}`,
+    accessToken,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ fields }),
+    }
+  );
+}
+
+async function deleteAuthAccount(accessToken, userId) {
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/projects/${PROJECT_ID}/accounts:delete`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ localId: userId }),
+    }
+  );
+
+  if (!response.ok) {
+    let message = "";
+    try {
+      const body = await response.json();
+      message = body?.error?.message || body?.error?.status || "";
+    } catch {
+      message = await response.text();
+    }
+    throw new Error(`Firebase Auth account operation failed: ${response.status} ${message}`.trim());
+  }
+}
+
 async function getUser(accessToken, userId) {
   const response = await firestoreRequest(
     `${FIRESTORE_BASE}/users/${encodeURIComponent(userId)}`,
