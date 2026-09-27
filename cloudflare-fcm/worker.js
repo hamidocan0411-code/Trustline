@@ -1,3 +1,4 @@
+import { sendPushNotification, WebPushError } from "@mmmike/web-push/send";
 const PROJECT_ID = "trustline-8729d";
 const FIRESTORE_BASE =
   `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
@@ -7,6 +8,7 @@ const OAUTH_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const OAUTH_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
 const MAX_PENDING = 3;
 const MAX_TOKENS_PER_USER = 10;
+const MAX_WEB_PUSH_SUBSCRIPTIONS = 5;
 
 function b64url(input) {
   const bytes =
@@ -294,6 +296,48 @@ async function sendFcmMessage(accessToken, token, notification, user) {
   };
 }
 
+async function sendWebPushSubscriptions(notification, user, subscriptions, env) {
+  const pub = env["VAPID_PUBLIC_" + "KEY"];
+  const priv = env["VAPID_" + "PRIVATE_KEY"];
+  const subject = env["VAPID_" + "SUBJECT"];
+  if (!pub || !priv || !subject || subscriptions.length === 0) {
+    return { delivered: 0, gone: 0, failed: 0, configured: false };
+  }
+
+  const title = typeof notification.title === "string" && notification.title.trim()
+    ? notification.title.trim() : "TrustLine Express";
+  const body = typeof notification.message === "string" && notification.message.trim()
+    ? notification.message.trim() : "Yeni bir bildiriminiz var.";
+
+  let delivered = 0;
+  let gone = 0;
+  let failed = 0;
+
+  for (const subscription of subscriptions.slice(0, MAX_WEB_PUSH_SUBSCRIPTIONS)) {
+    try {
+      const ok = await sendPushNotification(
+        subscription,
+        { title, body, url: buildClickUrl(user, notification), tag: String(notification.id) },
+        { publicKey: pub, privateKey: priv, subject },
+        { ttl: 86400, urgency: "high" }
+      );
+      if (ok) delivered++;
+      else gone++;
+    } catch (error) {
+      if (error instanceof WebPushError && (error.statusCode === 404 || error.statusCode === 410)) {
+        gone++;
+      } else {
+        failed++;
+        console.error("Web Push send failed", {
+          statusCode: error instanceof WebPushError ? error.statusCode : 0,
+        });
+      }
+    }
+  }
+
+  return { delivered, gone, failed, configured: true };
+}
+
 async function updateNotification(accessToken, documentName, fields) {
   const params = new URLSearchParams();
 
@@ -382,15 +426,36 @@ async function processPending(env) {
       );
     }
 
-    const successCount = results.filter((result) => result.ok).length;
-    const invalidCount = results.filter((result) => result.invalid).length;
+    const webSubscriptions = Array.isArray(user.webPushSubscriptions)
+      ? user.webPushSubscriptions.filter((subscription) =>
+          subscription &&
+          typeof subscription.endpoint === "string" &&
+          subscription.keys &&
+          typeof subscription.keys.p256dh === "string" &&
+          typeof subscription.keys.auth === "string"
+        )
+      : [];
+
+    const webResult = await sendWebPushSubscriptions(
+      { ...notification.fields, id: notification.id },
+      user,
+      webSubscriptions,
+      env
+    );
+
+    const successCount = results.filter((result) => result.ok).length + webResult.delivered;
+    const failureCount = results.filter((result) => !result.ok).length + webResult.failed;
+    const invalidCount = results.filter((result) => result.invalid).length + webResult.gone;
 
     await updateNotification(accessToken, notification.name, {
       pushStatus: successCount > 0 ? "sent" : "failed",
       pushProcessedAt: new Date().toISOString(),
       pushSuccessCount: successCount,
-      pushFailureCount: results.length - successCount,
+      pushFailureCount: failureCount,
       pushInvalidTokenCount: invalidCount,
+      webPushSuccessCount: webResult.delivered,
+      webPushFailureCount: webResult.failed,
+      webPushGoneCount: webResult.gone,
     });
 
     processed++;
