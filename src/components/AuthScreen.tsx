@@ -310,14 +310,14 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
             </div>
           </div>
           <div className="flex w-full justify-center lg:justify-end">
-            <article className="w-full max-w-[280px] overflow-hidden rounded-[28px] border border-orange-300/20 bg-[#0b0b0b] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.34)] sm:p-5" aria-labelledby="trustline-video-title">
+            <article className="w-full max-w-[360px] overflow-hidden rounded-[30px] border border-orange-300/20 bg-[#0b0b0b] p-5 shadow-[0_28px_80px_rgba(0,0,0,0.38)] sm:p-6" aria-labelledby="trustline-video-title">
               <div className="mb-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-orange-300">TrustLine Express</p>
-                <h3 id="trustline-video-title" className="mt-1 text-lg font-black text-white sm:text-xl">TrustLine Express'i Keşfedin</h3>
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-orange-300">Trustline Express</p>
+                <h3 id="trustline-video-title" className="mt-1 text-lg font-black text-white sm:text-xl">Trustline Express'i Keşfedin</h3>
                 <p className="mt-1.5 text-xs leading-5 text-slate-400">Hızlı, kolay ve güvenilir teslimat çözümlerimizi yakından inceleyin.</p>
               </div>
 
-              <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-[22px] border border-orange-300/15 bg-black shadow-[0_18px_50px_rgba(0,0,0,0.3)]">
+              <div className="mx-auto w-full max-w-[330px] overflow-hidden rounded-[24px] border border-orange-300/15 bg-black shadow-[0_20px_55px_rgba(0,0,0,0.32)]">
                 <div className="aspect-[9/16] w-full">
                   <iframe
                     src="https://www.youtube.com/embed/vXtFdx3Jfy4?rel=0"
