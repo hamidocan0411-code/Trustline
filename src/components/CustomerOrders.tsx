@@ -1402,22 +1402,6 @@ export const CustomerOrders: React.FC<Props> = ({
           })}
         </div>
       )}
-    <CancellationReasonModal
-      open={!!cancelTarget}
-      reason={cancellationReason}
-      error={cancellationError}
-      onReasonChange={(value) => {
-        setCancellationReason(value);
-        if (value.trim()) setCancellationError("");
-      }}
-      onClose={() => {
-        setCancelTarget(null);
-        setCancellationReason("");
-        setCancellationError("");
-      }}
-      onConfirm={() => void confirmCancelOrder()}
-    />
-
     </div>
 
       {cancelTarget && (
