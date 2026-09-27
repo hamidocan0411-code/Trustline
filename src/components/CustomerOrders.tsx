@@ -1327,7 +1327,7 @@ export const CustomerOrders: React.FC<Props> = ({
             </div>
           </div>
         </div>
-      )}>
+      )}
 
     {cancelTarget && (
       <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4">
