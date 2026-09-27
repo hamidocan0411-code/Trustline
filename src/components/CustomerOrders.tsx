@@ -1330,14 +1330,14 @@ export const CustomerOrders: React.FC<Props> = ({
           })}
         </div>
       )}
-
-
-
   <CancellationReasonModal
     open={!!cancelTarget}
     reason={cancellationReason}
     error={cancellationError}
-    onReasonChange={setCancellationReason}
+    onReasonChange={(value) => {
+      setCancellationReason(value);
+      if (value.trim()) setCancellationError("");
+    }}
     onClose={() => {
       setCancelTarget(null);
       setCancellationReason("");
@@ -1347,6 +1347,39 @@ export const CustomerOrders: React.FC<Props> = ({
   />
     </div>
 
+      {cancelTarget && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4">
+          <div className="w-full max-w-lg rounded-3xl border border-[#303036] bg-[#111116] p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">Sipariş İptali</p>
+                <h3 className="mt-1 text-xl font-black text-white">Siparişi İptal Et</h3>
+                <p className="mt-2 text-sm leading-6 text-[#999999]">Bu siparişi neden iptal ettiğinizi belirtin.</p>
+              </div>
+              <button type="button" onClick={() => setCancelTarget(null)} className="rounded-xl border border-[#303036] bg-[#19191E] p-2 text-[#999999]">
+                <XCircle size={18} />
+              </button>
+            </div>
+            <label className="mt-5 block">
+              <span className="mb-2 block text-xs font-bold text-white">İptal Nedeni</span>
+              <textarea
+                value={cancellationReason}
+                onChange={(event) => {
+                  setCancellationReason(event.target.value);
+                  if (event.target.value.trim()) setCancellationError("");
+                }}
+                placeholder="Örneğin: Müşteri teslimat adresini değiştirdiği için sipariş iptal edildi."
+                rows={5}
+                className="w-full resize-none rounded-2xl border border-[#303036] bg-[#19191E] px-4 py-3 text-sm text-white outline-none placeholder:text-[#666666] focus:border-red-400/50"
+              />
+            </label>
+            {cancellationError && <p className="mt-2 text-xs font-bold text-red-400">{cancellationError}</p>}
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => { setCancelTarget(null); setCancellationReason(""); setCancellationError(""); }} className="rounded-xl border border-[#303036] bg-[#19191E] px-5 py-3 text-sm font-bold text-white">Vazgeç</button>
+              <button type="button" onClick={() => void confirmCancelOrder()} className="rounded-xl bg-red-500 px-5 py-3 text-sm font-black text-white">İptali Onayla</button>
+            </div>
+          </div>
+        </div>
+      )}
   );
-
 };
