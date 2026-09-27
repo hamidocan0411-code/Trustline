@@ -162,6 +162,11 @@ export interface Order {
   signature?: string;
   deliveredAt?: string;
 
+  cancellationReason?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelledByRole?: UserRole;
+
   createdAt: string;
   updatedAt: string;
 }
