@@ -2506,6 +2506,8 @@ class StorageService {
         createdAt:
           notification.createdAt ||
           now,
+
+        pushStatus: "pending",
       }
     );
   }
