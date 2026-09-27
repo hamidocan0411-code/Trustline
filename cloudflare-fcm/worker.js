@@ -775,7 +775,7 @@ async function handleCustomerAdminAction(request, env) {
   }
 
   const authorization = request.headers.get("Authorization") || "";
-  const tokenMatch = authorization.match(/^Bearer\\s+(.+)$/i);
+  const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
 
   if (!tokenMatch?.[1]) {
     return jsonResponse(request, { error: "Admin doğrulaması gerekli." }, 401);
