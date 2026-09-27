@@ -9,6 +9,9 @@ const OAUTH_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
 const MAX_PENDING = 3;
 const MAX_TOKENS_PER_USER = 10;
 const MAX_WEB_PUSH_SUBSCRIPTIONS = 5;
+const MAX_CLEANUP_ORDERS = 500;
+const CLEANUP_DAYS = 7;
+const FINANCIAL_COLLECTION = "financialRecords";
 
 function b64url(input) {
   const bytes =
@@ -203,6 +206,133 @@ async function findPendingNotifications(accessToken) {
       fields: fieldsToJs(row.document.fields || {}),
       name: row.document.name,
     }));
+}
+
+async function findOrdersByStatus(accessToken, status) {
+  const response = await firestoreRequest(
+    `${FIRESTORE_BASE}:runQuery`,
+    accessToken,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: "orders" }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: "status" },
+              op: "EQUAL",
+              value: { stringValue: status },
+            },
+          },
+          limit: MAX_CLEANUP_ORDERS,
+        },
+      }),
+    }
+  );
+  const rows = await response.json();
+  return rows.filter((row) => row.document).map((row) => ({
+    id: row.document.name.split("/").pop(),
+    name: row.document.name,
+    fields: fieldsToJs(row.document.fields || {}),
+  }));
+}
+
+async function getFinancialRecord(accessToken, orderId) {
+  const response = await fetch(
+    `${FIRESTORE_BASE}/${FINANCIAL_COLLECTION}/${encodeURIComponent(orderId)}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Financial record read failed: ${response.status}`);
+  const document = await response.json();
+  return fieldsToJs(document.fields || {});
+}
+
+async function writeFinancialRecordIfMissing(accessToken, order) {
+  if (order.status !== "Teslim Edildi" || !order.deliveredAt) return false;
+  if (await getFinancialRecord(accessToken, order.id)) return false;
+
+  const amount = Number(order.price);
+  if (!Number.isFinite(amount) || amount < 0) {
+    console.error("Financial record skipped: invalid order price", order.id);
+    return false;
+  }
+
+  const fields = {
+    orderId: order.id,
+    amount,
+    currency: "TRY",
+    revenueDate: order.deliveredAt,
+    status: "Teslim Edildi",
+    revenueType: "delivery",
+    createdAt: new Date().toISOString(),
+    ...(order.companyId ? { companyId: String(order.companyId) } : {}),
+    ...(order.customerType ? { customerType: String(order.customerType) } : {}),
+    ...(order.customerId ? { customerId: String(order.customerId) } : {}),
+  };
+
+  const params = new URLSearchParams();
+  for (const field of Object.keys(fields)) params.append("updateMask.fieldPaths", field);
+
+  await firestoreRequest(
+    `${FIRESTORE_BASE}/${FINANCIAL_COLLECTION}/${encodeURIComponent(order.id)}?${params.toString()}`,
+    accessToken,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        fields: Object.fromEntries(
+          Object.entries(fields).map(([key, value]) => [key, jsToFirestoreValue(value)])
+        ),
+      }),
+    }
+  );
+  return true;
+}
+
+async function deleteOrder(accessToken, order) {
+  const response = await fetch(
+    `${FIRESTORE_BASE}/orders/${encodeURIComponent(order.id)}`,
+    { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Order delete failed: ${response.status}`);
+  }
+}
+
+async function processOperationalCleanup(accessToken) {
+  const cutoff = Date.now() - CLEANUP_DAYS * 24 * 60 * 60 * 1000;
+  const delivered = await findOrdersByStatus(accessToken, "Teslim Edildi");
+  const cancelled = await findOrdersByStatus(accessToken, "İptal Edildi");
+  let financialCreated = 0;
+  let deleted = 0;
+  let skipped = 0;
+
+  for (const order of delivered) {
+    if (await writeFinancialRecordIfMissing(accessToken, order)) financialCreated++;
+    const timestamp = new Date(order.deliveredAt || "").getTime();
+    if (!Number.isFinite(timestamp)) {
+      skipped++;
+      continue;
+    }
+    if (timestamp <= cutoff) {
+      await deleteOrder(accessToken, order);
+      deleted++;
+    }
+  }
+
+  for (const order of cancelled) {
+    const timestamp = new Date(order.updatedAt || "").getTime();
+    if (!Number.isFinite(timestamp)) {
+      skipped++;
+      continue;
+    }
+    if (timestamp <= cutoff) {
+      await deleteOrder(accessToken, order);
+      deleted++;
+    }
+  }
+
+  return { financialCreated, deleted, skipped };
 }
 
 async function getUser(accessToken, userId) {
@@ -404,7 +534,17 @@ async function processPending(env) {
         )].slice(0, MAX_TOKENS_PER_USER)
       : [];
 
-    if (tokens.length === 0) {
+    const webSubscriptions = Array.isArray(user.webPushSubscriptions)
+      ? user.webPushSubscriptions.filter((subscription) =>
+          subscription &&
+          typeof subscription.endpoint === "string" &&
+          subscription.keys &&
+          typeof subscription.keys.p256dh === "string" &&
+          typeof subscription.keys.auth === "string"
+        )
+      : [];
+
+    if (tokens.length === 0 && webSubscriptions.length === 0) {
       await updateNotification(accessToken, notification.name, {
         pushStatus: "no_tokens",
         pushProcessedAt: new Date().toISOString(),
@@ -425,16 +565,6 @@ async function processPending(env) {
         )
       );
     }
-
-    const webSubscriptions = Array.isArray(user.webPushSubscriptions)
-      ? user.webPushSubscriptions.filter((subscription) =>
-          subscription &&
-          typeof subscription.endpoint === "string" &&
-          subscription.keys &&
-          typeof subscription.keys.p256dh === "string" &&
-          typeof subscription.keys.auth === "string"
-        )
-      : [];
 
     const webResult = await sendWebPushSubscriptions(
       { ...notification.fields, id: notification.id },
@@ -468,7 +598,9 @@ export default {
   async scheduled(_controller, env) {
     try {
       const result = await processPending(env);
-      console.log("TrustLine FCM Worker", result);
+      const accessToken = await createGoogleAccessToken(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+      const cleanup = await processOperationalCleanup(accessToken);
+      console.log("TrustLine FCM Worker", { ...result, cleanup });
     } catch (error) {
       console.error("TrustLine FCM Worker error", error);
       throw error;
