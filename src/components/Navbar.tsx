@@ -3,6 +3,7 @@ import type { UserProfile } from '../types';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { storage } from '../services/storage';
+import { disablePushNotifications } from '../services/pushNotifications';
 
 const TRUSTLINE_LOGO =
   'https://i.ibb.co/wZpW2m4v/3-E0-E545-B-ADD8-46-F8-A01-F-83-D5-D61-E6-DA5.png';
@@ -76,6 +77,11 @@ export function Navbar({
     if (isLoggingOut) return;
     setIsLoggingOut(true);
     try {
+      try {
+        await disablePushNotifications(currentUser.id);
+      } catch (error) {
+        console.warn('⚠️ Çıkışta FCM token temizlenemedi:', error);
+      }
       if (currentUser.role === 'courier') {
         try {
           await storage.setCourierOffline(currentUser.id);
