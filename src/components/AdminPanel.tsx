@@ -45,6 +45,7 @@ import { DeliveryProofCard } from "./DeliveryProofCard";
 import { LiveSupport } from "./LiveSupport";
 import { subscribeToAllCourierRatings } from "../services/courierRatings";
 import { subscribeToFinancialRecords, type FinancialRecord } from "../services/financialRecords";
+import { deleteCustomerAccount } from "../services/adminCustomerDeletion";
 
 interface Props {
   orders: Order[];
@@ -198,6 +199,10 @@ export const AdminPanel: React.FC<Props> = ({
 
   const [selectedCustomerProfile, setSelectedCustomerProfile] =
     useState<UserProfile | null>(null);
+  const [customerDeletionTarget, setCustomerDeletionTarget] =
+    useState<UserProfile | null>(null);
+  const [deletingCustomerId, setDeletingCustomerId] =
+    useState<string | null>(null);
 
   const [corporateRemovalTarget, setCorporateRemovalTarget] =
     useState<UserProfile | null>(null);
@@ -739,6 +744,29 @@ export const AdminPanel: React.FC<Props> = ({
     loadUsers();
     loadCourierLocations();
     onRefreshData?.();
+  };
+
+  const confirmCustomerDeletion = async (
+    customer: UserProfile,
+    confirmationEmail: string
+  ) => {
+    setDeletingCustomerId(customer.id);
+
+    try {
+      await deleteCustomerAccount(
+        customer.id,
+        confirmationEmail
+      );
+
+      setCustomerDeletionTarget(null);
+      setSelectedCustomerProfile(null);
+      loadUsers();
+      onRefreshData?.();
+
+      alert("Müşteri profili başarıyla silindi.");
+    } finally {
+      setDeletingCustomerId(null);
+    }
   };
 
   const openCorporateCompany = async (company: UserProfile) => {
@@ -3693,9 +3721,25 @@ export const AdminPanel: React.FC<Props> = ({
           )}
           onClose={() => setSelectedCustomerProfile(null)}
           onOpenOrder={openOrder}
+          onRequestDelete={() => setCustomerDeletionTarget(selectedCustomerProfile)}
         />,
         document.body
       )}
+
+      {customerDeletionTarget &&
+        createPortal(
+          <CustomerDeletionModal
+            customer={customerDeletionTarget}
+            deleting={deletingCustomerId === customerDeletionTarget.id}
+            onClose={() => {
+              if (!deletingCustomerId) {
+                setCustomerDeletionTarget(null);
+              }
+            }}
+            onConfirm={confirmCustomerDeletion}
+          />,
+          document.body
+        )}
     </div>
   );
 };
@@ -3850,11 +3894,13 @@ const CustomerProfileModal: React.FC<{
   orders: Order[];
   onClose: () => void;
   onOpenOrder: (order: Order) => void;
+  onRequestDelete: () => void;
 }> = ({
   customer,
   orders,
   onClose,
   onOpenOrder,
+  onRequestDelete,
 }) => {
   const completedOrders = orders.filter(
     (order) => order.status === "Teslim Edildi"
@@ -3922,6 +3968,15 @@ const CustomerProfileModal: React.FC<{
           <ProfileMetric label="Toplam harcama" value={formatCustomerMoney(totalSpend)} accent />
         </div>
 
+        <button
+          type="button"
+          onClick={onRequestDelete}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-xs font-black text-red-300 transition hover:bg-red-500/10"
+        >
+          <Trash2 size={15} />
+          Profili Sil
+        </button>
+
         <div className="mt-5 overflow-hidden rounded-2xl border border-[#303036] bg-[#19191E]">
           <div className="border-b border-[#303036] px-4 py-3">
             <h3 className="text-sm font-bold text-white">Sipariş geçmişi</h3>
@@ -3959,6 +4014,138 @@ const CustomerProfileModal: React.FC<{
               ))}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CustomerDeletionModal: React.FC<{
+  customer: UserProfile;
+  deleting: boolean;
+  onClose: () => void;
+  onConfirm: (
+    customer: UserProfile,
+    confirmationEmail: string
+  ) => Promise<void>;
+}> = ({
+  customer,
+  deleting,
+  onClose,
+  onConfirm,
+}) => {
+  const [confirmationEmail, setConfirmationEmail] = useState("");
+  const [error, setError] = useState("");
+
+  const handleConfirm = async () => {
+    if (
+      confirmationEmail.trim().toLowerCase() !==
+      customer.email.trim().toLowerCase()
+    ) {
+      setError(
+        "Silmek istediğiniz müşterinin e-posta adresini doğru girin."
+      );
+      return;
+    }
+
+    setError("");
+
+    try {
+      await onConfirm(customer, confirmationEmail.trim());
+    } catch (nextError) {
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "Müşteri profili silinemedi. Lütfen tekrar deneyin."
+      );
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="customer-delete-title"
+    >
+      <div className="w-full max-w-lg rounded-t-3xl border border-red-500/20 bg-[#111116] p-5 shadow-2xl sm:rounded-3xl">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500/10 text-red-300">
+              <Trash2 size={20} />
+            </div>
+            <div>
+              <h2 id="customer-delete-title" className="text-lg font-black text-white">
+                Müşteri Profilini Sil
+              </h2>
+              <p className="mt-1 text-xs leading-5 text-[#999999]">
+                Bu müşteri hesabını sistemden silmek üzeresiniz. Bu işlem geri alınamaz.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            className="rounded-xl border border-[#303036] bg-[#19191E] p-2 text-[#999999] disabled:opacity-40"
+            aria-label="Kapat"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-2 rounded-2xl border border-[#303036] bg-[#19191E] p-4">
+          <InfoItem label="Ad Soyad" value={customer.name || "—"} />
+          <InfoItem label="E-posta" value={customer.email || "—"} />
+          <InfoItem label="Telefon" value={customer.phone || "—"} />
+        </div>
+
+        <div className="mt-5">
+          <label className="text-xs font-bold text-white">
+            Silmek istediğinizi onaylamak için müşterinin e-posta adresini yazın.
+          </label>
+          <input
+            value={confirmationEmail}
+            onChange={(event) => {
+              setConfirmationEmail(event.target.value);
+              if (error) setError("");
+            }}
+            disabled={deleting}
+            type="email"
+            autoComplete="off"
+            placeholder={customer.email}
+            className="mt-2 w-full rounded-xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#55555F] focus:border-red-500/50"
+          />
+        </div>
+
+        {error && (
+          <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs font-semibold leading-5 text-red-300">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-6 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            className="flex-1 rounded-xl border border-[#303036] bg-[#0B0B0D] px-4 py-3 text-xs font-black text-[#999999] disabled:opacity-50"
+          >
+            Vazgeç
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={
+              deleting ||
+              confirmationEmail.trim().toLowerCase() !==
+                customer.email.trim().toLowerCase()
+            }
+            className="flex-1 rounded-xl bg-red-500 px-4 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {deleting ? "Siliniyor..." : "Profili Kalıcı Olarak Sil"}
+          </button>
         </div>
       </div>
     </div>
