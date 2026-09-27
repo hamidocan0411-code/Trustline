@@ -1246,68 +1246,67 @@ export const CustomerOrders: React.FC<Props> = ({
 
                     {/* Courier */}
                     {order.status !== "İptal Edildi" && (
-                      <>
-                    
-                      <div className="flex items-center justify-between gap-3 rounded-xl border border-[#303036] bg-[#19191E] p-3">
-                        <div className="flex items-center gap-3">
-                          <div className="relative flex h-10 w-10 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/20 text-emerald-400">
-                            <Truck size={18} />
-
-                            {isActive && (
-                              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full border-2 border-[#19191E] bg-emerald-400" />
-                            )}
-                          </div>
-
-                          <div>
-                            <span className="block text-[10px] uppercase tracking-wide text-[#999999]">
-                              Atanan Kurye
-                            </span>
-
-                            <h4 className="text-xs font-bold">
-                              {
-                                order.courierName
-                              }
-                            </h4>
-
-                            {order.courierPhone && (
-                              <p className="font-mono text-[11px] text-emerald-400">
+                      {order.courierName ? (
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#303036] bg-[#19191E] p-3">
+                          <div className="flex items-center gap-3">
+                            <div className="relative flex h-10 w-10 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/20 text-emerald-400">
+                              <Truck size={18} />
+  
+                              {isActive && (
+                                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full border-2 border-[#19191E] bg-emerald-400" />
+                              )}
+                            </div>
+  
+                            <div>
+                              <span className="block text-[10px] uppercase tracking-wide text-[#999999]">
+                                Atanan Kurye
+                              </span>
+  
+                              <h4 className="text-xs font-bold">
                                 {
-                                  order.courierPhone
+                                  order.courierName
                                 }
-                              </p>
-                            )}
+                              </h4>
+  
+                              {order.courierPhone && (
+                                <p className="font-mono text-[11px] text-emerald-400">
+                                  {
+                                    order.courierPhone
+                                  }
+                                </p>
+                              )}
+                            </div>
                           </div>
+  
+                          {order.courierPhone && (
+                            <a
+                              href={`tel:${order.courierPhone}`}
+                              onClick={(event) =>
+                                event.stopPropagation()
+                              }
+                              className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2 text-emerald-400 transition hover:bg-emerald-500 hover:text-white active:scale-95"
+                              title="Kuryeyi Ara"
+                            >
+                              <Phone size={16} />
+                            </a>
+                          )}
                         </div>
-
-                        {order.courierPhone && (
-                          <a
-                            href={`tel:${order.courierPhone}`}
-                            onClick={(event) =>
-                              event.stopPropagation()
-                            }
-                            className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2 text-emerald-400 transition hover:bg-emerald-500 hover:text-white active:scale-95"
-                            title="Kuryeyi Ara"
-                          >
-                            <Phone size={16} />
-                          </a>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 rounded-xl border border-[#303036] bg-[#19191E] p-3 text-xs text-[#999999]">
-                        <Clock
-                          size={16}
-                          className="shrink-0 text-amber-400"
-                        />
-
-                        <span>
-                          Kurye atanması
-                          bekleniyor.
-                        </span>
-                      </div>
+                      ) : (
+                        <div className="flex items-center gap-2 rounded-xl border border-[#303036] bg-[#19191E] p-3 text-xs text-[#999999]">
+                          <Clock
+                            size={16}
+                            className="shrink-0 text-amber-400"
+                          />
+  
+                          <span>
+                            Kurye atanması
+                            bekleniyor.
+                          </span>
+                        </div>
+                      )}
+  
+  
                     )}
-                      </>
-                    )}
-
                     {/* Live Tracking */}
                     {order.courierId &&
                       order.status !==
