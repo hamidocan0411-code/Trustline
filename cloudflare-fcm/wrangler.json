@@ -7,6 +7,11 @@
     "crons": ["* * * * *"]
   },
   "secrets": {
-    "required": ["FIREBASE_SERVICE_ACCOUNT_JSON"]
+    "required": [
+      "FIREBASE_SERVICE_ACCOUNT_JSON",
+      "VAPID_PUBLIC_KEY",
+      "VAPID_PRIVATE_KEY",
+      "VAPID_SUBJECT"
+    ]
   }
 }
