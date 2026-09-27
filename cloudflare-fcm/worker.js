@@ -302,7 +302,7 @@ async function updateNotification(accessToken, documentName, fields) {
   }
 
   await firestoreRequest(
-    `${documentName}?${params.toString()}`,
+    `${FIRESTORE_BASE}/${documentName.split("/documents/")[1]}?${params.toString()}`,
     accessToken,
     {
       method: "PATCH",
