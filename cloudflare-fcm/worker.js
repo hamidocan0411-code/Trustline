@@ -1,8 +1,8 @@
 const PROJECT_ID = "trustline-8729d";
 const FIRESTORE_BASE =
-  \`https://firestore.googleapis.com/v1/projects/\${PROJECT_ID}/databases/(default)/documents\`;
+  `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 const FCM_ENDPOINT =
-  \`https://fcm.googleapis.com/v1/projects/\${PROJECT_ID}/messages:send\`;
+  `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`;
 const OAUTH_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const OAUTH_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
 const MAX_PENDING = 3;
@@ -67,7 +67,7 @@ async function createGoogleAccessToken(serviceAccountJson) {
     })
   );
 
-  const unsignedToken = \`\${header}.\${claim}\`;
+  const unsignedToken = `${header}.${claim}`;
 
   const privateKey = await crypto.subtle.importKey(
     "pkcs8",
@@ -83,7 +83,7 @@ async function createGoogleAccessToken(serviceAccountJson) {
     new TextEncoder().encode(unsignedToken)
   );
 
-  const assertion = \`\${unsignedToken}.\${b64url(signature)}\`;
+  const assertion = `${unsignedToken}.${b64url(signature)}`;
 
   const response = await fetch(OAUTH_TOKEN_ENDPOINT, {
     method: "POST",
@@ -96,7 +96,7 @@ async function createGoogleAccessToken(serviceAccountJson) {
 
   if (!response.ok) {
     throw new Error(
-      \`Google OAuth token request failed: \${response.status} \${await response.text()}\`
+      `Google OAuth token request failed: ${response.status} ${await response.text()}`
     );
   }
 
@@ -155,7 +155,7 @@ async function firestoreRequest(url, accessToken, options = {}) {
   const response = await fetch(url, {
     ...options,
     headers: {
-      Authorization: \`Bearer \${accessToken}\`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
@@ -163,7 +163,7 @@ async function firestoreRequest(url, accessToken, options = {}) {
 
   if (!response.ok) {
     throw new Error(
-      \`Firestore request failed: \${response.status} \${await response.text()}\`
+      `Firestore request failed: ${response.status} ${await response.text()}`
     );
   }
 
@@ -172,7 +172,7 @@ async function firestoreRequest(url, accessToken, options = {}) {
 
 async function findPendingNotifications(accessToken) {
   const response = await firestoreRequest(
-    \`\${FIRESTORE_BASE}:runQuery\`,
+    `${FIRESTORE_BASE}:runQuery`,
     accessToken,
     {
       method: "POST",
@@ -205,7 +205,7 @@ async function findPendingNotifications(accessToken) {
 
 async function getUser(accessToken, userId) {
   const response = await firestoreRequest(
-    \`\${FIRESTORE_BASE}/users/\${encodeURIComponent(userId)}\`,
+    `${FIRESTORE_BASE}/users/${encodeURIComponent(userId)}`,
     accessToken
   );
 
@@ -231,7 +231,7 @@ function buildClickUrl(user, notification) {
   const query = params.toString();
 
   return query
-    ? \`https://trustlineexpress.com.tr/?\${query}\`
+    ? `https://trustlineexpress.com.tr/?${query}`
     : "https://trustlineexpress.com.tr/";
 }
 
@@ -249,7 +249,7 @@ async function sendFcmMessage(accessToken, token, notification, user) {
   const response = await fetch(FCM_ENDPOINT, {
     method: "POST",
     headers: {
-      Authorization: \`Bearer \${accessToken}\`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json; UTF-8",
     },
     body: JSON.stringify({
@@ -302,7 +302,7 @@ async function updateNotification(accessToken, documentName, fields) {
   }
 
   await firestoreRequest(
-    \`\${FIRESTORE_BASE}/\${documentName}?\${params.toString()}\`,
+    `${FIRESTORE_BASE}/${documentName}?${params.toString()}`,
     accessToken,
     {
       method: "PATCH",
