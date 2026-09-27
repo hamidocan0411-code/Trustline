@@ -109,7 +109,9 @@ service cloud.firestore {
             'courierStatus',
             'updatedAt',
             'pushTokens',
-            'pushTokensUpdatedAt'
+            'pushTokensUpdatedAt',
+            'webPushSubscriptions',
+            'webPushSubscriptionsUpdatedAt'
           ])
         );
 
