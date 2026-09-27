@@ -1176,6 +1176,40 @@ export const CustomerOrders: React.FC<Props> = ({
                       </div>
                     )}
 
+                    {/* Cancellation Information */}
+                    {order.status === "İptal Edildi" && (
+                      <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3">
+                        <div className="flex items-center gap-2">
+                          <XCircle size={16} className="shrink-0 text-red-400" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-red-300">
+                            İptal Bilgileri
+                          </span>
+                        </div>
+
+                        <div className="mt-3 space-y-2">
+                          <div>
+                            <span className="block text-[9px] uppercase tracking-wider text-[#777780]">
+                              İptal Nedeni
+                            </span>
+                            <p className="mt-1 text-xs leading-5 text-white">
+                              {order.cancellationReason || "İptal nedeni belirtilmemiş."}
+                            </p>
+                          </div>
+
+                          {order.cancelledAt && (
+                            <div>
+                              <span className="block text-[9px] uppercase tracking-wider text-[#777780]">
+                                İptal Tarihi
+                              </span>
+                              <p className="mt-1 text-xs text-[#D6A84F]">
+                                {formatDate(order.cancelledAt)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Order Information */}
                     <div className="grid gap-2 sm:grid-cols-2">
                       <div className="rounded-xl border border-[#303036] bg-[#19191E] p-3">
