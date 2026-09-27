@@ -2,7 +2,7 @@ import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { storage } from "./services/storage";
 import { subscribeToAuth, handleGoogleRedirectResult, ensureUserProfile } from "./services/auth";
 import { auth } from "./services/firebase";
-import { registerPushIfAlreadyGranted, subscribeToForegroundPush } from "./services/pushNotifications";
+import { disablePushNotifications, registerPushIfAlreadyGranted, subscribeToForegroundPush } from "./services/pushNotifications";
 import { signOut } from "firebase/auth";
 import type { NotificationItem, Order, PricingConfig, UserProfile } from "./types";
 
@@ -125,6 +125,7 @@ export function App() {
     if (profile.role === "courier" && courierProfile.employmentStatus === "inactive") {
       try { storage.setCurrentUser(null); } catch (error) { console.warn("⚠️ Pasif hesap için storage temizlenemedi:", error); }
       setCurrentUser(null); setNotifications([]); setProfileLoading(false); setAuthLoading(false); setAppError(null); setInactiveAccount(true);
+      try { await disablePushNotifications(profile.id); } catch (error) { console.warn("⚠️ Pasif hesap FCM token temizlenemedi:", error); }
       try { await signOut(auth); } catch (error) { console.warn("⚠️ Pasif kurye Firebase oturumu kapatılamadı:", error); }
       return;
     }
