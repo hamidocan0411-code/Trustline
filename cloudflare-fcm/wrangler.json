@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "trustline-fcm-push",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-27",
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "secrets": {
+    "required": ["FIREBASE_SERVICE_ACCOUNT_JSON"]
+  }
+}
