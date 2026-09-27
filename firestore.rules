@@ -173,9 +173,18 @@ service cloud.firestore {
           && request.resource.data.courierId == resource.data.courierId
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status',
-            'updatedAt'
+            'updatedAt',
+            'cancellationReason',
+            'cancelledAt',
+            'cancelledBy',
+            'cancelledByRole'
           ])
           && request.resource.data.status == 'İptal Edildi'
+          && request.resource.data.cancellationReason is string
+          && request.resource.data.cancellationReason.size() > 0
+          && request.resource.data.cancelledAt is string
+          && request.resource.data.cancelledBy == request.auth.uid
+          && request.resource.data.cancelledByRole == 'customer'
         )
         || (
           signedIn()
