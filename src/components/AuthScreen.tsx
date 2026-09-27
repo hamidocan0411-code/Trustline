@@ -320,6 +320,7 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
           <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_520px] lg:items-center lg:px-8 lg:py-24">
             <div><p className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">Devam etmek için giriş yapın</p><h2 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">Hesabınıza devam edin</h2><p className="mt-5 max-w-2xl text-base leading-7 text-slate-400">Trustline Express deneyimine devam etmek için Google hesabınızla güvenli şekilde giriş yapın.</p><div className="mt-8 grid gap-3 sm:grid-cols-3">{[["🔐", "Güvenli giriş"], ["🧭", "Kolay erişim"], ["⚡", "Hızlı başlangıç"]].map(([icon, label]) => <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><div className="text-xl">{icon}</div><p className="mt-2 text-xs font-bold text-slate-200">{label}</p></div>)}</div></div>
 
+            <div className="flex flex-col gap-5">
             <div className="rounded-[32px] border border-orange-400/20 bg-[#0b0b0b] p-5 shadow-[0_30px_90px_rgba(0,0,0,0.48)] sm:p-7">
               <div className="mb-6 flex items-center justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.24em] text-orange-300">Google ile giriş</p><h3 className="mt-2 text-2xl font-black text-white">Hoş geldin</h3></div><div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-orange-400/20 bg-orange-400/10 text-xl">T</div></div>
               <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.035] p-4"><p className="text-sm font-black text-slate-100">Tek giriş yöntemi: Google</p><p className="mt-1 text-xs leading-5 text-slate-500">E-posta veya şifre formu yok. Mevcut Google Authentication akışınız aynen korunur.</p></div>
@@ -350,6 +351,28 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-orange-300">🚚 Standart Kurye</p><p className="mt-1 text-sm font-black text-white">09:00 – 21:00</p></div><div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">💊 Eczane Ürünleri</p><p className="mt-1 text-sm font-black text-emerald-200">7/24</p></div></div>
             </div>
+
+            <article className="overflow-hidden rounded-[28px] border border-orange-300/20 bg-[#0b0b0b] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.34)] sm:p-5" aria-labelledby="trustline-video-title">
+              <div className="mb-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-orange-300">TrustLine Express</p>
+                <h3 id="trustline-video-title" className="mt-1 text-lg font-black text-white sm:text-xl">TrustLine Express'i Keşfedin</h3>
+                <p className="mt-1.5 text-xs leading-5 text-slate-400">Hızlı, kolay ve güvenilir teslimat çözümlerimizi yakından inceleyin.</p>
+              </div>
+
+              <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-[22px] border border-orange-300/15 bg-black shadow-[0_18px_50px_rgba(0,0,0,0.3)]">
+                <div className="aspect-[9/16] w-full">
+                  <iframe
+                    src="https://www.youtube.com/embed/vXtFdx3Jfy4?rel=0"
+                    title="🚀 Trustline Express Web Sitesi Yayında! | Hızlı, Kolay ve Güvenilir Kurye Hizmeti 📦 #kuryehizmeti"
+                    className="h-full w-full"
+                    loading="lazy"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            </article>
           </div>
         </section>
 
