@@ -231,7 +231,8 @@ export function App() {
     }
 
     let mounted = true;
-    let unsubscribe: (() => void) | undefined;
+    let unsubscribePush: (() => void) | undefined;
+    let unsubscribeStorage: (() => void) | undefined;
 
     void registerPushIfAlreadyGranted(currentUser.id);
 
@@ -245,7 +246,7 @@ export function App() {
       }
     }).then((cleanup) => {
       if (mounted) {
-        unsubscribe = cleanup;
+        unsubscribePush = cleanup;
       } else {
         cleanup();
       }
@@ -254,8 +255,12 @@ export function App() {
         console.debug("[FCM] Foreground listener kurulamadı:", error);
       }
     });
-    try { unsubscribe = storage.subscribe(() => { if (!mounted) return; try { const nextOrders = storage.getOrders(); setOrders(Array.isArray(nextOrders) ? nextOrders : []); } catch (error) { console.error("Orders listener hatası:", error); } try { const nextPricing = storage.getPricing(); if (nextPricing) setPricing(nextPricing); } catch (error) { console.error("Pricing listener hatası:", error); } try { const nextNotifications = storage.getNotifications(currentUser.id); setNotifications(Array.isArray(nextNotifications) ? nextNotifications : []); } catch (error) { console.error("Notification listener hatası:", error); setNotifications([]); } }); } catch (error) { console.error("Storage listener başlatılamadı:", error); }
-    return () => { mounted = false; try { unsubscribe?.(); } catch (error) { console.warn("Storage listener kapatılamadı:", error); } };
+    try { unsubscribeStorage = storage.subscribe(() => { if (!mounted) return; try { const nextOrders = storage.getOrders(); setOrders(Array.isArray(nextOrders) ? nextOrders : []); } catch (error) { console.error("Orders listener hatası:", error); } try { const nextPricing = storage.getPricing(); if (nextPricing) setPricing(nextPricing); } catch (error) { console.error("Pricing listener hatası:", error); } try { const nextNotifications = storage.getNotifications(currentUser.id); setNotifications(Array.isArray(nextNotifications) ? nextNotifications : []); } catch (error) { console.error("Notification listener hatası:", error); setNotifications([]); } }); } catch (error) { console.error("Storage listener başlatılamadı:", error); }
+    return () => {
+      mounted = false;
+      try { unsubscribePush?.(); } catch (error) { console.warn("FCM foreground listener kapatılamadı:", error); }
+      try { unsubscribeStorage?.(); } catch (error) { console.warn("Storage listener kapatılamadı:", error); }
+    };
   }, [currentUser?.id]);
 
   useEffect(() => {
