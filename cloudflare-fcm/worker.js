@@ -353,6 +353,49 @@ async function processOperationalCleanup(accessToken) {
   return { financialCreated, deleted, skipped };
 }
 
+function getCorsHeaders(request) {
+  const origin = request.headers.get("Origin") || "";
+  const headers = {
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    Vary: "Origin",
+  };
+  if (ALLOWED_ORIGINS.has(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  return headers;
+}
+
+function jsonResponse(request, payload, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      ...getCorsHeaders(request),
+      "Content-Type": "application/json; charset=utf-8",
+    },
+  });
+}
+
+async function lookupFirebaseIdToken(idToken) {
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(
+      FIREBASE_WEB_API_KEY
+    )}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    }
+  );
+
+  if (!response.ok) return null;
+
+  const body = await response.json();
+  return Array.isArray(body.users) && body.users[0]
+    ? body.users[0]
+    : null;
+}
+
 async function getUser(accessToken, userId) {
   const response = await firestoreRequest(
     `${FIRESTORE_BASE}/users/${encodeURIComponent(userId)}`,
