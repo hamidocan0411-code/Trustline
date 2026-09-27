@@ -13,6 +13,23 @@ const MAX_CLEANUP_ORDERS = 500;
 const CLEANUP_DAYS = 7;
 const FINANCIAL_COLLECTION = "financialRecords";
 const CUSTOMER_ADMIN_PATH = "/admin/customer-profile";
+const FIREBASE_WEB_API_KEY = "AIzaSyCFNecgQj3kBN6Dj5mqycy0Io7kDMofQEM";
+const ADMIN_EMAIL = "hamidocan0411@gmail.com";
+const ALLOWED_ORIGINS = new Set([
+  "https://trustlineexpress.com.tr",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+]);
+
+const ACTIVE_ORDER_STATUSES = new Set([
+  "Kurye Bekleniyor",
+  "Kurye Atandı",
+  "Kurye Kabul Etti",
+  "Paket Alındı",
+  "Teslimatta",
+]);
+
+const ACTIVE_SUPPORT_STATUSES = new Set(["bekliyor", "aktif"]);
 
 function b64url(input) {
   const bytes =
