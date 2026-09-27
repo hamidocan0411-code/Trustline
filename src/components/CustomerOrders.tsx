@@ -121,7 +121,11 @@ const OrderArchiveNotice: React.FC<{
     order?.status === "Teslim Edildi" ||
     order?.status === "İptal Edildi";
 
-  if (compact && !completedOrCancelled) return null;
+  const archiveTimestamp = order ? getArchiveTimestamp(order) : null;
+
+  if (compact && (!completedOrCancelled || !archiveTimestamp)) {
+    return null;
+  }
 
   const countdown = order ? getArchiveCountdown(order, now) : null;
 
