@@ -2364,22 +2364,22 @@ export const AdminPanel: React.FC<Props> = ({
                     order.status !== "İptal Edildi"
                 );
 
-                const totalRevenue = completed.reduce((sum, order) => {
-                  const price = getValidOrderPrice(order);
-                  return price === null ? sum : sum + price;
-                }, 0);
+                const companyFinancialRecords = financialRecords.filter(
+                  (record) => record.companyId === company.companyId
+                );
+
+                const totalRevenue = companyFinancialRecords.reduce(
+                  (sum, record) => sum + Number(record.amount || 0),
+                  0
+                );
 
                 const todayKey = getIstanbulDateKey(new Date());
                 const currentMonthKey = todayKey?.slice(0, 7) || "";
-                const todayCompleted = orders.filter(
-                  (order) =>
-                    order.status === "Teslim Edildi" &&
-                    getOrderReportDateKey(order) === todayKey
+                const todayCompleted = companyFinancialRecords.filter(
+                  (record) => getIstanbulDateKey(record.revenueDate) === todayKey
                 );
-                const monthCompleted = orders.filter(
-                  (order) =>
-                    order.status === "Teslim Edildi" &&
-                    getOrderReportDateKey(order)?.slice(0, 7) === currentMonthKey
+                const monthCompleted = companyFinancialRecords.filter(
+                  (record) => getIstanbulDateKey(record.revenueDate)?.slice(0, 7) === currentMonthKey
                 );
 
                 const filteredOrders = reportRange
@@ -2395,14 +2395,16 @@ export const AdminPanel: React.FC<Props> = ({
                 const filteredCancelled = filteredOrders.filter(
                   (order) => order.status === "İptal Edildi"
                 );
-                const filteredRevenue = filteredCompleted.reduce((sum, order) => {
-                  const price = getValidOrderPrice(order);
-                  return price === null ? sum : sum + price;
-                }, 0);
+                const filteredRevenue = reportRange
+                  ? companyFinancialRecords
+                      .filter((record) => {
+                        const key = getIstanbulDateKey(record.revenueDate);
+                        return !!key && key >= reportRange.start && key <= reportRange.end;
+                      })
+                      .reduce((sum, record) => sum + Number(record.amount || 0), 0)
+                  : 0;
 
-                const invalidCompletedPriceCount = completed.filter(
-                  (order) => getValidOrderPrice(order) === null
-                ).length;
+                const invalidCompletedPriceCount = 0;
 
                 const dailyRows = Array.from({ length: 30 }, (_, index) => {
                   const endKey = todayKey || "";
@@ -2413,10 +2415,9 @@ export const AdminPanel: React.FC<Props> = ({
                   const dayCompleted = dayOrders.filter(
                     (order) => order.status === "Teslim Edildi"
                   );
-                  const dayRevenue = dayCompleted.reduce((sum, order) => {
-                    const price = getValidOrderPrice(order);
-                    return price === null ? sum : sum + price;
-                  }, 0);
+                  const dayRevenue = companyFinancialRecords
+                    .filter((record) => getIstanbulDateKey(record.revenueDate) === dateKey)
+                    .reduce((sum, record) => sum + Number(record.amount || 0), 0);
 
                   return {
                     dateKey,
@@ -2428,17 +2429,16 @@ export const AdminPanel: React.FC<Props> = ({
 
                 const yearKey = todayKey?.slice(0, 4) || "";
                 const monthlyRows = Array.from({ length: 12 }, (_, index) => {
-                  const monthKey = `${yearKey}-${String(index + 1).padStart(2, "0")}`;
+                  const monthKey = yearKey + "-" + String(index + 1).padStart(2, "0");
                   const monthOrders = orders.filter(
                     (order) => getOrderReportDateKey(order)?.slice(0, 7) === monthKey
                   );
                   const monthCompleted = monthOrders.filter(
                     (order) => order.status === "Teslim Edildi"
                   );
-                  const monthRevenue = monthCompleted.reduce((sum, order) => {
-                    const price = getValidOrderPrice(order);
-                    return price === null ? sum : sum + price;
-                  }, 0);
+                  const monthRevenue = companyFinancialRecords
+                    .filter((record) => getIstanbulDateKey(record.revenueDate)?.slice(0, 7) === monthKey)
+                    .reduce((sum, record) => sum + Number(record.amount || 0), 0);
 
                   return {
                     monthKey,
