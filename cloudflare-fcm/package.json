@@ -6,6 +6,9 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev"
   },
+  "dependencies": {
+    "@mmmike/web-push": "^1.0.1"
+  },
   "devDependencies": {
     "wrangler": "^4.40.0"
   }
