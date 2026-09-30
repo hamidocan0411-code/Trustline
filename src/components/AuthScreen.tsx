@@ -89,7 +89,7 @@ const BRAND_PARTNERS: BrandPartner[] = [
   },
   {
     name: "Özkarlı Mt Moto",
-    logo: "/brands/ozkarli-mt-moto.jpg",
+    logo: "/brands/ozkarli-mt-moto.svg",
     description: "Özkarlı Mt Moto ile güçlü iş birliği.",
   },
 ];
