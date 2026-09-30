@@ -87,6 +87,11 @@ const BRAND_PARTNERS: BrandPartner[] = [
     logo: "/brands/mavi-reklam.png",
     description: "Güçlü markalar, daha güçlü teslimatlar.",
   },
+  {
+    name: "Özkarlı Mt Moto",
+    logo: "/brands/ozkarli-mt-moto.jpg",
+    description: "Özkarlı Mt Moto ile güçlü iş birliği.",
+  },
 ];
 
 const SERVICE_DETAILS: ServiceDetail[] = [
