@@ -89,7 +89,7 @@ const BRAND_PARTNERS: BrandPartner[] = [
   },
   {
     name: "Özkarlı Mt Moto",
-    logo: "/brands/ozkarli-mt-moto.svg",
+    logo: "/brands/ozkarli-mt-moto-hd.jpg",
     description: "Özkarlı Mt Moto ile güçlü iş birliği.",
   },
 ];
@@ -423,13 +423,13 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
 
                 {BRAND_PARTNERS.slice(selectedBrandIndex, selectedBrandIndex + 1).map((brand) => (
                   <div key={brand.name}>
-                    <div className="mt-5 flex min-h-[260px] items-center justify-center rounded-[26px] border border-white/10 bg-white p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:min-h-[300px] sm:p-8">
+                    <div className="mt-5 aspect-video w-full overflow-hidden rounded-[26px] border border-white/10 bg-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
                       <img
                         src={brand.logo}
                         alt={brand.name}
                         loading="lazy"
                         decoding="async"
-                        className="h-auto max-h-[210px] w-auto max-w-full object-contain sm:max-h-[240px]"
+                        className="block h-full w-full object-cover object-center"
                       />
                     </div>
 
