@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import { loginWithGoogle } from "../services/auth";
+import OZKARLI_LOGO from "../assets/ozkarli-mt-moto-hd.jpg";
 import { Footer } from "./Footer";
 import { CorporateOfferModal } from "./CorporateOfferModal";
 
@@ -89,7 +90,7 @@ const BRAND_PARTNERS: BrandPartner[] = [
   },
   {
     name: "Özkarlı Mt Moto",
-    logo: "/brands/ozkarli-mt-moto-hd.jpg",
+    logo: OZKARLI_LOGO,
     description: "Özkarlı Mt Moto ile güçlü iş birliği.",
   },
 ];
