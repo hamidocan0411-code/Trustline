@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { loginWithGoogle } from "../services/auth";
 import OZKARLI_LOGO from "../assets/ozkarli-mt-moto-hd.jpg";
+import DEVSER_LOGO from "../assets/devser-danismanlik-hd.jpg";
 import { Footer } from "./Footer";
 import { CorporateOfferModal } from "./CorporateOfferModal";
 
@@ -92,6 +93,11 @@ const BRAND_PARTNERS: BrandPartner[] = [
     name: "Özkarlı Mt Moto",
     logo: OZKARLI_LOGO,
     description: "Özkarlı Mt Moto ile güçlü iş birliği.",
+  },
+  {
+    name: "DEVSER Danışmanlık",
+    logo: DEVSER_LOGO,
+    description: "DEVSER Danışmanlık ile güçlü iş birliği.",
   },
 ];
 
